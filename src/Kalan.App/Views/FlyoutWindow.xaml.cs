@@ -31,7 +31,6 @@ namespace Kalan.App.Views;
 public sealed partial class FlyoutWindow : Window
 {
     private readonly AppWindow _appWindow;
-    private readonly OverlappedPresenter _presenter;
     private readonly IntPtr _hwnd;
     private readonly SystemTrayHost _tray;
     private readonly HttpClient _http;
@@ -75,50 +74,10 @@ public sealed partial class FlyoutWindow : Window
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
         _appWindow = AppWindow.GetFromWindowId(windowId);
 
-        // 5: DWM Desktop Acrylic Backdrop ve XAML DesktopAcrylicBackdrop
-        try
-        {
-            this.SystemBackdrop = new DesktopAcrylicBackdrop();
-        }
-        catch
-        {
-            // Acrylic fallback
-        }
-
-        // DWMWA_SYSTEMBACKDROP_TYPE = 38 (3 = Desktop Acrylic)
-        int backdropType = 3;
-        NativeMethods.DwmSetWindowAttribute(
-            _hwnd,
-            38 /* DWMWA_SYSTEMBACKDROP_TYPE */,
-            ref backdropType,
-            sizeof(int));
-
-        // Configure presenter for borderless floating popover
-        _presenter = (_appWindow.Presenter as OverlappedPresenter) ?? OverlappedPresenter.Create();
-        _presenter.SetBorderAndTitleBar(false, false);
-        _presenter.IsResizable = false;
-        _presenter.IsAlwaysOnTop = true;
-        _presenter.IsMinimizable = false;
-        _presenter.IsMaximizable = false;
-
-        // Remove from taskbar and Alt+Tab switchers using native Win32 WS_EX_TOOLWINDOW
-        long exStyle = NativeMethods.GetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
-        exStyle = (exStyle | NativeMethods.WS_EX_TOOLWINDOW) & ~NativeMethods.WS_EX_APPWINDOW;
-        NativeMethods.SetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle));
-
-        _appWindow.Closing += (s, e) =>
-        {
-            e.Cancel = true;
-            HideFlyout();
-        };
-
-        // Apply rounded corners via DWM
-        int cornerPreference = (int)NativeMethods.DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND;
-        NativeMethods.DwmSetWindowAttribute(
-            _hwnd,
-            NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE,
-            ref cornerPreference,
-            sizeof(int));
+        // Ortak popover kabuğu: akrilik, başlıksız sunucu, switcher gizliliği.
+        PopoverHelper.ConfigureChrome(this, _appWindow, _hwnd);
+        PopoverHelper.ConfigureDismissal(this, _appWindow, HideFlyout, RootLayout,
+            onDeactivated: () => _lastDeactivatedTime = DateTimeOffset.UtcNow);
 
         // Immersive Dark Mode
         UpdateWindowFrameTheme();
@@ -130,11 +89,8 @@ public sealed partial class FlyoutWindow : Window
         // Enable translation for composition entrance animation
         ElementCompositionPreview.SetIsTranslationEnabled(RootLayout, true);
 
-        // Light dismiss on blur / deactivation
-        this.Activated += OnWindowActivated;
-
-        // Escape key to dismiss
-        RootLayout.KeyDown += OnRootKeyDown;
+        // Işıkla kapanma (odak kaybı/Esc/kapatma) ortak tabanda; zaman damgası
+        // aynı tıklamanın pencereyi kapatıp hemen yeniden açmasını önler.
 
         // Initialize HTTP Client and RefreshScheduler
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
@@ -755,24 +711,6 @@ public sealed partial class FlyoutWindow : Window
         }
     }
 
-    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
-    {
-        if (args.WindowActivationState == WindowActivationState.Deactivated)
-        {
-            _lastDeactivatedTime = DateTimeOffset.UtcNow;
-            HideFlyout();
-        }
-    }
-
-    private void OnRootKeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        if (e.Key == VirtualKey.Escape)
-        {
-            HideFlyout();
-            e.Handled = true;
-        }
-    }
-
     public void Toggle()
     {
         if (DateTimeOffset.UtcNow - _lastDeactivatedTime < TimeSpan.FromMilliseconds(250))
@@ -821,9 +759,7 @@ public sealed partial class FlyoutWindow : Window
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
-        _appWindow.Show();
-        this.Activate();
-        NativeMethods.SetForegroundWindow(_hwnd);
+        PopoverHelper.ShowPopover(_appWindow, this, _hwnd);
 
         _isVisible = true;
 
