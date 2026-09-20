@@ -478,7 +478,12 @@ public sealed partial class FlyoutWindow : Window
 
         DetailName.Text = TabDisplayName(snapshot.ProviderId);
         QuotaVisuals.ApplyPlan(DetailPlanBadge, DetailPlanText, snapshot.PlanName);
-        DetailUpdated.Text = QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
+
+        // Bayat veri gösteriliyorsa sebep üstte tek satır yazar
+        // (örn. hız sınırı + kaç dk önceki veri); taze veride tazelik saati.
+        DetailUpdated.Text = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null }
+            ? snapshot.StaleReason
+            : QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
 
         if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
         {
