@@ -33,7 +33,10 @@ public sealed record UsageWindow(
     DateTimeOffset? ResetsAt,
     // Aynı türden birden fazla pencere olabilir (haftalık genel / Opus / Sonnet).
     // UI'da gösterilecek kısa ad; null ise Kind yeterlidir.
-    string? Label = null);
+    string? Label = null,
+    // Pencerenin toplam uzunluğu (tempo hesabı için). Kaynak vermiyorsa null;
+    // null iken tempo satırı gösterilmez, uydurma tahmin üretilmez.
+    TimeSpan? WindowLength = null);
 
 public sealed record CreditBalance(
     decimal RemainingCredits,

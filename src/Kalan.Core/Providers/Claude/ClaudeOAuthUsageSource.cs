@@ -115,12 +115,14 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 /// </summary>
 public static class ClaudeUsageParser
 {
-    private static readonly (string Key, WindowKind Kind, string Label)[] KnownWindows =
+    // Pencere uzunluğu anahtardan türetilir: five_hour → 5 saat,
+    // seven_day* → 7 gün. Yanıt uzunluğu taşımaz, anahtar taşır.
+    private static readonly (string Key, WindowKind Kind, string Label, TimeSpan Length)[] KnownWindows =
     {
-        ("five_hour",        WindowKind.Session, "5 saatlik"),
-        ("seven_day",        WindowKind.Weekly,  "Haftalık"),
-        ("seven_day_opus",   WindowKind.Weekly,  "Haftalık · Opus"),
-        ("seven_day_sonnet", WindowKind.Weekly,  "Haftalık · Sonnet"),
+        ("five_hour",        WindowKind.Session, "5 saatlik",       TimeSpan.FromHours(5)),
+        ("seven_day",        WindowKind.Weekly,  "Haftalık",        TimeSpan.FromDays(7)),
+        ("seven_day_opus",   WindowKind.Weekly,  "Haftalık · Opus", TimeSpan.FromDays(7)),
+        ("seven_day_sonnet", WindowKind.Weekly,  "Haftalık · Sonnet", TimeSpan.FromDays(7)),
     };
 
     private static readonly string[] PercentNames = { "utilization", "used_percent", "percent", "usage" };
@@ -134,18 +136,18 @@ public static class ClaudeUsageParser
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Object) return result;
 
-        foreach (var (key, kind, label) in KnownWindows)
+        foreach (var (key, kind, label, length) in KnownWindows)
         {
             if (!doc.RootElement.TryGetProperty(key, out var element)) continue;
 
-            var window = ReadWindow(element, kind, label);
+            var window = ReadWindow(element, kind, label, length);
             if (window is not null) result.Add(window);
         }
 
         return result;
     }
 
-    private static UsageWindow? ReadWindow(JsonElement element, WindowKind kind, string label)
+    private static UsageWindow? ReadWindow(JsonElement element, WindowKind kind, string label, TimeSpan length)
     {
         double? percent = null;
         DateTimeOffset? resetsAt = null;
@@ -170,6 +172,6 @@ public static class ClaudeUsageParser
         if (percent is null) return null;
 
         var clamped = Math.Clamp(percent.Value, 0, 100);
-        return new UsageWindow(kind, clamped, 100, clamped, resetsAt, label);
+        return new UsageWindow(kind, clamped, 100, clamped, resetsAt, label, length);
     }
 }

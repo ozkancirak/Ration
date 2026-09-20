@@ -234,8 +234,11 @@ public static class CodexUsageParser
         var label = DescribeWindow(windowSeconds, fallbackKind);
         if (!string.IsNullOrWhiteSpace(prefix)) label = $"{prefix} · {label}";
 
+        // Pencere uzunluğu yanıttan doğrudan gelir (limit_window_seconds).
+        TimeSpan? length = windowSeconds is > 0 ? TimeSpan.FromSeconds(windowSeconds.Value) : null;
+
         var clamped = Math.Clamp(percent.Value, 0, 100);
-        into.Add(new UsageWindow(KindFromSeconds(windowSeconds, fallbackKind), clamped, 100, clamped, resetsAt, label));
+        into.Add(new UsageWindow(KindFromSeconds(windowSeconds, fallbackKind), clamped, 100, clamped, resetsAt, label, length));
     }
 
     /// <summary>Pencere uzunluğundan insan okunur ad üretir; süre bilinmiyorsa türe düşer.</summary>
