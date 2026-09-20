@@ -531,7 +531,11 @@ public sealed partial class FlyoutWindow : Window
         {
             var block = new StackPanel { Spacing = 6 };
 
-            var label = new TextBlock { Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label };
+            var label = new TextBlock
+            {
+                Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label,
+                TextWrapping = TextWrapping.Wrap,
+            };
             QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
             block.Children.Add(label);
 
@@ -551,7 +555,11 @@ public sealed partial class FlyoutWindow : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
 
-            var percentText = new TextBlock { Text = $"%{window.Percent:F0} kullanıldı" };
+            var percentText = new TextBlock
+            {
+                Text = $"%{window.Percent:F0} kullanıldı",
+                TextWrapping = TextWrapping.Wrap,
+            };
             QuotaVisuals.SetTextStyle(percentText, "CaptionTextBlockStyle");
             Grid.SetColumn(percentText, 0);
             row.Children.Add(percentText);
@@ -561,6 +569,7 @@ public sealed partial class FlyoutWindow : Window
             {
                 Text = string.IsNullOrEmpty(reset) ? string.Empty : reset == "sıfırlandı" ? reset : $"{reset} sonra",
                 Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
+                TextWrapping = TextWrapping.Wrap,
             };
             QuotaVisuals.SetTextStyle(resetText, "CaptionTextBlockStyle");
             Grid.SetColumn(resetText, 1);
@@ -570,7 +579,11 @@ public sealed partial class FlyoutWindow : Window
             if (window.Percent >= 100)
             {
                 // Tükendi rozeti: tempo satırı yerine hap.
-                var badgeText = new TextBlock { Text = PaceCalculator.FormatConsumedBadge(window, now) };
+                var badgeText = new TextBlock
+                {
+                    Text = PaceCalculator.FormatConsumedBadge(window, now),
+                    TextWrapping = TextWrapping.Wrap,
+                };
                 QuotaVisuals.SetTextStyle(badgeText, "CaptionTextBlockStyle");
                 var badge = new Border
                 {
@@ -588,6 +601,7 @@ public sealed partial class FlyoutWindow : Window
                 {
                     Text = PaceCalculator.Format(window, pace, now),
                     Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
+                    TextWrapping = TextWrapping.Wrap,
                 };
                 QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
                 block.Children.Add(tempoText);

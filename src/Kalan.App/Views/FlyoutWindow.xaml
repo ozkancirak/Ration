@@ -51,7 +51,8 @@
                         <TextBlock x:Name="DetailName"
                                    Text="…"
                                    Style="{StaticResource SubtitleTextBlockStyle}"
-                                   VerticalAlignment="Center" />
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap" />
                         <Border x:Name="DetailPlanBadge"
                                 Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                                 CornerRadius="{ThemeResource ControlCornerRadius}"
@@ -66,7 +67,8 @@
                     <TextBlock x:Name="DetailUpdated"
                                Text=""
                                Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
 
                 <!--  Hata/giriş bildirimi (çerçevesiz; yalnızca AuthRequired/Error iken)  -->
@@ -86,11 +88,14 @@
                     <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock x:Name="DetailErrorTitle"
                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                   FontWeight="SemiBold" />
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
                         <TextBlock x:Name="DetailErrorDetail"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
+                                   TextWrapping="Wrap"
+                                   MaxLines="3"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
 
