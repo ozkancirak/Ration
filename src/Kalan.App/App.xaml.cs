@@ -40,18 +40,25 @@ public partial class App : Application
             File.WriteAllText(logPath, $"App.OnLaunched started at {DateTime.Now}\n");
             _flyoutWindow = new FlyoutWindow();
             File.AppendAllText(logPath, "FlyoutWindow created\n");
-            // --show/--settings: el ile düzen doğrulama kancaları.
-            if (Environment.GetCommandLineArgs().Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)))
+            // --show/--settings/--menu: el ile düzen doğrulama kancaları.
+            var cmdArgs = Environment.GetCommandLineArgs();
+            if (cmdArgs.Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)))
             {
                 _flyoutWindow.ShowFlyout();
                 File.AppendAllText(logPath, "FlyoutWindow --show ile acik baslatildi\n");
             }
-            else if (Environment.GetCommandLineArgs().Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
+            else if (cmdArgs.Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
             {
                 _flyoutWindow.InitializeHidden();
                 _settingsWindow = new SettingsWindow();
                 _settingsWindow.ShowAndFocus();
                 File.AppendAllText(logPath, "SettingsWindow --settings ile acik baslatildi\n");
+            }
+            else if (cmdArgs.Any(a => a.Equals("--menu", StringComparison.OrdinalIgnoreCase)))
+            {
+                _flyoutWindow.InitializeHidden();
+                _flyoutWindow.ShowMenuForVerification();
+                File.AppendAllText(logPath, "TrayMenuWindow --menu ile acik baslatildi\n");
             }
             else
             {

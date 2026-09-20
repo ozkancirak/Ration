@@ -7,38 +7,18 @@ namespace Kalan.Platform.Windows.Tray;
 public sealed class SystemTrayHost : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
-    private readonly ContextMenuStrip _contextMenu;
     private Icon? _currentIcon;
     private bool _disposed;
 
     public event Action? LeftClicked;
-    public event Action? SettingsClicked;
-    public event Action? ExitClicked;
+    public event Action? RightClicked;
 
     public SystemTrayHost()
     {
-        _contextMenu = new ContextMenuStrip();
-
-        var toggleItem = new ToolStripMenuItem("Göster / Gizle")
-        {
-            Font = new Font(_contextMenu.Font, FontStyle.Bold)
-        };
-        toggleItem.Click += (s, e) => LeftClicked?.Invoke();
-
-        var settingsItem = new ToolStripMenuItem("Ayarlar…");
-        settingsItem.Click += (s, e) => SettingsClicked?.Invoke();
-
-        var exitItem = new ToolStripMenuItem("Çıkış");
-        exitItem.Click += (s, e) => ExitClicked?.Invoke();
-
-        _contextMenu.Items.Add(toggleItem);
-        _contextMenu.Items.Add(settingsItem);
-        _contextMenu.Items.Add(new ToolStripSeparator());
-        _contextMenu.Items.Add(exitItem);
-
+        // WinForms menüsü yok: sağ tık native TrayMenuWindow'u açar (bkz. FlyoutWindow).
         _notifyIcon = new NotifyIcon
         {
-            ContextMenuStrip = _contextMenu,
+            ContextMenuStrip = null,
             Visible = false,
             Text = "Kalan"
         };
@@ -48,6 +28,14 @@ public sealed class SystemTrayHost : IDisposable
             if (e.Button == MouseButtons.Left)
             {
                 LeftClicked?.Invoke();
+            }
+        };
+
+        _notifyIcon.MouseUp += (s, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                RightClicked?.Invoke();
             }
         };
     }
@@ -88,7 +76,6 @@ public sealed class SystemTrayHost : IDisposable
 
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
-        _contextMenu.Dispose();
 
         _currentIcon?.Dispose();
         _currentIcon = null;

@@ -33,6 +33,7 @@ public sealed partial class FlyoutWindow : Window
     private readonly AppWindow _appWindow;
     private readonly IntPtr _hwnd;
     private readonly SystemTrayHost _tray;
+    private readonly TrayMenuWindow _menu;
     private readonly HttpClient _http;
     private readonly RefreshScheduler _scheduler;
     private readonly NativeMethods.SubclassProc _subclassProc;
@@ -131,13 +132,31 @@ public sealed partial class FlyoutWindow : Window
 
         BuildTabs();
 
+        // Menü native WinUI penceresidir (TrayMenuWindow); WinForms menüsü yok.
+        // Önce menü kurulur (tray lambdaları ona kapanır).
+        _menu = new TrayMenuWindow();
+        _menu.RefreshRequested += async () => await _scheduler.RefreshAllAsync();
+        _menu.SettingsRequested += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
+        _menu.ExitRequested += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
+
         // Tray: WinForms NotifyIcon (saglam yol). Ikon HICON olarak uretilir,
         // sahiplik SystemTrayHost'a gecer: once yeni ikon kabuga verilir,
         // sonra onceki handle yok edilir (bkz. UpdateTrayIcon).
         _tray = new SystemTrayHost();
-        _tray.LeftClicked += () => this.DispatcherQueue.TryEnqueue(Toggle);
-        _tray.SettingsClicked += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
-        _tray.ExitClicked += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
+        _tray.LeftClicked += () => this.DispatcherQueue.TryEnqueue(() =>
+        {
+            // Menü açıkken sol tık: menü kapanıp flyout açılır (ikisi aynı anda durmaz).
+            if (_menu.IsMenuVisible)
+            {
+                _menu.HideMenu();
+                ShowFlyout();
+            }
+            else
+            {
+                Toggle();
+            }
+        });
+        _tray.RightClicked += () => this.DispatcherQueue.TryEnqueue(ToggleMenu);
 
         UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
 
@@ -211,6 +230,8 @@ public sealed partial class FlyoutWindow : Window
 
     private void ExitApplication()
     {
+        File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup.log"),
+            $"[{DateTime.Now:HH:mm:ss}] ExitApplication cagrildi\n");
         WindowsThemeListener.ThemeChanged -= OnTaskbarThemeChanged;
         WindowsThemeListener.AccentChanged -= OnAccentChanged;
         WindowsThemeListener.DisplayChanged -= OnDisplayChanged;
@@ -724,9 +745,26 @@ public sealed partial class FlyoutWindow : Window
         }
         else
         {
+            // Flyout açılırken menü kapanır (ikisi aynı anda durmaz).
+            _menu.HideMenu();
             ShowFlyout();
         }
     }
+
+    public void ToggleMenu()
+    {
+        if (_menu.IsMenuVisible)
+        {
+            _menu.HideMenu();
+        }
+        else
+        {
+            _menu.ShowAtCursor();
+        }
+    }
+
+    /// <summary>Doğrulama kancası (--menu): tepsi menüsünü providersız açar.</summary>
+    public void ShowMenuForVerification() => _menu.ShowAtCursor();
 
     public void ShowFlyout()
     {
@@ -785,23 +823,10 @@ public sealed partial class FlyoutWindow : Window
         double desiredHeight = RootLayout.DesiredSize.Height;
         if (desiredHeight <= 0) return;
 
-        int targetHeight = Math.Min((int)Math.Round(desiredHeight + 12), WorkAreaMaxHeight());
+        int targetHeight = Math.Min((int)Math.Round(desiredHeight + 12), PopoverHelper.WorkAreaMaxHeight());
         if (targetHeight <= 0) return;
 
         _appWindow.ResizeClient(new SizeInt32(_targetWidth, targetHeight));
-    }
-
-    private int WorkAreaMaxHeight()
-    {
-        var pt = new NativeMethods.POINT();
-        if (!NativeMethods.GetCursorPos(out pt))
-        {
-            pt = new NativeMethods.POINT { X = 100, Y = 100 };
-        }
-        IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
-        if (!NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo)) return 800;
-        return Math.Max(200, (int)Math.Round(monitorInfo.rcWork.Height * 0.70));
     }
 
     private void PlayEntranceAnimation()

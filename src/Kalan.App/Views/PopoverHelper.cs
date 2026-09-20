@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -106,5 +107,22 @@ internal static class PopoverHelper
         appWindow.Show();
         window.Activate();
         NativeMethods.SetForegroundWindow(hwnd);
+    }
+
+    /// <summary>
+    /// İçeriğe göre boyutlandırmanın tavanı: imlecin bulunduğu ekranın
+    /// çalışma alanının %70'i. Aşılırsa pencere büyümez, kaydırıcı devreye girer.
+    /// </summary>
+    public static int WorkAreaMaxHeight()
+    {
+        var pt = new NativeMethods.POINT();
+        if (!NativeMethods.GetCursorPos(out pt))
+        {
+            pt = new NativeMethods.POINT { X = 100, Y = 100 };
+        }
+        IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
+        if (!NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo)) return 800;
+        return Math.Max(200, (int)Math.Round(monitorInfo.rcWork.Height * 0.70));
     }
 }
