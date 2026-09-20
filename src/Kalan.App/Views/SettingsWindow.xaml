@@ -66,7 +66,25 @@
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Maliyet Taraması"
                                                Description="~/.claude/projects/ altındaki JSONL oturum loglarını tara">
-                            <ToggleSwitch IsOn="true" IsEnabled="false" OnContent="Açık" OffContent="Kapalı" />
+                            <!-- Kapalı gibi duran pasif toggle yerine gerçek durum: tarama
+                                 ayarsız her zaman çalışır, para tutarı pricing.json ister. -->
+                            <StackPanel Spacing="2" MinWidth="180">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <InfoBadge x:Name="ClaudeCostBadge"
+                                               Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="ClaudeCostStatus"
+                                               Text="Açık"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock x:Name="ClaudeCostReason"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed" />
+                            </StackPanel>
                         </controls:SettingsCard>
                     </controls:SettingsExpander.Items>
                 </controls:SettingsExpander>
@@ -91,7 +109,23 @@
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Maliyet Taraması"
                                                Description="~/.codex/sessions/ altındaki JSONL oturum loglarını tara">
-                            <ToggleSwitch IsOn="true" IsEnabled="false" OnContent="Açık" OffContent="Kapalı" />
+                            <StackPanel Spacing="2" MinWidth="180">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <InfoBadge x:Name="CodexCostBadge"
+                                               Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="CodexCostStatus"
+                                               Text="Açık"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock x:Name="CodexCostReason"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Visibility="Collapsed" />
+                            </StackPanel>
                         </controls:SettingsCard>
                     </controls:SettingsExpander.Items>
                 </controls:SettingsExpander>
