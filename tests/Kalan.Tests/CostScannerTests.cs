@@ -1,0 +1,252 @@
+using Kalan.Core.Cost;
+
+namespace Kalan.Tests;
+
+/// <summary>
+/// Tüm JSONL içerikleri SENTETİKTİR. Gerçek oturum loglarından kopyalanmış
+/// hiçbir şey repoya giremez (AGENTS.md §2.3).
+///
+/// NOT: JSON şablonlarında interpolasyon KULLANILMIYOR. Raw string interpolasyonunda
+/// ($$"""...""") JSON'un kapanış süslü parantezleri ("}}}") hole kapatma dizisiyle
+/// çakışıyor; bunun yerine düz şablon + Replace kullanıyoruz.
+/// </summary>
+public sealed class ClaudeCostScannerTests : IDisposable
+{
+    private const string AssistantTemplate = """
+    {"type":"assistant","requestId":"__RID__","message":{"id":"__MID__","model":"__MODEL__","usage":{"input_tokens":__IN__,"output_tokens":__OUT__,"cache_read_input_tokens":__CR__,"cache_creation_input_tokens":__CC__}}}
+    """;
+
+    private const string TimestampedTemplate = """
+    {"type":"assistant","timestamp":"__TS__","requestId":"__RID__","message":{"id":"__MID__","model":"__MODEL__","usage":{"input_tokens":__IN__,"output_tokens":0}}}
+    """;
+
+    private readonly string _dir;
+
+    public ClaudeCostScannerTests()
+    {
+        _dir = Path.Combine(Path.GetTempPath(), $"kalan-cost-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(_dir, "proje-a"));
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+
+    private void WriteJsonl(string name, params string[] lines) =>
+        File.WriteAllLines(Path.Combine(_dir, "proje-a", name), lines);
+
+    private static string AssistantLine(
+        string messageId,
+        string requestId,
+        string model,
+        int input,
+        int output,
+        int cacheRead = 0,
+        int cacheCreate = 0) =>
+        AssistantTemplate
+            .Replace("__RID__", requestId)
+            .Replace("__MID__", messageId)
+            .Replace("__MODEL__", model)
+            .Replace("__IN__", input.ToString())
+            .Replace("__OUT__", output.ToString())
+            .Replace("__CR__", cacheRead.ToString())
+            .Replace("__CC__", cacheCreate.ToString());
+
+    private static string TimestampedLine(
+        DateTimeOffset timestamp,
+        string messageId,
+        string requestId,
+        int input) =>
+        TimestampedTemplate
+            .Replace("__TS__", timestamp.ToString("o"))
+            .Replace("__RID__", requestId)
+            .Replace("__MID__", messageId)
+            .Replace("__MODEL__", "ornek-model")
+            .Replace("__IN__", input.ToString());
+
+    [Fact]
+    public void AsistanSatirlarininTokenlariniToplar()
+    {
+        WriteJsonl("a.jsonl",
+            AssistantLine("msg_1", "req_1", "ornek-model", 100, 50, cacheRead: 10, cacheCreate: 5),
+            AssistantLine("msg_2", "req_2", "ornek-model", 200, 60));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        var model = Assert.Single(result.Tally.Models);
+
+        Assert.Equal("ornek-model", model.Model);
+        Assert.Equal(300, model.InputTokens);
+        Assert.Equal(110, model.OutputTokens);
+        Assert.Equal(10, model.CacheReadTokens);
+        Assert.Equal(5, model.CacheCreationTokens);
+    }
+
+    [Fact]
+    public void AyniYanitiIkiKezSaymaz()
+    {
+        // Ayni message.id + requestId iki satirda gorunebilir (devam kaydi, yeniden yazim).
+        WriteJsonl("a.jsonl",
+            AssistantLine("msg_1", "req_1", "ornek-model", 100, 50),
+            AssistantLine("msg_1", "req_1", "ornek-model", 100, 50));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        var model = Assert.Single(result.Tally.Models);
+
+        Assert.Equal(100, model.InputTokens);
+        Assert.Equal(1, result.Tally.EntryCount);
+    }
+
+    [Fact]
+    public void FarkliRequestIdAyriSayilir()
+    {
+        WriteJsonl("a.jsonl",
+            AssistantLine("msg_1", "req_1", "ornek-model", 100, 0),
+            AssistantLine("msg_1", "req_2", "ornek-model", 100, 0));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.Equal(200, Assert.Single(result.Tally.Models).InputTokens);
+    }
+
+    [Fact]
+    public void AsistanOlmayanVeBozukSatirlariAtlar()
+    {
+        WriteJsonl("a.jsonl",
+            """{"type":"user","message":{"content":"merhaba"}}""",
+            "bu json degil",
+            """{"type":"assistant","message":{"id":"msg_x"}}""",
+            AssistantLine("msg_1", "req_1", "ornek-model", 10, 5));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.Equal(10, Assert.Single(result.Tally.Models).InputTokens);
+    }
+
+    [Fact]
+    public void DonemDisiSatirlariAtlar()
+    {
+        WriteJsonl("a.jsonl",
+            TimestampedLine(DateTimeOffset.UtcNow.AddDays(-40), "msg_1", "req_1", 999),
+            TimestampedLine(DateTimeOffset.UtcNow.AddHours(-1), "msg_2", "req_2", 7));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-7), _dir);
+
+        Assert.Equal(7, Assert.Single(result.Tally.Models).InputTokens);
+    }
+
+    [Fact]
+    public void OlmayanDizinIcinBosSonucDoner()
+    {
+        var result = ClaudeCostScanner.Scan(
+            DateTimeOffset.UtcNow.AddDays(-1),
+            Path.Combine(Path.GetTempPath(), $"kalan-yok-{Guid.NewGuid():N}"));
+
+        Assert.True(result.Tally.IsEmpty);
+        Assert.NotNull(result.Note);
+    }
+}
+
+public class PricingTests
+{
+    [Fact]
+    public void EnUzunOnekEslesmesiKazanir()
+    {
+        var table = new PricingTable(new Dictionary<string, ModelRate>
+        {
+            ["ornek"] = new(1m, 1m, 0m, 0m),
+            ["ornek-buyuk"] = new(10m, 20m, 0m, 0m),
+        });
+
+        Assert.Equal(10m, table.Find("ornek-buyuk-2026")!.InputPerMillion);
+        Assert.Equal(1m, table.Find("ornek-kucuk")!.InputPerMillion);
+        Assert.Null(table.Find("baska-marka"));
+    }
+
+    [Fact]
+    public void FiyatiBilinmeyenModelMaliyeteKatilmazAmaRaporlanir()
+    {
+        var tally = new TokenTally();
+        tally.Add("fiyatli-model", 1_000_000, 1_000_000, 0, 0);
+        tally.Add("fiyatsiz-model", 5_000_000, 0, 0, 0);
+
+        var scan = new CostScanResult(tally, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, 1);
+
+        var pricing = new PricingTable(new Dictionary<string, ModelRate>
+        {
+            ["fiyatli-model"] = new(3m, 15m, 0m, 0m),
+        });
+
+        var report = CostEstimator.Estimate(scan, pricing);
+
+        Assert.Equal(18m, report.TotalCost);
+        Assert.Equal("fiyatsiz-model", Assert.Single(report.ModelsWithoutPricing!));
+
+        // Token'lar fiyat bilinmese de eksiksiz raporlanir.
+        Assert.Equal(6_000_000, report.InputTokens);
+    }
+
+    [Fact]
+    public void BosTabloylaMaliyetSifirdirAmaTokenlarDurur()
+    {
+        var tally = new TokenTally();
+        tally.Add("herhangi-model", 1_000, 2_000, 0, 0);
+
+        var scan = new CostScanResult(tally, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, 1);
+        var report = CostEstimator.Estimate(scan, PricingTable.Empty);
+
+        Assert.Equal(0m, report.TotalCost);
+        Assert.Equal(1_000, report.InputTokens);
+        Assert.Equal(2_000, report.OutputTokens);
+        Assert.Single(report.ModelsWithoutPricing!);
+    }
+}
+
+public sealed class JsonlSchemaProbeTests : IDisposable
+{
+    private readonly string _dir;
+
+    public JsonlSchemaProbeTests()
+    {
+        _dir = Path.Combine(Path.GetTempPath(), $"kalan-schema-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_dir);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+
+    [Fact]
+    public void AnahtarYollariniVerirDegerleriVermez()
+    {
+        File.WriteAllLines(Path.Combine(_dir, "oturum.jsonl"), new[]
+        {
+            """{"type":"event_msg","payload":{"type":"token_count","info":{"input_tokens":123,"gizli_metin":"bu-cikmamali"}}}""",
+        });
+
+        var paths = JsonlSchemaProbe.DescribeKeyPaths(_dir, "token_count");
+
+        Assert.Contains("payload.info.input_tokens : Number", paths);
+        Assert.Contains("payload.info.gizli_metin : String", paths);
+
+        // Degerler asla cikmaz.
+        Assert.DoesNotContain(paths, p => p.Contains("bu-cikmamali", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, p => p.Contains("123", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FiltreyleEslesmeyenSatirlariAtlar()
+    {
+        File.WriteAllLines(Path.Combine(_dir, "oturum.jsonl"), new[]
+        {
+            """{"type":"message","icerik":{"metin":"alakasiz"}}""",
+        });
+
+        var paths = JsonlSchemaProbe.DescribeKeyPaths(_dir, "token_count");
+
+        Assert.Empty(paths);
+    }
+}

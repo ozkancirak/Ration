@@ -1,0 +1,28 @@
+# Build / Binary folders
+bin/
+obj/
+artifacts/
+publish/
+
+# IDE / Editor
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Secrets & Credential protection (AGENTS.md 2.3)
+*.credentials.json
+auth.json
+secrets.dat
+*.jsonl
+*.key
+*.token
+*.cookie
+
+# OS generated
+[Tt]humbs.db
+[Ee]hthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/

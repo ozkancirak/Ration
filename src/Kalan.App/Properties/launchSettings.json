@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Kalan.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Kalan.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
