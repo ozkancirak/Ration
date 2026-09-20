@@ -21,6 +21,13 @@
                   Background="Transparent"
                   BorderThickness="0"
                   Padding="0">
+            <!-- 4 öğelik menüde sanallaştırma yok: ilk ölçümde doğru genişlik.
+                 ListViewItem görselleri ve klavye gezinmesi aynen kalır. -->
+            <ListView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel />
+                </ItemsPanelTemplate>
+            </ListView.ItemsPanel>
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
                     <Setter Property="MinHeight" Value="32" />
