@@ -6,16 +6,20 @@ using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Automation;
 using Windows.Graphics;
 using Windows.System;
 using Kalan.Core.Abstractions;
+using Kalan.Core.Cost;
 using Kalan.Core.Model;
 using Kalan.Core.Providers.Claude;
 using Kalan.Core.Providers.Codex;
 using Kalan.Core.Refresh;
+using Kalan.Core.Usage;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.Power;
 using Kalan.Platform.Windows.Theme;
@@ -39,6 +43,22 @@ public sealed partial class FlyoutWindow : Window
     private SettingsWindow? _settingsWindow;
     private IntPtr _currentIconHandle = IntPtr.Zero;
     private Icon? _currentIcon;
+
+    // Sekme şeridi durumu. Tray'e dokunulmaz; ikon hesabı RecalculateTrayIcon'da aynen durur.
+    private sealed record TabDef(string Id, string Name, string Glyph);
+    private static readonly TabDef[] KnownTabs =
+    [
+        new("claude", "Claude", "\uE945"),
+        new("codex", "Codex", "\uE943"),
+    ];
+    private const string FallbackTabGlyph = "\uE710";
+    private readonly Dictionary<string, (ToggleButton Button, ProgressBar Meter)> _tabs = new(StringComparer.OrdinalIgnoreCase);
+    private string _selectedId = "claude";
+
+    // Maliyet: yerel JSONL taraması, thread pool'da. Bayat koşular çöpe gider.
+    private long _costRun;
+    private string? _costForId;
+    private DateTimeOffset _costAt = DateTimeOffset.MinValue;
 
     public double CurrentClaudePercent => _currentGaugePercent;
 
@@ -142,7 +162,13 @@ public sealed partial class FlyoutWindow : Window
             {
                 RefreshButton.IsEnabled = true;
             }
+            RefreshCost(force: true);
         };
+
+        SettingsButton.Click += (s, e) => OpenSettingsWindow();
+        ExitButton.Click += (s, e) => ExitApplication();
+
+        BuildTabs();
 
         // Tray: WinForms NotifyIcon (saglam yol). Ikon HICON olarak uretilir,
         // sahiplik SystemTrayHost'a gecer: once yeni ikon kabuga verilir,
@@ -280,10 +306,324 @@ public sealed partial class FlyoutWindow : Window
 
     private void RefreshAllMeters()
     {
-        foreach (var kvp in _scheduler.Current)
+        UpdateTabs();
+        RenderDetail();
+    }
+
+    // ---- Sekme şeridi: ToggleButton + altında 2px mini ölçer. SelectorBar mini ölçeri
+    // barındıramadığı için kullanılmadı; sağlayıcı sayısı az (2-6), StackPanel yeter. ----
+
+    private void BuildTabs()
+    {
+        TabStrip.Children.Clear();
+        _tabs.Clear();
+
+        foreach (var tab in KnownTabs) EnsureTab(tab.Id, tab.Name, tab.Glyph);
+        UpdateTabs();
+    }
+
+    private void EnsureTab(string id, string? name = null, string? glyph = null)
+    {
+        if (_tabs.ContainsKey(id)) return;
+
+        var known = KnownTabs.FirstOrDefault(t => t.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        row.Children.Add(new FontIcon
         {
-            ApplySnapshot(kvp.Value);
+            Glyph = glyph ?? known?.Glyph ?? FallbackTabGlyph,
+            FontSize = 16,
+            Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var nameText = new TextBlock
+        {
+            Text = name ?? known?.Name ?? id,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        QuotaVisuals.SetTextStyle(nameText, "CaptionTextBlockStyle");
+        row.Children.Add(nameText);
+
+        var meter = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 0,
+            Height = 2,
+            CornerRadius = new CornerRadius(1),
+            Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+
+        var content = new StackPanel { Spacing = 2 };
+        content.Children.Add(row);
+        content.Children.Add(meter);
+
+        var button = new ToggleButton
+        {
+            Content = content,
+            Background = new SolidColorBrush(Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8, 6, 8, 6),
+        };
+        if (Application.Current.Resources.TryGetValue("ControlCornerRadius", out var radius) && radius is CornerRadius corner)
+        {
+            button.CornerRadius = corner;
         }
+        var capturedId = id;
+        button.Click += (s, e) => SelectProvider(capturedId);
+
+        _tabs[id] = (button, meter);
+        TabStrip.Children.Add(button);
+    }
+
+    private void SelectProvider(string id)
+    {
+        _selectedId = id;
+        UpdateTabs();
+        RenderDetail();
+        RefreshCost(force: false);
+    }
+
+    private void UpdateTabs()
+    {
+        var selectedFill = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush");
+        var clear = new SolidColorBrush(Colors.Transparent);
+
+        foreach (var (id, (button, meter)) in _tabs)
+        {
+            var selected = id.Equals(_selectedId, StringComparison.OrdinalIgnoreCase);
+            button.IsChecked = selected;
+            button.Background = selected ? selectedFill : clear;
+
+            if (!_scheduler.Current.TryGetValue(id, out var snapshot) || snapshot.Windows.Count == 0)
+            {
+                meter.Value = 0;
+                meter.Foreground = QuotaVisuals.Fill("ControlStrongFillColorDisabledBrush");
+                continue;
+            }
+
+            if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
+            {
+                // Hata: mini ölçer yerine critical renginde 2px dolu çizgi.
+                meter.Value = 100;
+                meter.Foreground = QuotaVisuals.Fill("SystemFillColorCriticalBrush");
+                continue;
+            }
+
+            var percent = MainPercent(snapshot);
+            meter.Value = percent;
+            meter.Foreground = QuotaVisuals.MeterBrush(percent);
+            AutomationProperties.SetName(button, $"{snapshot.ProviderId}, yüzde {percent:F0}");
+        }
+    }
+
+    /// <summary>Tray ile aynı kural: model bazlı ek limitler (gpt-*) sekme ölçerine girmez.</summary>
+    private static double MainPercent(UsageSnapshot snapshot)
+    {
+        double max = 0;
+        foreach (var w in snapshot.Windows)
+        {
+            if (w.Kind is not (WindowKind.Session or WindowKind.Weekly)) continue;
+            if (w.Label is not null && w.Label.Contains("gpt-", StringComparison.OrdinalIgnoreCase)) continue;
+            if (w.Percent > max) max = w.Percent;
+        }
+        return max;
+    }
+
+    // ---- Tek sağlayıcı detayı ----
+
+    private void OnSnapshotUpdated(UsageSnapshot snapshot)
+    {
+        this.DispatcherQueue.TryEnqueue(() => ApplySnapshot(snapshot));
+    }
+
+    private void ApplySnapshot(UsageSnapshot snapshot)
+    {
+        EnsureTab(snapshot.ProviderId);
+        UpdateTabs();
+
+        if (snapshot.ProviderId.Equals(_selectedId, StringComparison.OrdinalIgnoreCase))
+        {
+            RenderDetail();
+        }
+
+        RecalculateTrayIcon();
+    }
+
+    private void RenderDetail()
+    {
+        if (!_scheduler.Current.TryGetValue(_selectedId, out var snapshot))
+        {
+            DetailName.Text = TabDisplayName(_selectedId);
+            DetailUpdated.Text = "Bekleniyor…";
+            DetailError.Visibility = Visibility.Collapsed;
+            DetailWindows.Children.Clear();
+            CostSection.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        DetailName.Text = TabDisplayName(snapshot.ProviderId);
+        QuotaVisuals.ApplyPlan(DetailPlanBadge, DetailPlanText, snapshot.PlanName);
+        DetailUpdated.Text = QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
+
+        if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
+        {
+            DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Oturum Süresi Doldu" : "Kota Alınamadı";
+            DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
+                ? $"{TabDisplayName(snapshot.ProviderId)} CLI ile tekrar giriş yapın."
+                : snapshot.StaleReason ?? "Sunucudan geçerli veri alınamadı.";
+            DetailError.Visibility = Visibility.Visible;
+            DetailWindows.Children.Clear();
+        }
+        else
+        {
+            DetailError.Visibility = Visibility.Collapsed;
+            RenderWindows(snapshot);
+        }
+    }
+
+    private static string TabDisplayName(string providerId) =>
+        KnownTabs.FirstOrDefault(t => t.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase))?.Name ?? providerId;
+
+    private void RenderWindows(UsageSnapshot snapshot)
+    {
+        DetailWindows.Children.Clear();
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var window in snapshot.Windows)
+        {
+            var block = new StackPanel { Spacing = 6 };
+
+            var label = new TextBlock { Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label };
+            QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
+            block.Children.Add(label);
+
+            var bar = new ProgressBar
+            {
+                Value = window.Percent,
+                Maximum = 100,
+                Height = 3,
+                CornerRadius = new CornerRadius(1.5),
+                Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
+                Foreground = QuotaVisuals.MeterBrush(window.Percent),
+            };
+            AutomationProperties.SetName(bar, $"{label.Text}, yüzde {window.Percent:F0}");
+            block.Children.Add(bar);
+
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+
+            var percentText = new TextBlock { Text = $"%{window.Percent:F0} kullanıldı" };
+            QuotaVisuals.SetTextStyle(percentText, "CaptionTextBlockStyle");
+            Grid.SetColumn(percentText, 0);
+            row.Children.Add(percentText);
+
+            var reset = QuotaVisuals.FormatReset(window.ResetsAt);
+            var resetText = new TextBlock
+            {
+                Text = string.IsNullOrEmpty(reset) ? string.Empty : reset == "sıfırlandı" ? reset : $"{reset} sonra",
+                Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
+            };
+            QuotaVisuals.SetTextStyle(resetText, "CaptionTextBlockStyle");
+            Grid.SetColumn(resetText, 1);
+            row.Children.Add(resetText);
+            block.Children.Add(row);
+
+            if (UsagePace.Calculate(window, now) is { } pace)
+            {
+                var tempoText = new TextBlock
+                {
+                    Text = UsagePace.Format(pace),
+                    Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
+                };
+                QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
+                block.Children.Add(tempoText);
+            }
+
+            DetailWindows.Children.Add(block);
+        }
+    }
+
+    private static string KindName(WindowKind kind) => kind switch
+    {
+        WindowKind.Session => "Oturum",
+        WindowKind.Weekly => "Haftalık",
+        WindowKind.Daily => "Günlük",
+        WindowKind.Monthly => "Aylık",
+        _ => kind.ToString(),
+    };
+
+    // ---- Maliyet özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
+
+    private void RefreshCost(bool force)
+    {
+        var id = _selectedId;
+        if (!force && id.Equals(_costForId, StringComparison.OrdinalIgnoreCase)
+            && DateTimeOffset.UtcNow - _costAt < TimeSpan.FromMinutes(5))
+        {
+            return;
+        }
+
+        var run = ++_costRun;
+        Task.Run(() =>
+        {
+            CostScanResult scan = id switch
+            {
+                "claude" => ClaudeCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
+                "codex" => CodexCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
+                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0, "Bilinmeyen sağlayıcı."),
+            };
+            var pricing = PricingTable.LoadOrEmpty();
+            return (Scan: scan, Report: CostEstimator.Estimate(scan, pricing), Pricing: pricing);
+        }).ContinueWith(t =>
+        {
+            if (run != _costRun || t.Status != TaskStatus.RanToCompletion) return;
+            this.DispatcherQueue.TryEnqueue(() =>
+            {
+                if (run != _costRun || !id.Equals(_selectedId, StringComparison.OrdinalIgnoreCase)) return;
+                var (scan, report, pricing) = t.Result;
+                _costForId = id;
+                _costAt = DateTimeOffset.UtcNow;
+                ApplyCost(scan, report, pricing);
+            });
+        }, TaskScheduler.Default);
+    }
+
+    private void ApplyCost(CostScanResult scan, CostReport report, PricingTable pricing)
+    {
+        var totalTokens = report.InputTokens + report.OutputTokens + report.CacheReadTokens + report.CacheCreationTokens;
+        if (totalTokens <= 0)
+        {
+            CostSection.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        // Fiyat tablosu boşsa para kısmı GÖSTERİLMEZ; sıfır dolar yanlış bilgidir.
+        CostSummary.Text = pricing.IsEmpty
+            ? $"Bugün {CompactTokens(totalTokens)} token"
+            : $"Bugün {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(totalTokens)} token";
+        CostSection.Visibility = Visibility.Visible;
+    }
+
+    private static string CompactTokens(long tokens) => tokens switch
+    {
+        >= 1_000_000 => $"{tokens / 1_000_000.0:F0}M",
+        >= 1_000 => $"{tokens / 1_000.0:F0}K",
+        _ => tokens.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    private static string MoneyText(decimal amount, string currency)
+    {
+        var symbol = currency.ToUpperInvariant() switch
+        {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "TRY" => "₺",
+            _ => currency + " ",
+        };
+        return amount >= 100 ? $"{symbol}{amount:F0}" : $"{symbol}{amount:F2}";
     }
 
     public void UpdateTrayIcon(double percent, string? tooltip = null)
@@ -357,10 +697,10 @@ public sealed partial class FlyoutWindow : Window
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
         double scale = dpi / 96.0;
 
-        int targetWidth = (int)Math.Round(380 * scale);
+        int targetWidth = (int)Math.Round(360 * scale);
 
-        // 4d: Pencere boyutu içeriğe göre dinamik uzasın (Maksimum ekranın %70'i)
-        RootLayout.Measure(new Windows.Foundation.Size(380, double.PositiveInfinity));
+        // Pencere boyutu içeriğe göre dinamik uzasın (Maksimum ekranın %70'i)
+        RootLayout.Measure(new Windows.Foundation.Size(360, double.PositiveInfinity));
         double desiredHeight = RootLayout.DesiredSize.Height;
         if (desiredHeight <= 0) desiredHeight = 390;
 
@@ -389,6 +729,7 @@ public sealed partial class FlyoutWindow : Window
         _isVisible = true;
 
         PlayEntranceAnimation();
+        RefreshCost(force: false);
     }
 
     private void PlayEntranceAnimation()
@@ -438,126 +779,6 @@ public sealed partial class FlyoutWindow : Window
         visual.Opacity = 0.0f;
         _appWindow.Hide();
         EfficiencyModeManager.SetEfficiencyMode(true);
-    }
-
-    private void OnSnapshotUpdated(UsageSnapshot snapshot)
-    {
-        this.DispatcherQueue.TryEnqueue(() => ApplySnapshot(snapshot));
-    }
-
-    private void ApplySnapshot(UsageSnapshot snapshot)
-    {
-        if (snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateClaudeCard(snapshot);
-        }
-        else if (snapshot.ProviderId.Equals("codex", StringComparison.OrdinalIgnoreCase))
-        {
-            UpdateCodexCard(snapshot);
-        }
-
-        LastUpdatedText.Text = $"{snapshot.FetchedAt.ToLocalTime():HH:mm:ss} güncellendi";
-        RecalculateTrayIcon();
-    }
-
-    private void UpdateClaudeCard(UsageSnapshot snapshot)
-    {
-        QuotaVisuals.ApplyPlan(ClaudePlanBadge, ClaudePlanText, snapshot.PlanName);
-
-        // 4a: Hata durumunda sayaçlar gizlenir, tek satırlık temiz hata ve eylem paneli açılır
-        if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
-        {
-            ClaudeStatusText.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Giriş Gerekli" : "Hata";
-            ClaudeMetersPanel.Visibility = Visibility.Collapsed;
-            ClaudeErrorPanel.Visibility = Visibility.Visible;
-
-            if (snapshot.Status == ProviderStatus.AuthRequired)
-            {
-                ClaudeErrorTitle.Text = "Oturum Süresi Doldu";
-                ClaudeErrorDetail.Text = "Claude Code CLI ile tekrar giriş yapın.";
-            }
-            else
-            {
-                ClaudeErrorTitle.Text = "Kota Alınamadı";
-                ClaudeErrorDetail.Text = snapshot.StaleReason ?? "Sunucudan geçerli veri alınamadı.";
-            }
-            return;
-        }
-
-        ClaudeErrorPanel.Visibility = Visibility.Collapsed;
-        ClaudeMetersPanel.Visibility = Visibility.Visible;
-
-        var sessionWindow = snapshot.Windows.FirstOrDefault(w => w.Kind == WindowKind.Session)
-            ?? snapshot.Windows.FirstOrDefault(w => w.Label?.Contains("saat", StringComparison.OrdinalIgnoreCase) == true)
-            ?? snapshot.Windows.FirstOrDefault();
-
-        var weeklyWindow = snapshot.Windows.FirstOrDefault(w => w.Kind == WindowKind.Weekly)
-            ?? snapshot.Windows.FirstOrDefault(w => w.Label?.Contains("hafta", StringComparison.OrdinalIgnoreCase) == true);
-
-        if (ReferenceEquals(weeklyWindow, sessionWindow)) weeklyWindow = null;
-
-        QuotaVisuals.Apply(sessionWindow, ClaudeProgressBar, ClaudePrimaryPercentText, ClaudeResetText, ClaudePrimaryLabelText, "Claude 5 saatlik kota");
-        QuotaVisuals.Apply(weeklyWindow, ClaudeWeeklyProgressBar, ClaudeWeeklyPercentText, ClaudeWeeklyResetText, null, "Claude haftalık kota");
-
-        ClaudeStatusText.Text = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null }
-            ? snapshot.StaleReason
-            : string.Empty;
-    }
-
-    private void UpdateCodexCard(UsageSnapshot snapshot)
-    {
-        QuotaVisuals.ApplyPlan(CodexPlanBadge, CodexPlanText, snapshot.PlanName);
-
-        // 4a: Hata durumunda sayaçlar gizlenir, tek satırlık temiz hata ve eylem paneli açılır
-        if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
-        {
-            CodexStatusText.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Giriş Gerekli" : "Hata";
-            CodexMetersPanel.Visibility = Visibility.Collapsed;
-            CodexErrorPanel.Visibility = Visibility.Visible;
-
-            if (snapshot.Status == ProviderStatus.AuthRequired)
-            {
-                CodexErrorTitle.Text = "Oturum Süresi Doldu";
-                CodexErrorDetail.Text = "Codex CLI ile tekrar giriş yapın.";
-            }
-            else
-            {
-                CodexErrorTitle.Text = "Kota Alınamadı";
-                CodexErrorDetail.Text = snapshot.StaleReason ?? "Sunucudan geçerli veri alınamadı.";
-            }
-            return;
-        }
-
-        CodexErrorPanel.Visibility = Visibility.Collapsed;
-        CodexMetersPanel.Visibility = Visibility.Visible;
-
-        var primary = snapshot.Windows.FirstOrDefault(w => w.Kind == WindowKind.Session)
-            ?? snapshot.Windows.FirstOrDefault(w => w.Label?.Contains("saat", StringComparison.OrdinalIgnoreCase) == true)
-            ?? snapshot.Windows.FirstOrDefault();
-
-        var secondary = snapshot.Windows.FirstOrDefault(w => w.Kind == WindowKind.Weekly)
-            ?? snapshot.Windows.FirstOrDefault(w => w.Label?.Contains("hafta", StringComparison.OrdinalIgnoreCase) == true);
-
-        if (ReferenceEquals(secondary, primary)) secondary = null;
-
-        QuotaVisuals.Apply(primary, CodexProgressBar, CodexPrimaryPercentText, CodexPrimaryResetText, CodexPrimaryLabelText, "Codex 5 saatlik kota");
-        QuotaVisuals.Apply(secondary, CodexSecondaryProgressBar, CodexSecondaryPercentText, CodexSecondaryResetText, CodexSecondaryLabelText, "Codex haftalık kota");
-
-        // 4b: Anlamsız "Kota: %0" satırı kaldırıldı
-        CodexStatusText.Text = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null }
-            ? snapshot.StaleReason
-            : string.Empty;
-
-        var additional = snapshot.Windows.FirstOrDefault(w => w.Label?.Contains("gpt-", StringComparison.OrdinalIgnoreCase) == true);
-        if (additional is null)
-        {
-            CodexReserveStackPanel.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            CodexReserveStackPanel.Visibility = Visibility.Visible;
-            QuotaVisuals.Apply(additional, CodexReserveProgressBar, CodexReservePercentText, CodexReserveResetText, CodexReserveLabelText, "Codex ek kota");
-        }
     }
 
     private void RecalculateTrayIcon()

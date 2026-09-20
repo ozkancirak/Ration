@@ -39,8 +39,17 @@ public partial class App : Application
             File.WriteAllText(logPath, $"App.OnLaunched started at {DateTime.Now}\n");
             _flyoutWindow = new FlyoutWindow();
             File.AppendAllText(logPath, "FlyoutWindow created\n");
-            _flyoutWindow.InitializeHidden();
-            File.AppendAllText(logPath, "FlyoutWindow gizlendi, uygulama tray'de calisiyor\n");
+            // --show: el ile düzen doğrulama kancası (ekran görüntüsü için pencereyi açık başlatır).
+            if (Environment.GetCommandLineArgs().Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)))
+            {
+                _flyoutWindow.ShowFlyout();
+                File.AppendAllText(logPath, "FlyoutWindow --show ile acik baslatildi\n");
+            }
+            else
+            {
+                _flyoutWindow.InitializeHidden();
+                File.AppendAllText(logPath, "FlyoutWindow gizlendi, uygulama tray'de calisiyor\n");
+            }
         }
         catch (Exception ex)
         {

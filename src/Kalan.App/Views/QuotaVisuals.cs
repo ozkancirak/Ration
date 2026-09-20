@@ -100,6 +100,30 @@ public static class QuotaVisuals
         }
     }
 
+    /// <summary>"Az önce güncellendi", "12 dk önce güncellendi" — veri tazeliği tek satır.</summary>
+    public static string FormatUpdated(DateTimeOffset fetchedAt)
+    {
+        var age = DateTimeOffset.UtcNow - fetchedAt;
+
+        if (age < TimeSpan.FromMinutes(1)) return "Az önce güncellendi";
+        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} dk önce güncellendi";
+        if (age.TotalDays < 1) return $"{(int)age.TotalHours} sa önce güncellendi";
+
+        return $"{(int)age.TotalDays} gün önce güncellendi";
+    }
+
+    /// <summary>Tema fırçası; sözlükte yoksa gri. Kodda sabit renk kullanılmaz.</summary>
+    internal static Brush Fill(string key) => Resource(key);
+
+    /// <summary>Tip rampası stilini uygular; sözlükte yoksa varsayılanı bırakır.</summary>
+    internal static void SetTextStyle(TextBlock text, string key)
+    {
+        if (Application.Current.Resources.TryGetValue(key, out var value) && value is Style style)
+        {
+            text.Style = style;
+        }
+    }
+
     /// <summary>Plan rozetini gösterir ya da gizler ("plus", "max"...).</summary>
     public static void ApplyPlan(Border badge, TextBlock text, string? planName)
     {
