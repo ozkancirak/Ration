@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Cost;
+using Kalan.Core.Discovery;
 using Kalan.Core.Model;
 using Kalan.Core.Providers;
 using Kalan.Core.Providers.Claude;
@@ -33,6 +34,16 @@ var command = args[0].ToLowerInvariant();
 var wantsJson = HasFlag(args, "--json");
 var wantsRaw = HasFlag(args, "--raw");
 var target = GetOption(args, "-p") ?? GetOption(args, "--provider") ?? "all";
+
+// Sağlayıcı keşfi: bayrak-önce çağrı (kalan --discover gemini). Ağ yok,
+// provider kodu üretmez; yalnızca yol + şema (değer asla).
+if (HasFlag(args, "--discover"))
+{
+    var which = GetOption(args, "-p") ?? GetOption(args, "--provider")
+        ?? args.FirstOrDefault(a => !a.StartsWith('-') && !a.Equals("--discover", StringComparison.OrdinalIgnoreCase))
+        ?? "all";
+    return RunDiscover(which, wantsJson);
+}
 
 switch (command)
 {
@@ -431,6 +442,57 @@ void RenderIconPreview(string outputPath)
     Console.WriteLine($"İkon temas levhası (contact sheet) kaydedildi: {outputPath}");
 }
 
+int RunDiscover(string which, bool asJson)
+{
+    var normalized = which.ToLowerInvariant();
+    var selected = normalized == "all"
+        ? new[] { "gemini", "copilot" }
+        : new[] { normalized };
+
+    foreach (var name in selected)
+    {
+        if (ProviderDiscovery.RootsFor(name) is null)
+        {
+            Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {name}. Seçenekler: gemini, copilot, all");
+            return 2;
+        }
+    }
+
+    var reports = selected.Select(name => ProviderDiscovery.Discover(name)).ToList();
+
+    if (asJson)
+    {
+        Console.WriteLine(JsonSerializer.Serialize(reports, new JsonSerializerOptions { WriteIndented = true }));
+        return 0;
+    }
+
+    Console.WriteLine("Sağlayıcı keşfi — yalnızca yol + anahtar yolları + türler yazılır, DEĞER yazılmaz.");
+    Console.WriteLine();
+
+    foreach (var report in reports)
+    {
+        Console.WriteLine($"{report.Provider}   ({string.Join(", ", report.Roots)})");
+
+        foreach (var note in report.Notes) Console.WriteLine($"  ! {note}");
+
+        if (report.Files.Count == 0) Console.WriteLine("  (dosya yok)");
+
+        foreach (var file in report.Files)
+        {
+            Console.WriteLine($"  {file.Path}   ({file.Size:N0} bayt)");
+
+            if (file.Schema is { Count: > 0 } schema)
+            {
+                foreach (var path in schema) Console.WriteLine($"    {path}");
+            }
+        }
+
+        Console.WriteLine();
+    }
+
+    return 0;
+}
+
 void PrintHelp()
 {
     Console.WriteLine("Kalan — AI kota göstergesi");
@@ -438,6 +500,7 @@ void PrintHelp()
     Console.WriteLine("Kullanım:");
     Console.WriteLine("  kalan usage [-p claude|codex|all] [--json] [--raw]");
     Console.WriteLine("  kalan cost  [-p claude|codex|all] [--days N] [--json]");
+    Console.WriteLine("  kalan --discover [gemini|copilot|all] [--json]  # dosya + şema keşfi, değer yazmaz");
     Console.WriteLine("  kalan icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");
     Console.WriteLine("  kalan diagnose [--raw]");
     Console.WriteLine();
