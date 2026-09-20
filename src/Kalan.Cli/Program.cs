@@ -327,7 +327,7 @@ void PrintThemeInfo()
 
 void RenderIconPreview(string outputPath)
 {
-    var percentages = new[] { 0.0, 40.0, 62.0, 80.0, 95.0, 100.0 };
+    var percentages = new[] { 0.0, 50.0, 75.0, 90.0, 100.0 };
     var sizes = new[] { 16, 20, 24, 32 };
     int width = 940;
     int height = 760;
@@ -345,7 +345,7 @@ void RenderIconPreview(string outputPath)
         using var grayBrush = new SolidBrush(Color.FromArgb(170, 170, 170));
 
         g.DrawString("Kalan — Tray İkonu Önizleme Matrisi (Contact Sheet)", fontHeader, whiteBrush, 24, 16);
-        g.DrawString("Dikey Outline Tank/Gauge · 16, 20, 24, 32px × {Koyu, Açık} × {%0, %40, %62, %80, %95, %100}", fontSubLabel, grayBrush, 24, 40);
+        g.DrawString("Dikey Outline Tank/Gauge · 16, 20, 24, 32px × {Koyu, Açık} × {%0, %50, %75, %90, %100} · dolgu = kalan kota", fontSubLabel, grayBrush, 24, 40);
 
         var themes = new[]
         {
@@ -372,7 +372,6 @@ void RenderIconPreview(string outputPath)
                 string thresholdText = pct switch
                 {
                     >= 90 => "Kritik",
-                    >= 75 => "Uyarı",
                     _ => "Monokrom"
                 };
 
