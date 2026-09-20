@@ -124,6 +124,16 @@ public static class QuotaVisuals
         }
     }
 
+    /// <summary>Kontrol köşe yarıçapı (hap/rozet ve sekmeler için).</summary>
+    internal static CornerRadius PillCorner()
+    {
+        if (Application.Current.Resources.TryGetValue("ControlCornerRadius", out var value) && value is CornerRadius corner)
+        {
+            return corner;
+        }
+        return new CornerRadius(4);
+    }
+
     /// <summary>Plan rozetini gösterir ya da gizler ("plus", "max"...).</summary>
     public static void ApplyPlan(Border badge, TextBlock text, string? planName)
     {

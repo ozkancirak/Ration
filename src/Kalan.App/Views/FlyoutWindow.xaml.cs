@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Automation;
 using Windows.Graphics;
 using Windows.System;
@@ -60,6 +61,9 @@ public sealed partial class FlyoutWindow : Window
     private long _costRun;
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
+
+    // Flyout genişliği sabit 360px (DPI ölçekli); yükseklik içeriğe göre ayarlanır.
+    private int _targetWidth;
 
     public double CurrentClaudePercent => _currentGaugePercent;
 
@@ -365,11 +369,8 @@ public sealed partial class FlyoutWindow : Window
             Background = new SolidColorBrush(Colors.Transparent),
             BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 6, 8, 6),
+            CornerRadius = QuotaVisuals.PillCorner(),
         };
-        if (Application.Current.Resources.TryGetValue("ControlCornerRadius", out var radius) && radius is CornerRadius corner)
-        {
-            button.CornerRadius = corner;
-        }
         var capturedId = id;
         button.Click += (s, e) => SelectProvider(capturedId);
 
@@ -393,6 +394,7 @@ public sealed partial class FlyoutWindow : Window
         _selectedId = id;
         UpdateTabs();
         RenderDetail();
+        EnqueueResize();
         RefreshCost(force: false);
     }
 
@@ -455,6 +457,7 @@ public sealed partial class FlyoutWindow : Window
         MaybeAutoSelect();
         UpdateTabs();
         RenderDetail();
+        EnqueueResize();
         RecalculateTrayIcon();
     }
 
@@ -564,11 +567,26 @@ public sealed partial class FlyoutWindow : Window
             row.Children.Add(resetText);
             block.Children.Add(row);
 
-            if (UsagePace.Calculate(window, now) is { } pace)
+            if (window.Percent >= 100)
+            {
+                // Tükendi rozeti: tempo satırı yerine hap.
+                var badgeText = new TextBlock { Text = PaceCalculator.FormatConsumedBadge(window, now) };
+                QuotaVisuals.SetTextStyle(badgeText, "CaptionTextBlockStyle");
+                var badge = new Border
+                {
+                    Background = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush"),
+                    CornerRadius = QuotaVisuals.PillCorner(),
+                    Padding = new Thickness(6, 1, 6, 1),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Child = badgeText,
+                };
+                block.Children.Add(badge);
+            }
+            else if (PaceCalculator.Calculate(window, now) is { } pace)
             {
                 var tempoText = new TextBlock
                 {
-                    Text = UsagePace.Format(pace),
+                    Text = PaceCalculator.Format(window, pace, now),
                     Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
                 };
                 QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
@@ -670,6 +688,7 @@ public sealed partial class FlyoutWindow : Window
 
         CostSummary.Text = string.Join("\n", lines);
         CostSection.Visibility = Visibility.Visible;
+        EnqueueResize();
     }
 
     private static string CompactTokens(long tokens) => tokens switch
@@ -764,6 +783,7 @@ public sealed partial class FlyoutWindow : Window
         double scale = dpi / 96.0;
 
         int targetWidth = (int)Math.Round(360 * scale);
+        _targetWidth = targetWidth;
 
         // Pencere boyutu içeriğe göre dinamik uzasın (Maksimum ekranın %70'i)
         RootLayout.Measure(new Windows.Foundation.Size(360, double.PositiveInfinity));
@@ -778,8 +798,7 @@ public sealed partial class FlyoutWindow : Window
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
         NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo);
 
-        int workHeight = monitorInfo.rcWork.Height;
-        int maxHeight = (int)Math.Round(workHeight * 0.70);
+        int maxHeight = (int)Math.Round(monitorInfo.rcWork.Height * 0.70);
 
         int targetHeight = Math.Min((int)Math.Round((desiredHeight + 12) * scale), maxHeight);
 
@@ -796,6 +815,43 @@ public sealed partial class FlyoutWindow : Window
 
         PlayEntranceAnimation();
         RefreshCost(force: false);
+    }
+
+    /// <summary>
+    /// İçerik değiştikçe (sekme, veri) yüksekliği yeniden ayarla.
+    /// Ölçülen yükseklik %70 tavanı aşarsa pencere büyümez, detay ScrollViewer'ı kayar.
+    /// Sekme şeridi ve eylem satırı scroll alanının dışındadır, hep görünür.
+    /// Yerleşim bir sonraki düşük öncelikli turda yapılır: eklenen çocuklar
+    /// ölçülmeden DesiredSize bir kare geriden gelir, pencere kısa kalır.
+    /// </summary>
+    private void EnqueueResize() =>
+        this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ResizeToContent);
+
+    private void ResizeToContent()
+    {
+        if (!_isVisible || _targetWidth <= 0) return;
+
+        RootLayout.Measure(new Windows.Foundation.Size(_targetWidth, double.PositiveInfinity));
+        double desiredHeight = RootLayout.DesiredSize.Height;
+        if (desiredHeight <= 0) return;
+
+        int targetHeight = Math.Min((int)Math.Round(desiredHeight + 12), WorkAreaMaxHeight());
+        if (targetHeight <= 0) return;
+
+        _appWindow.ResizeClient(new SizeInt32(_targetWidth, targetHeight));
+    }
+
+    private int WorkAreaMaxHeight()
+    {
+        var pt = new NativeMethods.POINT();
+        if (!NativeMethods.GetCursorPos(out pt))
+        {
+            pt = new NativeMethods.POINT { X = 100, Y = 100 };
+        }
+        IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
+        if (!NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo)) return 800;
+        return Math.Max(200, (int)Math.Round(monitorInfo.rcWork.Height * 0.70));
     }
 
     private void PlayEntranceAnimation()
