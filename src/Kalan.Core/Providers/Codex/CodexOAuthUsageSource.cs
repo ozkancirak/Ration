@@ -287,7 +287,7 @@ public static class CodexUsageParser
         return WindowKind.Session;
     }
 
-    private static CreditBalance? ReadCredits(JsonElement root)
+    internal static CreditBalance? ReadCredits(JsonElement root)
     {
         if (!root.TryGetProperty("credits", out var credits) ||
             credits.ValueKind != JsonValueKind.Object)
@@ -321,7 +321,7 @@ public static class CodexUsageParser
         return new CreditBalance(balance.Value, null, "credit");
     }
 
-    private static string? ReadString(JsonElement element, string name) =>
+    internal static string? ReadString(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;

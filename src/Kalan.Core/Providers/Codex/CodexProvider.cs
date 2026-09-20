@@ -68,6 +68,8 @@ public sealed class CodexProvider : IUsageProvider
         Sources = new IUsageSource[]
         {
             new CodexOAuthUsageSource(http),
+            // Ağsız ikinci kaynak: yalnızca OAuth başarısız olunca devreye girer.
+            new CodexSessionLogUsageSource(),
         };
     }
 }
