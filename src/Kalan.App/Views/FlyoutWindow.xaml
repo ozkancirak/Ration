@@ -70,15 +70,20 @@
                 </StackPanel>
 
                 <!--  Hata/giriş bildirimi (çerçevesiz; yalnızca AuthRequired/Error iken)  -->
-                <StackPanel x:Name="DetailError"
-                            Orientation="Horizontal"
-                            Spacing="8"
-                            Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE7BA;"
+                <!--  Grid: metin sütunu '*' olmalı, yoksa TextBlock sarmalanmaz.  -->
+                <Grid x:Name="DetailError"
+                      ColumnSpacing="8"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0"
+                              Glyph="&#xE7BA;"
                               FontSize="16"
                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
                               VerticalAlignment="Top" />
-                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
                         <TextBlock x:Name="DetailErrorTitle"
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    FontWeight="SemiBold" />
@@ -87,7 +92,7 @@
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
-                </StackPanel>
+                </Grid>
 
                 <!--  Kota pencereleri: koddan üretilir (etiket + 3px ölçer + yüzde/süre + tempo)  -->
                 <StackPanel x:Name="DetailWindows" Spacing="14" />

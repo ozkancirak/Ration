@@ -54,6 +54,7 @@ public sealed partial class FlyoutWindow : Window
     private const string FallbackTabGlyph = "\uE710";
     private readonly Dictionary<string, (ToggleButton Button, ProgressBar Meter)> _tabs = new(StringComparer.OrdinalIgnoreCase);
     private string _selectedId = "claude";
+    private bool _userPickedTab;
 
     // Maliyet: yerel JSONL taraması, thread pool'da. Bayat koşular çöpe gider.
     private long _costRun;
@@ -372,12 +373,23 @@ public sealed partial class FlyoutWindow : Window
         var capturedId = id;
         button.Click += (s, e) => SelectProvider(capturedId);
 
+        // Varsayılan ToggleButton checked stili accent basar; tasarım ince gri ister.
+        // Tema anahtarlarını düğüm sözlüğünde ezmek şablon yazmaktan kısadır.
+        button.Resources["ToggleButtonBackgroundChecked"] = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush");
+        button.Resources["ToggleButtonBackgroundCheckedPointerOver"] = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush");
+        button.Resources["ToggleButtonBackgroundCheckedPressed"] = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush");
+        var primaryText = QuotaVisuals.Fill("TextFillColorPrimaryBrush");
+        button.Resources["ToggleButtonForegroundChecked"] = primaryText;
+        button.Resources["ToggleButtonForegroundCheckedPointerOver"] = primaryText;
+        button.Resources["ToggleButtonForegroundCheckedPressed"] = primaryText;
+
         _tabs[id] = (button, meter);
         TabStrip.Children.Add(button);
     }
 
     private void SelectProvider(string id)
     {
+        _userPickedTab = true;
         _selectedId = id;
         UpdateTabs();
         RenderDetail();
@@ -440,14 +452,36 @@ public sealed partial class FlyoutWindow : Window
     private void ApplySnapshot(UsageSnapshot snapshot)
     {
         EnsureTab(snapshot.ProviderId);
+        MaybeAutoSelect();
         UpdateTabs();
+        RenderDetail();
+        RecalculateTrayIcon();
+    }
 
-        if (snapshot.ProviderId.Equals(_selectedId, StringComparison.OrdinalIgnoreCase))
+    /// <summary>
+    /// Kullanıcı henüz sekme seçmediyse verisi olan ilk sağlayıcıyı göster.
+    /// (Örn. Claude 429 yerken Codex doluysa açılışta hata sayfası gösterilmez.)
+    /// Kullanıcı bir kez tıkladı mı seçim ona aittir, bir daha ellemeyiz.
+    /// </summary>
+    private void MaybeAutoSelect()
+    {
+        if (_userPickedTab) return;
+
+        if (_scheduler.Current.TryGetValue(_selectedId, out var current)
+            && current.Windows.Count > 0
+            && current.Status is not (ProviderStatus.AuthRequired or ProviderStatus.Error))
         {
-            RenderDetail();
+            return;
         }
 
-        RecalculateTrayIcon();
+        var pick = _scheduler.Current.Values
+            .FirstOrDefault(s => s.Windows.Count > 0 && s.Status is not (ProviderStatus.AuthRequired or ProviderStatus.Error))
+            ?? _scheduler.Current.Values.FirstOrDefault();
+
+        if (pick is not null && !pick.ProviderId.Equals(_selectedId, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectedId = pick.ProviderId;
+        }
     }
 
     private void RenderDetail()
@@ -568,41 +602,73 @@ public sealed partial class FlyoutWindow : Window
         var run = ++_costRun;
         Task.Run(() =>
         {
-            CostScanResult scan = id switch
+            CostScanResult ScanToday(string pid) => pid switch
             {
                 "claude" => ClaudeCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
                 "codex" => CodexCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
-                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0, "Bilinmeyen sağlayıcı."),
+                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0),
+            };
+            CostScanResult ScanMonth(string pid) => pid switch
+            {
+                "claude" => ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-30)),
+                "codex" => CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-30)),
+                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0),
             };
             var pricing = PricingTable.LoadOrEmpty();
-            return (Scan: scan, Report: CostEstimator.Estimate(scan, pricing), Pricing: pricing);
+            var today = ScanToday(id);
+            var month = ScanMonth(id);
+            return (
+                Today: CostEstimator.Estimate(today, pricing),
+                Month: CostEstimator.Estimate(month, pricing),
+                Pricing: pricing);
         }).ContinueWith(t =>
         {
-            if (run != _costRun || t.Status != TaskStatus.RanToCompletion) return;
+            if (run != _costRun) return;
+            if (t.Status != TaskStatus.RanToCompletion)
+            {
+                // Sessiz düşme: tanı için türü yaz (token/icerik asla loglanmaz).
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "startup.log"),
+                    $"[Cost] {id} taramasi basarisiz: {t.Exception?.InnerException?.GetType().Name ?? t.Exception?.GetType().Name}\n");
+                return;
+            }
             this.DispatcherQueue.TryEnqueue(() =>
             {
                 if (run != _costRun || !id.Equals(_selectedId, StringComparison.OrdinalIgnoreCase)) return;
-                var (scan, report, pricing) = t.Result;
+                var (today, month, pricing) = t.Result;
                 _costForId = id;
                 _costAt = DateTimeOffset.UtcNow;
-                ApplyCost(scan, report, pricing);
+                ApplyCost(today, month, pricing);
             });
         }, TaskScheduler.Default);
     }
 
-    private void ApplyCost(CostScanResult scan, CostReport report, PricingTable pricing)
+    private void ApplyCost(CostReport today, CostReport month, PricingTable pricing)
     {
-        var totalTokens = report.InputTokens + report.OutputTokens + report.CacheReadTokens + report.CacheCreationTokens;
-        if (totalTokens <= 0)
+        var lines = new List<string>(2);
+
+        // Fiyat tablosu boşsa para kısmı GÖSTERİLMEZ; sıfır dolar yanlış bilgidir.
+        string Line(string prefix, CostReport report)
+        {
+            var total = report.InputTokens + report.OutputTokens + report.CacheReadTokens + report.CacheCreationTokens;
+            if (total <= 0) return string.Empty;
+            return pricing.IsEmpty
+                ? $"{prefix} {CompactTokens(total)} token"
+                : $"{prefix} {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(total)} token";
+        }
+
+        var todayLine = Line("Bugün", today);
+        var monthLine = Line("Son 30 gün:", month);
+
+        if (!string.IsNullOrEmpty(todayLine)) lines.Add(todayLine);
+        if (!string.IsNullOrEmpty(monthLine)) lines.Add(monthLine);
+
+        if (lines.Count == 0)
         {
             CostSection.Visibility = Visibility.Collapsed;
             return;
         }
 
-        // Fiyat tablosu boşsa para kısmı GÖSTERİLMEZ; sıfır dolar yanlış bilgidir.
-        CostSummary.Text = pricing.IsEmpty
-            ? $"Bugün {CompactTokens(totalTokens)} token"
-            : $"Bugün {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(totalTokens)} token";
+        CostSummary.Text = string.Join("\n", lines);
         CostSection.Visibility = Visibility.Visible;
     }
 
