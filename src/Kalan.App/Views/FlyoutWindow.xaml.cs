@@ -11,15 +11,11 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
-using CommunityToolkit.Mvvm.Input;
-using H.NotifyIcon;
-using H.NotifyIcon.Core;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Model;
 using Kalan.Core.Providers.Claude;
 using Kalan.Core.Providers.Codex;
 using Kalan.Core.Refresh;
-using Kalan.Platform.Windows;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.Power;
 using Kalan.Platform.Windows.Theme;
@@ -29,14 +25,10 @@ namespace Kalan.App.Views;
 
 public sealed partial class FlyoutWindow : Window
 {
-    public static readonly Guid TrayIconGuid = TrayGuidHelper.FromProcessPath();
-
     private readonly AppWindow _appWindow;
     private readonly OverlappedPresenter _presenter;
     private readonly IntPtr _hwnd;
-    private TaskbarIcon? _trayIcon;
-    private NativeTrayIcon? _nativeTray;
-    private SystemTrayHost? _fallbackTray;
+    private readonly SystemTrayHost _tray;
     private readonly HttpClient _http;
     private readonly RefreshScheduler _scheduler;
     private readonly NativeMethods.SubclassProc _subclassProc;
@@ -152,118 +144,19 @@ public sealed partial class FlyoutWindow : Window
             }
         };
 
-        // 1: WinUI TaskbarIcon ve MenuFlyout ilklendirmesi
-        // 1 & Çözüm 3: WinUI TaskbarIcon ve MenuFlyout ilklendirmesi (başarısız olursa NativeTrayIcon ve SystemTrayHost geri düşüşü)
-        bool winUiTraySuccess = false;
-        try
-        {
-            _trayIcon = new TaskbarIcon
-            {
-                Id = TrayIconGuid,
-                ContextMenuMode = ContextMenuMode.PopupMenu,
-                LeftClickCommand = new RelayCommand(Toggle),
-            };
-            _trayIcon.TrayIcon.UseStandardTooltip = false;
+        // Tray: WinForms NotifyIcon (saglam yol). Ikon HICON olarak uretilir,
+        // sahiplik SystemTrayHost'a gecer: once yeni ikon kabuga verilir,
+        // sonra onceki handle yok edilir (bkz. UpdateTrayIcon).
+        _tray = new SystemTrayHost();
+        _tray.LeftClicked += () => this.DispatcherQueue.TryEnqueue(Toggle);
+        _tray.SettingsClicked += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
+        _tray.ExitClicked += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
 
-            var menu = new MenuFlyout();
-            var toggleItem = new MenuFlyoutItem
-            {
-                Text = "Göster / Gizle",
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
-            };
-            toggleItem.Click += (s, e) => this.DispatcherQueue.TryEnqueue(Toggle);
+        UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
 
-            var settingsItem = new MenuFlyoutItem
-            {
-                Text = "Ayarlar…"
-            };
-            settingsItem.Click += (s, e) => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
-
-            var exitItem = new MenuFlyoutItem
-            {
-                Text = "Çıkış"
-            };
-            exitItem.Click += (s, e) => this.DispatcherQueue.TryEnqueue(ExitApplication);
-
-            menu.Items.Add(toggleItem);
-            menu.Items.Add(settingsItem);
-            menu.Items.Add(new MenuFlyoutSeparator());
-            menu.Items.Add(exitItem);
-
-            _trayIcon.ContextFlyout = menu;
-
-            // Set initial tray icon before creating so HICON is valid
-            UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
-
-            _trayIcon.ForceCreate(false);
-
-            if (_trayIcon.TrayIcon.IsCreated)
-            {
-                winUiTraySuccess = true;
-                File.AppendAllText(
-                    Path.Combine(AppContext.BaseDirectory, "startup.log"),
-                    $"[Tray] Initialized via H.NotifyIcon (WinUI) with GUID {TrayIconGuid}\n");
-            }
-        }
-        catch (Exception ex)
-        {
-            int err = Marshal.GetLastWin32Error();
-            File.AppendAllText(
-                Path.Combine(AppContext.BaseDirectory, "startup.log"),
-                $"[Tray] H.NotifyIcon failed: {ex.Message}, Win32Error={err} (0x{err:X8})\n");
-        }
-
-        if (!winUiTraySuccess)
-        {
-            try
-            {
-                _trayIcon?.Dispose();
-                _trayIcon = null;
-            }
-            catch { }
-
-            // 1. Geri Düşüş: Saf Win32 Shell_NotifyIcon (NIM_ADD)
-            try
-            {
-                _nativeTray = new NativeTrayIcon(_hwnd, 1, TrayIconGuid);
-                UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
-                bool nativeOk = _nativeTray.Create(_currentIconHandle, _currentTooltip);
-                if (nativeOk)
-                {
-                    File.AppendAllText(
-                        Path.Combine(AppContext.BaseDirectory, "startup.log"),
-                        $"[Tray] Initialized via NativeTrayIcon (Win32 Shell_NotifyIcon, UsesGuid={_nativeTray.UsesGuid})\n");
-                }
-                else
-                {
-                    _nativeTray.Dispose();
-                    _nativeTray = null;
-                }
-            }
-            catch (Exception exNative)
-            {
-                File.AppendAllText(
-                    Path.Combine(AppContext.BaseDirectory, "startup.log"),
-                    $"[Tray] NativeTrayIcon failed: {exNative.Message}\n");
-                _nativeTray = null;
-            }
-
-            // 2. Geri Düşüş: SystemTrayHost (WinForms NotifyIcon)
-            if (_nativeTray == null)
-            {
-                _fallbackTray = new SystemTrayHost();
-                _fallbackTray.LeftClicked += () => this.DispatcherQueue.TryEnqueue(Toggle);
-                _fallbackTray.SettingsClicked += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
-                _fallbackTray.ExitClicked += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
-
-                // Set initial fallback icon
-                UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
-
-                File.AppendAllText(
-                    Path.Combine(AppContext.BaseDirectory, "startup.log"),
-                    $"[Tray] Fallback to SystemTrayHost (WinForms NotifyIcon) activated successfully\n");
-            }
-        }
+        File.AppendAllText(
+            Path.Combine(AppContext.BaseDirectory, "startup.log"),
+            "[Tray] Initialized via SystemTrayHost (WinForms NotifyIcon)\n");
 
         // Theme listeners
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
@@ -279,64 +172,13 @@ public sealed partial class FlyoutWindow : Window
         _scheduler.Start();
     }
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr CreatePopupMenu();
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool AppendMenu(IntPtr hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
-
-    [DllImport("user32.dll")]
-    private static extern int TrackPopupMenuEx(IntPtr hMenu, uint fuFlags, int x, int y, IntPtr hwnd, IntPtr lptpm);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyMenu(IntPtr hMenu);
-
-    private const uint MF_STRING = 0x0000;
-    private const uint MF_SEPARATOR = 0x0800;
-    private const uint TPM_RETURNCMD = 0x0100;
-    private const uint TPM_RIGHTBUTTON = 0x0002;
-
-    private void ShowNativeContextMenu()
-    {
-        IntPtr hMenu = CreatePopupMenu();
-        if (hMenu == IntPtr.Zero) return;
-
-        AppendMenu(hMenu, MF_STRING, 1, "Göster / Gizle");
-        AppendMenu(hMenu, MF_STRING, 2, "Ayarlar…");
-        AppendMenu(hMenu, MF_SEPARATOR, 0, string.Empty);
-        AppendMenu(hMenu, MF_STRING, 3, "Çıkış");
-
-        NativeMethods.SetForegroundWindow(_hwnd);
-        NativeMethods.GetCursorPos(out var pt);
-        int cmd = TrackPopupMenuEx(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.X, pt.Y, _hwnd, IntPtr.Zero);
-        DestroyMenu(hMenu);
-
-        if (cmd == 1) Toggle();
-        else if (cmd == 2) OpenSettingsWindow();
-        else if (cmd == 3) ExitApplication();
-    }
-
     private IntPtr WindowSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
     {
         const uint WM_SETTINGCHANGE = 0x001A;
         const uint WM_THEMECHANGED = 0x031A;
         const uint WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
 
-        if (uMsg == NativeMethods.WM_TRAYICON)
-        {
-            uint mouseMsg = (uint)(lParam.ToInt64() & 0xFFFF);
-            if (mouseMsg == NativeMethods.WM_LBUTTONUP)
-            {
-                this.DispatcherQueue.TryEnqueue(Toggle);
-            }
-            else if (mouseMsg is NativeMethods.WM_RBUTTONUP or NativeMethods.WM_CONTEXTMENU)
-            {
-                this.DispatcherQueue.TryEnqueue(ShowNativeContextMenu);
-            }
-        }
-        else if (uMsg == WM_DWMCOLORIZATIONCOLORCHANGED)
+        if (uMsg == WM_DWMCOLORIZATIONCOLORCHANGED)
         {
             WindowsThemeListener.NotifyAccentChanged();
         }
@@ -362,12 +204,13 @@ public sealed partial class FlyoutWindow : Window
 
     public void InitializeHidden()
     {
+        // WinUI'da ekran disina tasima (Move -32000) E_INVALIDARG atar;
+        // dogrusu AppWindow.Hide(). Once _isVisible=false ki Hide'in
+        // tetikledigi Deactivated geri girmesin.
+        _isVisible = false;
         var visual = ElementCompositionPreview.GetElementVisual(RootLayout);
         visual.Opacity = 0.0f;
-        NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero, -32000, -32000, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-        this.Activate();
-        _isVisible = false;
+        _appWindow.Hide();
     }
 
     private void OpenSettingsWindow()
@@ -387,9 +230,7 @@ public sealed partial class FlyoutWindow : Window
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
 
-        _trayIcon?.Dispose();
-        _nativeTray?.Dispose();
-        _fallbackTray?.Dispose();
+        _tray.Dispose();
         _currentIcon?.Dispose();
         if (_currentIconHandle != IntPtr.Zero)
         {
@@ -464,32 +305,9 @@ public sealed partial class FlyoutWindow : Window
         _currentIconHandle = iconHandle;
         _currentIcon = iconHandle == IntPtr.Zero ? null : Icon.FromHandle(iconHandle);
 
-        if (_trayIcon != null)
-        {
-            _trayIcon.Icon = _currentIcon;
-            _trayIcon.ToolTipText = tooltip;
-
-            _trayIcon.TrayIcon.Icon = iconHandle;
-            _trayIcon.TrayIcon.ToolTip = tooltip;
-
-            if (_trayIcon.TrayIcon.IsCreated)
-            {
-                _trayIcon.TrayIcon.UpdateIcon(iconHandle);
-                _trayIcon.TrayIcon.UpdateToolTip(tooltip);
-            }
-        }
-
-        if (_nativeTray != null)
-        {
-            _nativeTray.UpdateIcon(iconHandle);
-            _nativeTray.UpdateTooltip(tooltip);
-        }
-
-        if (_fallbackTray != null)
-        {
-            _fallbackTray.UpdateIcon(iconHandle);
-            _fallbackTray.UpdateTooltip(tooltip);
-        }
+        // Once yeni ikon kabuga verilir, sonra onceki handle yok edilir.
+        _tray.UpdateIcon(iconHandle);
+        _tray.UpdateTooltip(tooltip);
 
         previousIcon?.Dispose();
         if (previousHandle != IntPtr.Zero && previousHandle != iconHandle)
@@ -546,11 +364,9 @@ public sealed partial class FlyoutWindow : Window
         double desiredHeight = RootLayout.DesiredSize.Height;
         if (desiredHeight <= 0) desiredHeight = 390;
 
-        Guid posGuid = (_nativeTray != null && !_nativeTray.UsesGuid) ? Guid.Empty : TrayIconGuid;
-        uint posUid = (_nativeTray != null && !_nativeTray.UsesGuid) ? _nativeTray.UId : 0;
-
-        // Geçici koordinat ile monitör çalışma alanını bul
-        var (tempX, tempY) = FlyoutPositioner.CalculatePosition(posGuid, _hwnd, posUid, targetWidth, (int)Math.Round(desiredHeight * scale));
+        // Imlec konumuna dus: tiklamayla acarken zaten dogru sonucu verir.
+        // GUID ile Shell_NotifyIconGetRect denemeye gerek yok.
+        var (tempX, tempY) = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, targetWidth, (int)Math.Round(desiredHeight * scale));
         var pt = new NativeMethods.POINT { X = tempX, Y = tempY };
         IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
@@ -561,8 +377,8 @@ public sealed partial class FlyoutWindow : Window
 
         int targetHeight = Math.Min((int)Math.Round((desiredHeight + 12) * scale), maxHeight);
 
-        // 1 & 4d: TrayIconGuid ve _hwnd ile Shell_NotifyIconGetRect üzerinden tam ikon koordinatına hizala
-        var (x, y) = FlyoutPositioner.CalculatePosition(posGuid, _hwnd, posUid, targetWidth, targetHeight);
+        // 1 & 4d: imlec konumundan hizala, calisma alanina kirp
+        var (x, y) = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, targetWidth, targetHeight);
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
@@ -616,11 +432,11 @@ public sealed partial class FlyoutWindow : Window
     {
         if (!_isVisible) return;
 
+        // Once bayrak, sonra Hide: Hide yeni bir Deactivated tetikleyip geri girebilir.
         _isVisible = false;
         var visual = ElementCompositionPreview.GetElementVisual(RootLayout);
         visual.Opacity = 0.0f;
-        NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero, -32000, -32000, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        _appWindow.Hide();
         EfficiencyModeManager.SetEfficiencyMode(true);
     }
 
