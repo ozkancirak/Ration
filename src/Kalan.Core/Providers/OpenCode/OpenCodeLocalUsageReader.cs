@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Kalan.Core.Cost;
 using Kalan.Core.Model;
 
 namespace Kalan.Core.Providers.OpenCode;
@@ -13,7 +15,8 @@ public static class OpenCodeLocalUsageReader
     public static CostReport? Read(
         string databasePath,
         string cacheDirectory,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? freeModelPath = null)
     {
         if (!File.Exists(databasePath)) return null;
 
@@ -44,6 +47,7 @@ public static class OpenCodeLocalUsageReader
                 var modelUsage = HasColumn(connection, "model")
                     ? ReadModelUsage(connection, periodStart)
                     : null;
+                var freeUsage = ReadFreeUsage(connection, freeModelPath, ct);
 
                 using var command = connection.CreateCommand();
                 command.CommandText = """
@@ -73,7 +77,8 @@ public static class OpenCodeLocalUsageReader
                         ReasoningTokens: ReadLong(reader, 3),
                         CacheReadTokens: ReadLong(reader, 4),
                         CacheCreationTokens: ReadLong(reader, 5),
-                        Models: modelUsage);
+                        Models: modelUsage,
+                        FreeUsage: freeUsage);
                 }
             }
         }
@@ -165,7 +170,9 @@ public static class OpenCodeLocalUsageReader
         var models = new List<ModelTokenUsage>();
         while (reader.Read())
         {
-            var model = reader.IsDBNull(0) ? "(bilinmeyen model)" : reader.GetString(0);
+            var model = reader.IsDBNull(0)
+                ? "(bilinmeyen model)"
+                : NormalizeModelName(reader.GetString(0));
             var input = ReadLong(reader, 1);
             var output = ReadLong(reader, 2);
             var cacheRead = ReadLong(reader, 3);
@@ -180,6 +187,121 @@ public static class OpenCodeLocalUsageReader
         }
 
         return models;
+    }
+
+    private static string NormalizeModelName(string value)
+    {
+        var trimmed = value.Trim();
+        if (!trimmed.StartsWith('{')) return trimmed;
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return trimmed;
+
+            foreach (var name in new[] { "id", "modelID", "modelId" })
+            {
+                if (document.RootElement.TryGetProperty(name, out var id) &&
+                    id.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(id.GetString()))
+                {
+                    return id.GetString()!;
+                }
+            }
+        }
+        catch (JsonException) { }
+
+        return trimmed;
+    }
+
+    private static FreeModelUsage? ReadFreeUsage(
+        SqliteConnection connection,
+        string? freeModelPath,
+        CancellationToken ct)
+    {
+        if (!HasTable(connection, "message") ||
+            !HasColumn(connection, "message", "time_created") ||
+            !HasColumn(connection, "message", "data"))
+        {
+            return null;
+        }
+
+        var catalog = FreeModelCatalog.LoadOrEmpty(freeModelPath);
+        var start = new DateTimeOffset(DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc));
+        var end = start.AddDays(1);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT data
+            FROM message
+            WHERE time_created >= $start AND time_created < $end;
+            """;
+        command.Parameters.AddWithValue("$start", start.ToUnixTimeMilliseconds());
+        command.Parameters.AddWithValue("$end", end.ToUnixTimeMilliseconds());
+
+        var count = 0;
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (reader.IsDBNull(0)) continue;
+
+            try
+            {
+                using var document = JsonDocument.Parse(reader.GetString(0));
+                var data = document.RootElement;
+                if (!TryReadString(data, "role", out var role) ||
+                    !role.Equals("assistant", StringComparison.OrdinalIgnoreCase) ||
+                    !TryReadString(data, "modelID", out var modelId))
+                {
+                    continue;
+                }
+
+                if (catalog.IsFree(modelId)) count++;
+            }
+            catch (JsonException) { }
+        }
+
+        return new FreeModelUsage(count, start);
+    }
+
+    private static bool HasTable(SqliteConnection connection, string tableName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = $name LIMIT 1;";
+        command.Parameters.AddWithValue("$name", tableName);
+        return command.ExecuteScalar() is not null;
+    }
+
+    private static bool HasColumn(SqliteConnection connection, string tableName, string columnName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName});";
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(1) &&
+                string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryReadString(JsonElement element, string name, out string value)
+    {
+        value = string.Empty;
+        if (!element.TryGetProperty(name, out var property) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        value = property.GetString() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(value);
     }
 
     private static void TryDeleteDirectory(string path)

@@ -165,9 +165,72 @@ public sealed class AntigravityTests
         var snapshot = await source.FetchAsync(CancellationToken.None);
 
         Assert.Equal(ProviderStatus.Ok, snapshot.Status);
-        Assert.Equal(new[] { "http", "https", "https" }, handler.Requests
+        Assert.Equal(new[] { "http", "https", "https", "https" }, handler.Requests
             .Select(request => request.RequestUri!.Scheme)
             .ToArray());
+    }
+
+    [Fact]
+    public async Task Source_ReadsTrajectoryTokensAndDeduplicatesResponses()
+    {
+        var handler = new RecordingHandler
+        {
+            Response = request => request.RequestUri!.AbsolutePath switch
+            {
+                var path when path.EndsWith("RetrieveUserQuotaSummary", StringComparison.Ordinal) =>
+                    JsonResponse(
+                        System.Net.HttpStatusCode.OK,
+                        "{\"groups\":[{\"displayName\":\"Gemini\",\"buckets\":[{\"window\":\"5h\",\"remainingFraction\":0.5}]}]}"),
+                var path when path.EndsWith("GetAllCascadeTrajectories", StringComparison.Ordinal) =>
+                    JsonResponse(
+                        System.Net.HttpStatusCode.OK,
+                        "{\"trajectorySummaries\":{\"cascade-a\":{},\"cascade-b\":{}}}"),
+                var path when path.EndsWith("GetCascadeTrajectoryGeneratorMetadata", StringComparison.Ordinal) =>
+                    request.Content!.ReadAsStringAsync().GetAwaiter().GetResult().Contains("cascade-a", StringComparison.Ordinal)
+                        ? JsonResponse(
+                            System.Net.HttpStatusCode.OK,
+                            """
+                            {"generatorMetadata":[
+                              {"chatModel":{"responseModel":"gemini-3-flash-a","usage":{"responseId":"r1","inputTokens":100,"outputTokens":50,"thinkingOutputTokens":20,"cacheReadTokens":10,"cacheWriteTokens":5}}},
+                              {"chatModel":{"responseModel":"gemini-3-flash-a","usage":{"responseId":"r1","inputTokens":100,"outputTokens":50,"thinkingOutputTokens":20,"cacheReadTokens":10,"cacheWriteTokens":5}}}
+                            ]}
+                            """)
+                        : JsonResponse(
+                            System.Net.HttpStatusCode.OK,
+                            """
+                            {"generatorMetadata":[
+                              {"chatModel":{"responseModel":"MODEL_PLACEHOLDER_M132","usage":{"messageId":"m2","inputTokens":7,"outputTokens":3,"thinkingOutputTokens":4,"cacheReadTokens":0,"cacheWriteTokens":0}}}
+                            ]}
+                            """),
+                _ => JsonResponse(
+                    System.Net.HttpStatusCode.OK,
+                    "{\"userStatus\":{\"userTier\":{\"name\":\"Pro\"}}}"),
+            },
+        };
+
+        using var http = new HttpClient(handler);
+        var source = new AntigravityLoopbackUsageSource(
+            http,
+            findProcessEndpoints: () =>
+                new[] { new AntigravityProcessEndpoint(41007, "csrf-test") },
+            rawResponseSink: _ => { });
+
+        var snapshot = await source.FetchAsync(CancellationToken.None);
+
+        Assert.NotNull(snapshot.Cost);
+        Assert.Equal(107, snapshot.Cost!.InputTokens);
+        Assert.Equal(53, snapshot.Cost.OutputTokens);
+        Assert.Equal(23, snapshot.Cost.ReasoningTokens);
+        Assert.Equal(10, snapshot.Cost.CacheReadTokens);
+        Assert.Equal(5, snapshot.Cost.CacheCreationTokens);
+        Assert.Equal(2, snapshot.Cost.Models!.Count);
+        Assert.Contains(handler.RequestBodies, body => body.Contains("generatorMetadataOffset", StringComparison.Ordinal));
+        Assert.All(handler.Requests, request =>
+        {
+            Assert.Equal("1", request.Headers.GetValues("Connect-Protocol-Version").Single());
+            Assert.Equal("csrf-test", request.Headers.GetValues("X-Codeium-Csrf-Token").Single());
+            Assert.False(request.Headers.Contains("host_bridge_token"));
+        });
     }
 
     private static HttpResponseMessage JsonResponse(

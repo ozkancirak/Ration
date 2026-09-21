@@ -132,6 +132,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
     private readonly Func<OpenCodeAuthInfo?> _authInfo;
     private readonly string _databasePath;
     private readonly string _databaseCacheDirectory;
+    private readonly string? _freeModelPath;
 
     private const string NoQuotaDetail =
         "OpenCode'un kendi kotası yok; yapılandırılmış sağlayıcıların aboneliğini kullanıyor.";
@@ -145,13 +146,15 @@ public sealed class OpenCodeUsageSource : IUsageSource
         Func<OpenCodeCredentials?>? credentials = null,
         string? databasePath = null,
         string? databaseCacheDirectory = null,
-        Func<OpenCodeAuthInfo?>? authInfo = null)
+        Func<OpenCodeAuthInfo?>? authInfo = null,
+        string? freeModelPath = null)
     {
         _http = http;
         _authInfo = authInfo ?? (() => OpenCodeCredentialStore.TryReadInfo());
         _credentials = credentials ?? (() => _authInfo()?.ToCredentials());
         _databasePath = databasePath ?? KnownPaths.OpenCodeDatabaseFile;
         _databaseCacheDirectory = databaseCacheDirectory ?? KnownPaths.OpenCodeDatabaseCacheDir;
+        _freeModelPath = freeModelPath ?? KnownPaths.OpenCodeFreeModelsFile;
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default) => Task.FromResult(true);
@@ -182,7 +185,8 @@ public sealed class OpenCodeUsageSource : IUsageSource
             var cost = OpenCodeLocalUsageReader.Read(
                 _databasePath,
                 _databaseCacheDirectory,
-                ct);
+                ct,
+                _freeModelPath);
 
             if (cost is null)
             {
@@ -321,7 +325,8 @@ public sealed class OpenCodeUsageSource : IUsageSource
             return OpenCodeLocalUsageReader.Read(
                 _databasePath,
                 _databaseCacheDirectory,
-                ct);
+                ct,
+                _freeModelPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

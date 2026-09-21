@@ -80,7 +80,9 @@ public sealed class OpenCodeTests
         var root = Path.Combine(Path.GetTempPath(), $"kalan-opencode-{Guid.NewGuid():N}");
         var databasePath = Path.Combine(root, "opencode.db");
         var cacheDirectory = Path.Combine(root, "cache");
+        var freeModelsPath = Path.Combine(root, "free-models.json");
         Directory.CreateDirectory(root);
+        File.WriteAllText(freeModelsPath, "{\"models\":[\"big-pickle\"]}");
 
         try
         {
@@ -99,13 +101,24 @@ public sealed class OpenCodeTests
                         tokens_cache_read INTEGER,
                         tokens_cache_write INTEGER
                     );
-                    INSERT INTO session VALUES ($time, 'ornek-model', 1.25, 100, 200, 30, 40, 50);
+                    CREATE TABLE message (
+                        time_created INTEGER NOT NULL,
+                        data TEXT NOT NULL
+                    );
+                    INSERT INTO session VALUES ($time, '{"id":"ornek-model","providerID":"opencode"}', 1.25, 100, 200, 30, 40, 50);
+                    INSERT INTO message VALUES ($message_time, '{"role":"assistant","modelID":"big-pickle"}');
+                    INSERT INTO message VALUES ($message_time, '{"role":"assistant","modelID":"muse-spark-1.3"}');
+                    INSERT INTO message VALUES ($message_time, '{"role":"user","modelID":"big-pickle"}');
                     """;
                 create.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds());
+                create.Parameters.AddWithValue("$message_time", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 create.ExecuteNonQuery();
             }
 
-            var report = OpenCodeLocalUsageReader.Read(databasePath, cacheDirectory);
+            var report = OpenCodeLocalUsageReader.Read(
+                databasePath,
+                cacheDirectory,
+                freeModelPath: freeModelsPath);
 
             Assert.NotNull(report);
             Assert.Equal(1.25m, report!.TotalCost);
@@ -117,6 +130,7 @@ public sealed class OpenCodeTests
             Assert.Equal(
                 new[] { new ModelTokenUsage("ornek-model", 390, 100, 200, 40, 50) },
                 report.Models);
+            Assert.Equal(1, report.FreeUsage!.RequestsToday);
             Assert.False(Directory.Exists(cacheDirectory) &&
                          Directory.EnumerateDirectories(cacheDirectory).Any());
 
@@ -129,7 +143,8 @@ public sealed class OpenCodeTests
                 databaseCacheDirectory: cacheDirectory,
                 authInfo: () => new OpenCodeAuthInfo(
                     AccessToken: null,
-                    ConfiguredProviders: new[] { "anthropic", "github-copilot" }));
+                    ConfiguredProviders: new[] { "anthropic", "github-copilot" }),
+                freeModelPath: freeModelsPath);
 
             var snapshot = await source.FetchAsync();
             Assert.Equal("Kota yok", snapshot.PlanName);
@@ -137,6 +152,7 @@ public sealed class OpenCodeTests
             Assert.Equal(new[] { "anthropic", "github-copilot" }, snapshot.ConfiguredProviders);
             Assert.Equal(390, snapshot.Cost!.InputTokens + snapshot.Cost.OutputTokens +
                 snapshot.Cost.CacheReadTokens + snapshot.Cost.CacheCreationTokens);
+            Assert.Equal(1, snapshot.Cost.FreeUsage!.RequestsToday);
         }
         finally
         {

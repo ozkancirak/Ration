@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Kalan.Core.Abstractions;
+using Kalan.Core.Cost;
 using Kalan.Core.Model;
 using KalanTrace = Kalan.Core.Diagnostics.Trace;
 
@@ -14,6 +15,10 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
         "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
     private const string UserStatusEndpointPath =
         "/exa.language_server_pb.LanguageServerService/GetUserStatus";
+    private const string AllCascadeTrajectoriesEndpointPath =
+        "/exa.language_server_pb.LanguageServerService/GetAllCascadeTrajectories";
+    private const string CascadeTrajectoryMetadataEndpointPath =
+        "/exa.language_server_pb.LanguageServerService/GetCascadeTrajectoryGeneratorMetadata";
     private const string HttpsErrorText = "Client sent an HTTP request to an HTTPS server";
 
     private readonly HttpClient _loopbackHttp;
@@ -150,43 +155,40 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
             }
             catch (JsonException)
             {
-                return Complete(
-                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                        "Antigravity kota yanıtı tanınmadı; veri yok.", Kind),
-                    stopwatch,
-                    $"degraded data=invalid port={candidate.Port} transport={probe.Scheme}");
+                parsed = new AntigravityUsageParser.ParseResult(Array.Empty<UsageWindow>(), null);
             }
 
             var windows = parsed.Windows;
-
-            if (windows.Count == 0)
-            {
-                return Complete(
-                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                        "Antigravity kota verisi yok.", Kind),
-                    stopwatch,
-                    $"degraded data=empty port={candidate.Port} transport={probe.Scheme}");
-            }
+            var resolvedCandidate = candidate with { Scheme = probe.Scheme };
+            var tokenUsage = await FetchTokenUsageAsync(resolvedCandidate, ct).ConfigureAwait(false);
 
             // Plan adı quotaInfo içinde değildir; ayrı çağrı yalnızca başlık
             // rozetini doldurur ve kota pencerelerine hiç dokunmaz.
-            var planName = await FetchPlanNameAsync(
-                candidate with { Scheme = probe.Scheme },
-                ct).ConfigureAwait(false);
+            var planName = await FetchPlanNameAsync(resolvedCandidate, ct).ConfigureAwait(false);
+
+            if (windows.Count == 0 && tokenUsage is null)
+            {
+                return Complete(
+                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
+                        "Antigravity kota yanıtında kullanılabilir veri yok.", Kind),
+                    stopwatch,
+                    $"degraded data=empty port={candidate.Port} transport={probe.Scheme}");
+            }
 
             return Complete(
                 new UsageSnapshot(
                     ProviderId: "antigravity",
                     Windows: windows,
                     Credits: null,
-                    Cost: null,
+                    Cost: tokenUsage,
                     Status: ProviderStatus.Ok,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
-                    StaleReason: null,
+                    StaleReason: windows.Count == 0 ? "Antigravity kota verisi yok." : null,
                     PlanName: planName),
                 stopwatch,
-                $"ok windows={windows.Count} port={candidate.Port} transport={probe.Scheme}");
+                $"ok windows={windows.Count} tokenData={(tokenUsage is null ? "none" : "yes")} "
+                + $"port={candidate.Port} transport={probe.Scheme}");
         }
 
         if (connectionFailures == candidates.Count && httpResponses == 0)
@@ -238,10 +240,17 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
     private async Task<ProbeOutcome> SendOnceAsync(
         PortCandidate candidate,
         CancellationToken ct)
+        => await SendRpcAsync(candidate, EndpointPath, "{}", ct).ConfigureAwait(false);
+
+    private async Task<ProbeOutcome> SendRpcAsync(
+        PortCandidate candidate,
+        string endpointPath,
+        string body,
+        CancellationToken ct)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            $"{candidate.Scheme}://127.0.0.1:{candidate.Port}{EndpointPath}");
+            $"{candidate.Scheme}://127.0.0.1:{candidate.Port}{endpointPath}");
         request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
         if (!string.IsNullOrWhiteSpace(candidate.CsrfToken))
         {
@@ -250,19 +259,19 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                 candidate.CsrfToken);
         }
 
-        request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+        request.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
         using var response = await _loopbackHttp.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             ct).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
 
         return new ProbeOutcome(
             HasResponse: true,
             ConnectionFailed: false,
             StatusCode: (int)response.StatusCode,
-            Body: body,
+            Body: responseBody,
             Scheme: candidate.Scheme);
     }
 
@@ -270,34 +279,18 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
         PortCandidate candidate,
         CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{candidate.Scheme}://127.0.0.1:{candidate.Port}{UserStatusEndpointPath}");
-        request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
-        if (!string.IsNullOrWhiteSpace(candidate.CsrfToken))
-        {
-            request.Headers.TryAddWithoutValidation(
-                "X-Codeium-Csrf-Token",
-                candidate.CsrfToken);
-        }
-
-        request.Content = new StringContent(
-            "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"ideVersion\":\"unknown\",\"locale\":\"en\"}}",
-            Encoding.UTF8,
-            "application/json");
-
         try
         {
-            using var response = await _loopbackHttp.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
+            var response = await SendRpcAsync(
+                candidate,
+                UserStatusEndpointPath,
+                "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"ideVersion\":\"unknown\",\"locale\":\"en\"}}",
                 ct).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return null;
+            if (response.StatusCode != (int)HttpStatusCode.OK) return null;
 
             try
             {
-                return AntigravityUsageParser.ParsePlanName(body);
+                return AntigravityUsageParser.ParsePlanName(response.Body);
             }
             catch (JsonException)
             {
@@ -310,6 +303,116 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
+            return null;
+        }
+    }
+
+    private async Task<CostReport?> FetchTokenUsageAsync(
+        PortCandidate candidate,
+        CancellationToken ct)
+    {
+        try
+        {
+            var summaries = await SendRpcAsync(
+                candidate,
+                AllCascadeTrajectoriesEndpointPath,
+                "{}",
+                ct).ConfigureAwait(false);
+            if (summaries.StatusCode != (int)HttpStatusCode.OK)
+            {
+                KalanTrace.Info(
+                    "provider.source",
+                    $"provider=antigravity source=trajectory result=summaries-http-{summaries.StatusCode}");
+                return null;
+            }
+
+            if (!AntigravityTokenParser.TryReadCascadeIds(summaries.Body, out var cascadeIds))
+            {
+                KalanTrace.Info(
+                    "provider.source",
+                    "provider=antigravity source=trajectory result=summaries-invalid-json");
+                return null;
+            }
+
+            var tally = new TokenTally();
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var cascadeId in cascadeIds)
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    cascadeId,
+                    generatorMetadataOffset = 0,
+                    includeMessages = false,
+                });
+                var metadata = await SendRpcAsync(
+                    candidate,
+                    CascadeTrajectoryMetadataEndpointPath,
+                    body,
+                    ct).ConfigureAwait(false);
+
+                if (metadata.StatusCode != (int)HttpStatusCode.OK)
+                {
+                    KalanTrace.Info(
+                        "provider.source",
+                        $"provider=antigravity source=trajectory result=metadata-http-{metadata.StatusCode}");
+                    continue;
+                }
+
+                var accepted = AntigravityTokenParser.AddGeneratorMetadataToTally(
+                    metadata.Body,
+                    tally,
+                    seenIds,
+                    out var skipped);
+                if (skipped > 0)
+                {
+                    KalanTrace.Info(
+                        "provider.source",
+                        $"provider=antigravity source=trajectory result=records-skipped count={skipped}");
+                }
+
+                if (accepted == 0 && skipped == 0 && metadata.Body.Length > 0)
+                {
+                    KalanTrace.Info(
+                        "provider.source",
+                        "provider=antigravity source=trajectory result=metadata-empty");
+                }
+            }
+
+            if (tally.EntryCount == 0) return null;
+
+            var fetchedAt = DateTimeOffset.UtcNow;
+            return new CostReport(
+                TotalCost: 0,
+                Currency: "USD",
+                PeriodStart: fetchedAt.AddDays(-30),
+                PeriodEnd: fetchedAt,
+                InputTokens: tally.TotalInputTokens,
+                OutputTokens: tally.TotalOutputTokens,
+                CacheReadTokens: tally.TotalCacheReadTokens,
+                CacheCreationTokens: tally.TotalCacheCreationTokens,
+                ReasoningTokens: tally.TotalReasoningTokens,
+                Models: tally.Models
+                    .Select(model => new ModelTokenUsage(
+                        model.Model,
+                        model.TotalTokens,
+                        model.InputTokens,
+                        model.OutputTokens,
+                        model.CacheReadTokens,
+                        model.CacheCreationTokens))
+                    .ToArray());
+        }
+        catch (HttpRequestException)
+        {
+            KalanTrace.Info(
+                "provider.source",
+                "provider=antigravity source=trajectory result=connection-failed");
+            return null;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            KalanTrace.Info(
+                "provider.source",
+                "provider=antigravity source=trajectory result=timeout");
             return null;
         }
     }

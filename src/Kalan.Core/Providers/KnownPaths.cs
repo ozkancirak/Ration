@@ -100,6 +100,10 @@ public static class KnownPaths
 
     public static string OpenCodeDatabaseCacheDir => Path.Combine(CacheDir, "cache", "opencode");
 
+    public static string ModelAliasesFile => Path.Combine(CacheDir, "model-aliases.json");
+
+    public static string OpenCodeFreeModelsFile => Path.Combine(CacheDir, "free-models.json");
+
     // --- Kalan'ın kendi alanı (yazılabilir tek yer) ---
 
     public static string CacheDir => Path.Combine(

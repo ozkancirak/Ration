@@ -400,13 +400,19 @@ public static class CostEstimator
     /// çıkarılamaz; bu durumda yalnızca token sayıları korunur.
     /// </summary>
     public static CostReport Estimate(CostReport usage, PricingTable pricing)
+        => Estimate(usage, pricing, aliases: null);
+
+    public static CostReport Estimate(
+        CostReport usage,
+        PricingTable pricing,
+        ModelAliasTable? aliases)
     {
         var total = 0m;
         var unpriced = new List<string>();
 
         foreach (var model in usage.Models ?? Array.Empty<ModelTokenUsage>())
         {
-            var rate = pricing.Find(model.Model);
+            var rate = pricing.Find(aliases?.Resolve(model.Model) ?? model.Model);
             if (rate is null)
             {
                 if (model.Tokens > 0) unpriced.Add(model.Model);

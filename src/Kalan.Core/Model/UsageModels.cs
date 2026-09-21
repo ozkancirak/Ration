@@ -56,6 +56,10 @@ public sealed record ModelTokenUsage(
     long CacheReadTokens = 0,
     long CacheCreationTokens = 0);
 
+public sealed record FreeModelUsage(
+    int RequestsToday,
+    DateTimeOffset UtcDay);
+
 public sealed record CostReport(
     decimal TotalCost,
     string Currency,
@@ -72,7 +76,8 @@ public sealed record CostReport(
     // toplama ve maliyete ikinci kez eklenmez.
     long ReasoningTokens = 0,
     IReadOnlyList<string>? ModelsWithoutPricing = null,
-    IReadOnlyList<ModelTokenUsage>? Models = null)
+    IReadOnlyList<ModelTokenUsage>? Models = null,
+    FreeModelUsage? FreeUsage = null)
 {
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
 }

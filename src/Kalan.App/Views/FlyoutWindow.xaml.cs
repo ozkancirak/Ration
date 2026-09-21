@@ -711,6 +711,13 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
         }
+        else if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
+                 snapshot.Cost is { } antigravityUsage)
+        {
+            DetailError.Visibility = Visibility.Collapsed;
+            DetailUnavailable.Visibility = Visibility.Collapsed;
+            RenderTokenUsage(antigravityUsage);
+        }
         else if (snapshot.Status == ProviderStatus.NotInstalled)
         {
             DetailError.Visibility = Visibility.Collapsed;
@@ -734,6 +741,16 @@ public sealed partial class FlyoutWindow : Window
             DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
             RenderWindows(snapshot);
+            if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
+                snapshot.Cost is { } antigravityTokenUsage)
+            {
+                RenderTokenUsage(antigravityTokenUsage, clear: false);
+            }
+            else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
+                     snapshot.Cost is { } openCodeUsage)
+            {
+                RenderFreeUsage(openCodeUsage);
+            }
         }
     }
 
@@ -888,8 +905,11 @@ public sealed partial class FlyoutWindow : Window
         usage.CacheReadTokens + usage.CacheCreationTokens;
 
     private void RenderOpenCodeLocalUsage(CostReport usage)
+        => RenderTokenUsage(usage);
+
+    private void RenderTokenUsage(CostReport usage, bool clear = true)
     {
-        DetailWindows.Children.Clear();
+        if (clear) DetailWindows.Children.Clear();
 
         var section = new StackPanel { Spacing = 8 };
         var heading = new TextBlock { Text = "Kullanım" };
@@ -906,7 +926,33 @@ public sealed partial class FlyoutWindow : Window
             CompactTokens(usage.CacheReadTokens + usage.CacheCreationTokens));
 
         DetailWindows.Children.Add(section);
+        RenderFreeUsage(usage);
         SetMostUsedModel(usage);
+    }
+
+    private void RenderFreeUsage(CostReport usage)
+    {
+        if (usage.FreeUsage is not { } freeUsage) return;
+
+        var section = new StackPanel { Spacing = 4 };
+        var heading = new TextBlock { Text = "Ücretsiz modeller" };
+        QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
+        section.Children.Add(heading);
+
+        var count = new TextBlock { Text = $"Bugün {freeUsage.RequestsToday} istek" };
+        QuotaVisuals.SetTextStyle(count, "CaptionTextBlockStyle");
+        section.Children.Add(count);
+
+        var explanation = new TextBlock
+        {
+            Text = "OpenCode ücretsiz sınırı IP adresine göre uygulanıyor ve yayınlanmıyor; bu sayaç yalnızca bu bilgisayardaki istekleri sayar.",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
+        };
+        QuotaVisuals.SetTextStyle(explanation, "CaptionTextBlockStyle");
+        section.Children.Add(explanation);
+
+        DetailWindows.Children.Add(section);
     }
 
     private static void AddTokenRow(StackPanel section, string label, string value)
@@ -993,7 +1039,8 @@ public sealed partial class FlyoutWindow : Window
             return;
         }
 
-        if (id.Equals("opencode", StringComparison.OrdinalIgnoreCase))
+        if (id.Equals("opencode", StringComparison.OrdinalIgnoreCase) ||
+            id.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
         {
             _costForId = id;
             _costAt = DateTimeOffset.UtcNow;
@@ -1007,7 +1054,10 @@ public sealed partial class FlyoutWindow : Window
             }
 
             var pricing = PricingTable.LoadOrEmpty();
-            ApplyCost(null, CostEstimator.Estimate(localCost, pricing), pricing);
+            var aliases = id.Equals("antigravity", StringComparison.OrdinalIgnoreCase)
+                ? ModelAliasTable.LoadOrEmpty()
+                : null;
+            ApplyCost(null, CostEstimator.Estimate(localCost, pricing, aliases), pricing);
             return;
         }
 
@@ -1060,7 +1110,8 @@ public sealed partial class FlyoutWindow : Window
     private static bool IsCostProvider(string providerId) =>
         providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ||
         providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
-        providerId.Equals("opencode", StringComparison.OrdinalIgnoreCase);
+        providerId.Equals("opencode", StringComparison.OrdinalIgnoreCase) ||
+        providerId.Equals("antigravity", StringComparison.OrdinalIgnoreCase);
 
     private void ClearCostSection()
     {
@@ -1085,7 +1136,10 @@ public sealed partial class FlyoutWindow : Window
             if (report is null) return string.Empty;
             var total = report.TotalTokens;
             if (total <= 0) return string.Empty;
-            return pricing.IsEmpty || report.Models is not { Count: > 0 }
+            var unpriced = report.ModelsWithoutPricing ?? Array.Empty<string>();
+            var hasPricedModel = report.Models is { Count: > 0 } models &&
+                models.Any(model => !unpriced.Contains(model.Model, StringComparer.OrdinalIgnoreCase));
+            return pricing.IsEmpty || !hasPricedModel
                 ? $"{prefix} {CompactTokens(total)} token"
                 : $"{prefix} {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(total)} token";
         }
