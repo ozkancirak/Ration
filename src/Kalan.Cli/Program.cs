@@ -338,7 +338,7 @@ void PrintThemeInfo()
 
 void RenderIconPreview(string outputPath)
 {
-    var percentages = new[] { 0.0, 50.0, 75.0, 90.0, 100.0 };
+    var percentages = new double?[] { null, 0.0, 50.0, 75.0, 90.0, 100.0 };
     var sizes = new[] { 16, 20, 24, 32 };
     int width = 940;
     int height = 760;
@@ -356,7 +356,7 @@ void RenderIconPreview(string outputPath)
         using var grayBrush = new SolidBrush(Color.FromArgb(170, 170, 170));
 
         g.DrawString("Kalan — Tray İkonu Önizleme Matrisi (Contact Sheet)", fontHeader, whiteBrush, 24, 16);
-        g.DrawString("Dikey Outline Tank/Gauge · 16, 20, 24, 32px × {Koyu, Açık} × {%0, %50, %75, %90, %100} · dolgu = kalan kota", fontSubLabel, grayBrush, 24, 40);
+        g.DrawString("Dikey Outline Tank/Gauge · DPI × tema × kullanım · — = veri yok · dolgu = kalan kota", fontSubLabel, grayBrush, 24, 40);
 
         var themes = new[]
         {
@@ -380,14 +380,15 @@ void RenderIconPreview(string outputPath)
             for (int p = 0; p < percentages.Length; p++)
             {
                 var pct = percentages[p];
-                string thresholdText = pct switch
-                {
-                    >= 90 => "Kritik",
-                    _ => "Monokrom"
-                };
+                string thresholdText = pct is null
+                    ? "Veri yok"
+                    : pct >= 90
+                        ? "Kritik"
+                        : "Monokrom";
+                string percentLabel = pct is double value ? $"%{value:F0}" : "—";
 
                 int cx = colStartX + (p * colWidth);
-                g.DrawString($"%{pct:F0}", fontTitle, themeFgBrush, cx + 20, theme.Y + 30);
+                g.DrawString(percentLabel, fontTitle, themeFgBrush, cx + 20, theme.Y + 30);
                 g.DrawString(thresholdText, fontSubLabel, themeLabelBrush, cx + 18, theme.Y + 48);
             }
 

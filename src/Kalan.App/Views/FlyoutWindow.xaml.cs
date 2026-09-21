@@ -39,8 +39,9 @@ public sealed partial class FlyoutWindow : Window
     private readonly NativeMethods.SubclassProc _subclassProc;
     private DateTimeOffset _lastDeactivatedTime = DateTimeOffset.MinValue;
     private bool _isVisible;
-    private double _currentGaugePercent = 0.0;
-    private string _currentTooltip = "Kalan";
+    private double? _currentGaugePercent;
+    private string _currentTooltip = "Kalan: Veri yok";
+    private string? _trayProviderId;
     private SettingsWindow? _settingsWindow;
     private IntPtr _currentIconHandle = IntPtr.Zero;
     private Icon? _currentIcon;
@@ -65,7 +66,7 @@ public sealed partial class FlyoutWindow : Window
     // Flyout genişliği sabit 360px (DPI ölçekli); yükseklik içeriğe göre ayarlanır.
     private int _targetWidth;
 
-    public double CurrentClaudePercent => _currentGaugePercent;
+    public double? CurrentClaudePercent => _currentGaugePercent;
 
     public FlyoutWindow()
     {
@@ -224,8 +225,15 @@ public sealed partial class FlyoutWindow : Window
         if (_settingsWindow is null)
         {
             _settingsWindow = new SettingsWindow();
+            _settingsWindow.TrayProviderChanged += OnTrayProviderChanged;
         }
         _settingsWindow.ShowAndFocus();
+    }
+
+    private void OnTrayProviderChanged(string? providerId)
+    {
+        _trayProviderId = providerId;
+        RecalculateTrayIcon();
     }
 
     private void ExitApplication()
@@ -707,11 +715,12 @@ public sealed partial class FlyoutWindow : Window
         return amount >= 100 ? $"{symbol}{amount:F0}" : $"{symbol}{amount:F2}";
     }
 
-    public void UpdateTrayIcon(double percent, string? tooltip = null)
+    public void UpdateTrayIcon(double? percent, string? tooltip = null)
     {
         bool isLightTheme = WindowsThemeListener.IsTaskbarLightTheme();
 
-        uint dpi = NativeMethods.GetDpiForSystem();
+        uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
+        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
         if (dpi == 0) dpi = 96;
 
         int iconSize = NativeMethods.GetSystemMetricsForDpi(NativeMethods.SM_CXSMICON, dpi);
@@ -885,18 +894,20 @@ public sealed partial class FlyoutWindow : Window
 
     private void RecalculateTrayIcon()
     {
-        double gaugePercent = 0.0;
-        var parts = new List<string>();
+        var providerNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["claude"] = "Claude",
+            ["codex"] = "Codex",
+            ["antigravity"] = "Antigravity",
+            ["opencode"] = "OpenCode",
+        };
+        var available = new Dictionary<string, (string Name, double Percent)>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (id, name) in new[] { ("claude", "Claude"), ("codex", "Codex") })
+        foreach (var (id, name) in providerNames)
         {
             if (!_scheduler.Current.TryGetValue(id, out var snapshot)) continue;
 
-            if (snapshot is not { Status: ProviderStatus.Ok or ProviderStatus.Degraded } || snapshot.Windows.Count == 0)
-            {
-                if (snapshot.Status == ProviderStatus.AuthRequired) parts.Add($"{name}: Giriş Gerekli");
-                continue;
-            }
+            if (snapshot is not { Status: ProviderStatus.Ok or ProviderStatus.Degraded } || snapshot.Windows.Count == 0) continue;
 
             // 3. TRAY İKONUNDA HANGİ SAYININ GÖSTERİLECEĞİ:
             // Model bazlı ek limitler (gpt-reserve vb.) tray hesabından ÇIKARILIR.
@@ -909,13 +920,29 @@ public sealed partial class FlyoutWindow : Window
             if (mainWindows.Count > 0)
             {
                 var max = mainWindows.Max(w => w.Percent);
-                gaugePercent = Math.Max(gaugePercent, max);
-                parts.Add($"{name} %{max:F0}");
+                available[id] = (name, Math.Clamp(max, 0, 100));
             }
         }
 
-        // 3. Tooltip: "Claude %62 · Codex %69" gibi tek satır, net ve ayrıntısız
-        var tooltip = parts.Count > 0 ? string.Join(" · ", parts) : "Kalan";
+        (string Name, double Percent)? selected = null;
+        if (_trayProviderId is { } requested)
+        {
+            if (available.TryGetValue(requested, out var fixedProvider))
+            {
+                selected = fixedProvider;
+            }
+        }
+        else if (available.Count > 0)
+        {
+            selected = available.Values.OrderByDescending(value => value.Percent).First();
+        }
+
+        double? gaugePercent = selected?.Percent;
+        string tooltip = selected is { } value
+            ? $"{value.Name} %{value.Percent:F0}"
+            : _trayProviderId is { } missing
+                ? $"{providerNames.GetValueOrDefault(missing, missing)}: Veri yok"
+                : "Kalan: Veri yok";
 
         _currentGaugePercent = gaugePercent;
         _currentTooltip = tooltip;

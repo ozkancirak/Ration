@@ -144,6 +144,23 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="Tepside göster"
+                                       Description="Tepsi ikonunda hangi sağlayıcının kotası gösterilsin">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE950;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ComboBox x:Name="TrayProviderSelection"
+                              SelectedIndex="0"
+                              MinWidth="160"
+                              AutomationProperties.Name="Tepside göster">
+                        <ComboBoxItem Content="Otomatik" Tag="auto" />
+                        <ComboBoxItem Content="Claude" Tag="claude" />
+                        <ComboBoxItem Content="Codex" Tag="codex" />
+                        <ComboBoxItem Content="Antigravity" Tag="antigravity" />
+                        <ComboBoxItem Content="OpenCode" Tag="opencode" />
+                    </ComboBox>
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="Windows ile Başlat"
                                        Description="Oturum açıldığında Kalan'ı arka planda otomatik çalıştır">
                     <controls:SettingsCard.HeaderIcon>

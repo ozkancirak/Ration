@@ -19,9 +19,12 @@ namespace Kalan.Platform.Windows.Tray;
 /// </summary>
 public static class TrayIconRenderer
 {
-    public static Bitmap CreateGaugeBitmap(double percentage, bool isLightTheme, int size = 16)
+    public static Bitmap CreateGaugeBitmap(double? percentage, bool isLightTheme, int size = 16)
     {
-        percentage = Math.Clamp(percentage, 0, 100);
+        bool hasData = percentage is double value
+            && !double.IsNaN(value)
+            && !double.IsInfinity(value);
+        double usage = hasData ? Math.Clamp(percentage!.Value, 0, 100) : 0;
         size = Math.Max(16, size);
 
         var bitmap = new Bitmap(size, size);
@@ -49,7 +52,7 @@ public static class TrayIconRenderer
                     ? Color.FromArgb(255, 0, 0, 0)
                     : Color.FromArgb(255, 255, 255, 255);
 
-                if (percentage >= 90)
+                if (hasData && usage >= 90)
                 {
                     // Kritik (%90+): dolgu kırmızı. Kontur monokrom kalır.
                     fillColor = isLightTheme
@@ -58,8 +61,10 @@ public static class TrayIconRenderer
                 }
                 else
                 {
-                    // Normal: konturla aynı tek renk (monokrom). %75 amber'i yok.
-                    fillColor = borderColor;
+                    // Dolgu konturdan ayrı tonda kalır; iki seviye 16px'te bile seçilir.
+                    fillColor = isLightTheme
+                        ? Color.FromArgb(120, 0, 0, 0)
+                        : Color.FromArgb(170, 255, 255, 255);
                 }
             }
 
@@ -67,53 +72,61 @@ public static class TrayIconRenderer
             float scale = size / 16.0f;
             int borderWidth = Math.Max(1, (int)Math.Floor(scale)); // 16px -> 1px, 32px -> 2px
 
-            // Dikey tank geometrisi (16px'te 8x12 piksel)
-            int tankW = (int)Math.Round(8 * scale);
-            int tankH = (int)Math.Round(12 * scale);
+            // GetSystemMetricsForDpi ile gelen kutuyu optik olarak doldur; önceki 8px
+            // gövde tepsi ikonunun yalnızca yarısını kullanıyordu.
+            int edgeInset = Math.Max(borderWidth, (int)Math.Round(size / 16.0f));
+            int tankW = Math.Max(2 * borderWidth + 1, size - (2 * edgeInset));
+            int tankH = Math.Max(2 * borderWidth + 1, size - (2 * edgeInset));
 
             int tankX = (size - tankW) / 2;
             int tankY = (size - tankH) / 2;
-
-            // 1. İçi boş dış çerçeveyi çiz (outline)
-            using (var borderPen = new Pen(borderColor, borderWidth))
-            {
-                g.DrawRectangle(borderPen, tankX, tankY, tankW - 1, tankH - 1);
-            }
-
-            // 2. İç hazne doluluğunu aşağıdan yukarıya doğru çiz.
-            // Dolgu KALAN kotadır: %0 kullanım = dolu tank, %100 = boş tank.
-            double remainingFraction = (100.0 - percentage) / 100.0;
 
             int innerX = tankX + borderWidth;
             int innerY = tankY + borderWidth;
             int innerW = tankW - (2 * borderWidth);
             int innerH = tankH - (2 * borderWidth);
 
-            if (remainingFraction > 0 && innerW > 0 && innerH > 0)
+            if (hasData && innerW > 0 && innerH > 0)
             {
+                // Dolgu KALAN kotadır: %0 kullanım = dolu tank, %100 = boş tank.
+                double remainingFraction = (100.0 - usage) / 100.0;
                 int fillH = (int)Math.Round(remainingFraction * innerH);
-                if (fillH == 0) fillH = 1;
+                if (fillH == 0 && remainingFraction > 0) fillH = 1;
                 fillH = Math.Min(fillH, innerH);
 
                 int fillY = innerY + innerH - fillH;
 
-                using (var fillBrush = new SolidBrush(fillColor))
+                if (fillH > 0)
                 {
+                    using var fillBrush = new SolidBrush(fillColor);
                     g.FillRectangle(fillBrush, innerX, fillY, innerW, fillH);
                 }
             }
+            else if (!hasData && innerW > 0 && innerH > 0)
+            {
+                // Veri yok: dolgu yok; yalnızca ortada ince bir bilinmiyor işareti.
+                int dashWidth = Math.Max(borderWidth * 2, innerW / 2);
+                int dashX = tankX + (tankW - dashWidth) / 2;
+                int dashY = tankY + (tankH - borderWidth) / 2;
+                using var dashBrush = new SolidBrush(borderColor);
+                g.FillRectangle(dashBrush, dashX, dashY, dashWidth, borderWidth);
+            }
+
+            // Konturu en son çiz: dolgu hiçbir zaman 1px çerçeveyi yutamaz.
+            using var borderPen = new Pen(borderColor, borderWidth);
+            g.DrawRectangle(borderPen, tankX, tankY, tankW - 1, tankH - 1);
         }
 
         return bitmap;
     }
 
-    public static IntPtr CreateGaugeIconHandle(double percentage, bool isLightTheme, int size = 16)
+    public static IntPtr CreateGaugeIconHandle(double? percentage, bool isLightTheme, int size = 16)
     {
         using var bitmap = CreateGaugeBitmap(percentage, isLightTheme, size);
         return bitmap.GetHicon();
     }
 
-    public static Icon CreateGaugeIcon(double percentage, bool isLightTheme, int size = 16)
+    public static Icon CreateGaugeIcon(double? percentage, bool isLightTheme, int size = 16)
     {
         IntPtr hIcon = CreateGaugeIconHandle(percentage, isLightTheme, size);
         return Icon.FromHandle(hIcon);

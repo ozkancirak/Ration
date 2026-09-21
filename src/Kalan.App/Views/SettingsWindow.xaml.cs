@@ -18,9 +18,20 @@ public sealed partial class SettingsWindow : Window
     private readonly IntPtr _hwnd;
     private readonly AppWindow _appWindow;
 
+    public event Action<string?>? TrayProviderChanged;
+
     public SettingsWindow()
     {
         InitializeComponent();
+
+        TrayProviderSelection.SelectionChanged += (s, e) =>
+        {
+            if (TrayProviderSelection.SelectedItem is ComboBoxItem { Tag: string providerId })
+            {
+                TrayProviderChanged?.Invoke(
+                    providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId);
+            }
+        };
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
