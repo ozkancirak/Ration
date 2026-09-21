@@ -21,11 +21,8 @@ using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
 http.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1");
 
-var providers = new Dictionary<string, IUsageProvider>(StringComparer.OrdinalIgnoreCase)
-{
-    ["claude"] = new ClaudeProvider(http),
-    ["codex"] = new CodexProvider(http),
-};
+var providers = ProviderRegistry.CreateAll(http)
+    .ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 {
@@ -101,7 +98,7 @@ async Task<int> RunUsageAsync(string which, bool asJson, bool showRaw)
     }
     else
     {
-        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, all");
+        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, all");
         return 2;
     }
 

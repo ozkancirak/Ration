@@ -22,6 +22,7 @@ public enum ProviderStatus
     Ok,
     Degraded,
     AuthRequired,
+    NotInstalled,
     Error
 }
 

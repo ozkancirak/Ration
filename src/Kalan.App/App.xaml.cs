@@ -35,6 +35,7 @@ public partial class App : Application
     {
         var cmdArgs = Environment.GetCommandLineArgs();
         string? screenshotPath = null;
+        string? verificationProvider = GetOption(cmdArgs, "--provider");
         for (int i = 0; i < cmdArgs.Length; i++)
         {
             if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase))
@@ -94,6 +95,13 @@ public partial class App : Application
             else if (cmdArgs.Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)) || !string.IsNullOrEmpty(screenshotPath))
             {
                 _flyoutWindow = new FlyoutWindow();
+                if (verificationProvider is not null &&
+                    !_flyoutWindow.SelectProviderForVerification(verificationProvider))
+                {
+                    Trace.Error("verification", $"unknown-provider provider={verificationProvider}");
+                    Environment.Exit(1);
+                    return;
+                }
                 _flyoutWindow.ShowFlyout();
                 targetWindow = _flyoutWindow;
                 Trace.Info("window", "flyout.show command-line");
@@ -111,7 +119,7 @@ public partial class App : Application
                 _ = Task.Run(async () =>
                 {
                     // Arayüz bileşenlerinin tam çizilmesi ve animasyonun oturması için bekleme
-                    await Task.Delay(800);
+                    await Task.Delay(verificationProvider is null ? 800 : 6000);
                     bool ok = await WindowScreenshotHelper.CaptureWindowAsync(targetHwnd, screenshotPath, delayMs: 0);
                     Trace.Info("screenshot", ok ? "captured" : "failed");
                     Environment.Exit(ok ? 0 : 1);

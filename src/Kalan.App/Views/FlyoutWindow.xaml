@@ -103,6 +103,33 @@
                     </StackPanel>
                 </Grid>
 
+                <!--  Kurulu değil / veri yok bildirimi: hata kırmızısı kullanmaz.  -->
+                <Grid x:Name="DetailUnavailable"
+                      ColumnSpacing="8"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0"
+                              Glyph="&#xE946;"
+                              FontSize="16"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                              VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock x:Name="DetailUnavailableTitle"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="DetailUnavailableDetail"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   MaxLines="3"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+
                 <!--  Kota pencereleri: koddan üretilir (etiket + 3px ölçer + yüzde/süre + tempo)  -->
                 <StackPanel x:Name="DetailWindows" Spacing="14" />
 

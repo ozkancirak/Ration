@@ -47,6 +47,24 @@ public static class KnownPaths
 
     public static string CodexSessionsDir => Path.Combine(CodexHome, "sessions");
 
+    // --- Antigravity (salt okunur) ---
+
+    public static string GeminiCliHome
+    {
+        get
+        {
+            var overridden = Environment.GetEnvironmentVariable("GEMINI_CLI_HOME");
+            return string.IsNullOrWhiteSpace(overridden)
+                ? Path.Combine(Home, ".gemini")
+                : overridden;
+        }
+    }
+
+    public static string AntigravityCliLog => Path.Combine(
+        GeminiCliHome,
+        "antigravity-cli",
+        "cli.log");
+
     // --- Kalan'ın kendi alanı (yazılabilir tek yer) ---
 
     public static string CacheDir => Path.Combine(
