@@ -166,4 +166,22 @@ public class RawResponseRedactorTests
 
         Assert.DoesNotContain("ornek@example.com", redacted);
     }
+
+    [Fact]
+    public void TokenAlanlariniMaskeler()
+    {
+        const string json = """
+        {
+          "csrf_token": "sentetik-csrf",
+          "host_bridge_token": "sentetik-bridge",
+          "plan_type": "plus"
+        }
+        """;
+
+        var redacted = RawResponseRedactor.Redact(json);
+
+        Assert.DoesNotContain("sentetik-csrf", redacted);
+        Assert.DoesNotContain("sentetik-bridge", redacted);
+        Assert.Contains("plus", redacted);
+    }
 }

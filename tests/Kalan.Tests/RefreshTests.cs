@@ -121,11 +121,46 @@ public sealed class SnapshotCacheTests : IDisposable
         var cache = new SnapshotCache(_dir);
 
         // Yol kacisi denemesi dosya adina gecmemeli.
-        cache.Save(Snapshot.Empty("../../kotu", ProviderStatus.Ok, null));
+        cache.Save(Snapshot.Empty("../../kotu", ProviderStatus.Ok, null, SourceKind.LocalFile));
 
         Assert.NotNull(cache.TryLoad("../../kotu"));
         Assert.True(Directory.Exists(_dir));
         Assert.Single(Directory.GetFiles(_dir));
+    }
+
+    [Fact]
+    public void KaynakBelirsizseYazmaz()
+    {
+        var cache = new SnapshotCache(_dir);
+
+        cache.Save(Snapshot.Empty("fixture", ProviderStatus.Ok, null));
+
+        Assert.Null(cache.TryLoad("fixture"));
+        Assert.False(Directory.Exists(_dir));
+    }
+
+    [Fact]
+    public void KaynagiBelirsizDosyayiOkumazVeTemizler()
+    {
+        var cache = new SnapshotCache(_dir);
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, "fixture.json");
+        File.WriteAllText(path, """
+            {
+              "ProviderId": "fixture",
+              "Windows": [],
+              "Credits": null,
+              "Cost": null,
+              "Status": "Ok",
+              "ResolvedVia": null,
+              "FetchedAt": "2026-09-21T00:00:00Z",
+              "StaleReason": null,
+              "PlanName": null
+            }
+            """);
+
+        Assert.Null(cache.TryLoad("fixture"));
+        Assert.False(File.Exists(path));
     }
 }
 

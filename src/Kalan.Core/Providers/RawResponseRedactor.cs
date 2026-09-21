@@ -26,7 +26,8 @@ public static class RawResponseRedactor
         // kimlik doğrulama (kota yanıtlarında beklenmez ama güvenlik ağı)
         "token", "id_token", "access_token", "refresh_token", "accessToken",
         "refreshToken", "api_key", "apiKey", "session_key", "sessionKey",
-        "cookie", "authorization",
+        "csrf_token", "csrfToken", "host_bridge_token", "hostBridgeToken",
+        "secret", "password", "cookie", "authorization",
     };
 
     /// <summary>

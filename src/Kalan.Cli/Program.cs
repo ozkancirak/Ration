@@ -1,10 +1,12 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Cost;
 using Kalan.Core.Diagnostics;
 using Kalan.Core.Discovery;
 using Kalan.Core.Model;
 using Kalan.Core.Providers;
+using Kalan.Core.Providers.Antigravity;
 using Kalan.Core.Providers.Claude;
 using Kalan.Core.Providers.Codex;
 using System.Drawing;
@@ -54,7 +56,7 @@ if (HasFlag(args, "--discover"))
     var which = GetOption(args, "-p") ?? GetOption(args, "--provider")
         ?? args.FirstOrDefault(a => !a.StartsWith('-') && !a.Equals("--discover", StringComparison.OrdinalIgnoreCase))
         ?? "all";
-    return RunDiscover(which, wantsJson);
+    return await RunDiscoverAsync(which, wantsJson);
 }
 
 switch (command)
@@ -535,9 +537,14 @@ void RenderIconPreview(string outputPath)
     Console.WriteLine($"İkon temas levhası (contact sheet) kaydedildi: {outputPath}");
 }
 
-int RunDiscover(string which, bool asJson)
+async Task<int> RunDiscoverAsync(string which, bool asJson)
 {
     var normalized = which.ToLowerInvariant();
+    if (normalized == "antigravity")
+    {
+        return await RunAntigravityDiscoverAsync();
+    }
+
     var selected = normalized == "all"
         ? new[] { "gemini", "copilot" }
         : new[] { normalized };
@@ -546,7 +553,7 @@ int RunDiscover(string which, bool asJson)
     {
         if (ProviderDiscovery.RootsFor(name) is null)
         {
-            Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {name}. Seçenekler: gemini, copilot, all");
+            Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {name}. Seçenekler: gemini, copilot, antigravity, all");
             return 2;
         }
     }
@@ -586,6 +593,224 @@ int RunDiscover(string which, bool asJson)
     return 0;
 }
 
+async Task<int> RunAntigravityDiscoverAsync()
+{
+    const string endpointPath =
+        "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
+
+    var processes = AntigravityProcessPortFinder.FindCandidateProcesses();
+    var listeners = AntigravityProcessPortFinder.FindCandidateListeners();
+
+    Console.WriteLine("Antigravity keşfi");
+    Console.WriteLine();
+    Console.WriteLine("Aday süreçler:");
+    if (processes.Count == 0)
+    {
+        Console.WriteLine("  (yok)");
+    }
+    else
+    {
+        foreach (var process in processes)
+        {
+            Console.WriteLine(
+                $"  - {process.Name}.exe  PID={process.ProcessId}  komut satırı={process.CommandLine}");
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Dinleyen 127.0.0.1 portları:");
+    if (listeners.Count == 0)
+    {
+        Console.WriteLine("  (yok)");
+    }
+    else
+    {
+        foreach (var listener in listeners)
+        {
+            Console.WriteLine($"  - PID={listener.ProcessId}  port={listener.Port}");
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("RetrieveUserQuotaSummary yoklaması:");
+    if (listeners.Count == 0)
+    {
+        Console.WriteLine("  (yok)");
+    }
+    else
+    {
+        using var probeHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        probeHttp.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1 discover");
+
+        foreach (var listener in listeners)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"http://127.0.0.1:{listener.Port}{endpointPath}");
+                request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+                request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+
+                using var response = await probeHttp.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead);
+                var body = await response.Content.ReadAsStringAsync();
+                var shape = DescribeJsonShape(body);
+
+                Console.WriteLine(
+                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP={(int)response.StatusCode} gövde={shape}");
+
+                if ((int)response.StatusCode == 200)
+                {
+                    PrintAntigravityGroupNames(body);
+                }
+            }
+            catch (HttpRequestException)
+            {
+                Console.WriteLine(
+                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP=bağlantı-reddedildi gövde=(yok)");
+            }
+            catch (TaskCanceledException)
+            {
+                Console.WriteLine(
+                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP=zaman-aşımı gövde=(yok)");
+            }
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("cli.log:");
+    PrintAntigravityLogDiagnostics("varsayılan", KnownPaths.AntigravityDefaultCliLog);
+    if (KnownPaths.AntigravityOverrideCliLog is { } overrideLog &&
+        !string.Equals(
+            KnownPaths.AntigravityDefaultCliLog,
+            overrideLog,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        PrintAntigravityLogDiagnostics("GEMINI_CLI_HOME", overrideLog);
+    }
+
+    return 0;
+}
+
+void PrintAntigravityLogDiagnostics(string label, string path)
+{
+    Console.WriteLine($"  {label}: {(File.Exists(path) ? "var" : "yok")}");
+    foreach (var line in AntigravityPortFinder.ReadLastListeningLines(path))
+    {
+        var port = AntigravityPortFinder.FindPortInLogText(line);
+        Console.WriteLine($"    listening port={(port?.ToString() ?? "bilinmiyor")}");
+    }
+}
+
+static string DescribeJsonShape(string body)
+{
+    if (string.IsNullOrWhiteSpace(body)) return "boş";
+
+    try
+    {
+        using var document = JsonDocument.Parse(body);
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        CollectJsonPaths(document.RootElement, string.Empty, paths);
+
+        if (paths.Count == 0) return document.RootElement.ValueKind.ToString().ToLowerInvariant();
+        return string.Join(", ", paths.OrderBy(path => path).Take(80));
+    }
+    catch (JsonException)
+    {
+        return "non-json";
+    }
+}
+
+static void CollectJsonPaths(
+    JsonElement element,
+    string path,
+    HashSet<string> paths)
+{
+    if (element.ValueKind == JsonValueKind.Object)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            var childPath = string.IsNullOrEmpty(path)
+                ? property.Name
+                : $"{path}.{property.Name}";
+            paths.Add(childPath);
+            CollectJsonPaths(property.Value, childPath, paths);
+        }
+
+        return;
+    }
+
+    if (element.ValueKind == JsonValueKind.Array)
+    {
+        var arrayPath = path.EndsWith("[]", StringComparison.Ordinal) ? path : path + "[]";
+        foreach (var item in element.EnumerateArray())
+        {
+            CollectJsonPaths(item, arrayPath, paths);
+        }
+    }
+}
+
+static void PrintAntigravityGroupNames(string body)
+{
+    try
+    {
+        using var document = JsonDocument.Parse(body);
+        if (!document.RootElement.TryGetProperty("groups", out var groups) ||
+            groups.ValueKind != JsonValueKind.Array)
+        {
+            Console.WriteLine("    200 grup/bucket adı: (groups dizisi yok)");
+            return;
+        }
+
+        foreach (var group in groups.EnumerateArray())
+        {
+            var groupName = group.TryGetProperty("displayName", out var displayName)
+                ? SafeDiagnosticName(displayName.GetString())
+                : "(adsız grup)";
+            Console.WriteLine($"    grup={groupName}");
+
+            if (!group.TryGetProperty("buckets", out var buckets) ||
+                buckets.ValueKind != JsonValueKind.Array)
+            {
+                Console.WriteLine("      bucket=(yok)");
+                continue;
+            }
+
+            foreach (var bucket in buckets.EnumerateArray())
+            {
+                var bucketName = bucket.TryGetProperty("displayName", out var bucketDisplayName)
+                    ? SafeDiagnosticName(bucketDisplayName.GetString())
+                    : "(adsız bucket)";
+                Console.WriteLine($"      bucket={bucketName}");
+            }
+        }
+    }
+    catch (JsonException)
+    {
+        Console.WriteLine("    200 grup/bucket adı: (JSON ayrıştırılamadı)");
+    }
+}
+
+static string SafeDiagnosticName(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value)) return "(boş)";
+
+    var safe = Regex.Replace(value, @"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", "[email]");
+    safe = Regex.Replace(
+        safe,
+        @"(?i)\b(?:bearer|token|api[_-]?key|csrf[_-]?token)\s*[:=]\s*\S+",
+        "[gizlendi]");
+    safe = Regex.Replace(
+        safe,
+        @"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b",
+        "[id]",
+        RegexOptions.IgnoreCase);
+
+    return safe.Length <= 120 ? safe : safe[..120] + "…";
+}
+
 void PrintHelp()
 {
     Console.WriteLine("Kalan — AI kota göstergesi");
@@ -593,7 +818,7 @@ void PrintHelp()
     Console.WriteLine("Kullanım:");
     Console.WriteLine("  kalan usage [-p claude|codex|all] [--json] [--raw]");
     Console.WriteLine("  kalan cost  [-p claude|codex|all] [--days N] [--json]");
-    Console.WriteLine("  kalan --discover [gemini|copilot|all] [--json]  # dosya + şema keşfi, değer yazmaz");
+    Console.WriteLine("  kalan --discover [gemini|copilot|antigravity|all] [--json]  # keşif/şema; değer yazmaz");
     Console.WriteLine("  kalan icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");
     Console.WriteLine("  kalan diagnose [--raw]");
     Console.WriteLine("  kalan --log                         # kalan.log son 100 satır");

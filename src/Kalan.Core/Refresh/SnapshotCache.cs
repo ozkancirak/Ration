@@ -36,16 +36,35 @@ public sealed class SnapshotCache
 
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return JsonSerializer.Deserialize<UsageSnapshot>(stream, Options);
+            UsageSnapshot? snapshot;
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                snapshot = JsonSerializer.Deserialize<UsageSnapshot>(stream, Options);
+            }
+
+            if (!HasKnownSource(snapshot))
+            {
+                DeleteInvalidEntry(path);
+                return null;
+            }
+
+            return snapshot;
         }
-        catch (JsonException) { return null; }
+        catch (JsonException)
+        {
+            DeleteInvalidEntry(path);
+            return null;
+        }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
     }
 
     public void Save(UsageSnapshot snapshot)
     {
+        // A cache entry without provenance cannot be distinguished from an
+        // untrusted result. Never persist it.
+        if (!HasKnownSource(snapshot)) return;
+
         try
         {
             Directory.CreateDirectory(_directory);
@@ -63,6 +82,20 @@ public sealed class SnapshotCache
             File.Move(temporary, path, overwrite: true);
         }
         catch (IOException) { /* cache yazılamadıysa sorun değil, veri yine de gösterilir */ }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static bool HasKnownSource(UsageSnapshot? snapshot) =>
+        snapshot?.ResolvedVia is { } source &&
+        Enum.IsDefined(source);
+
+    private static void DeleteInvalidEntry(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
 

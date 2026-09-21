@@ -55,6 +55,37 @@ public static class AntigravityPortFinder
         return null;
     }
 
+    public static IReadOnlyList<string> ReadLastListeningLines(string logPath, int count = 5)
+    {
+        if (count <= 0) return Array.Empty<string>();
+
+        try
+        {
+            if (!File.Exists(logPath)) return Array.Empty<string>();
+
+            using var stream = new FileStream(
+                logPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            var matches = new Queue<string>(count);
+
+            while (reader.ReadLine() is { } line)
+            {
+                if (!ListeningLine.IsMatch(line)) continue;
+                if (matches.Count == count) matches.Dequeue();
+                matches.Enqueue(line);
+            }
+
+            return matches.ToArray();
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        return Array.Empty<string>();
+    }
+
     private static bool TryReadPort(string value, out int port)
     {
         return int.TryParse(value, out port) && port is >= 1 and <= 65535;
