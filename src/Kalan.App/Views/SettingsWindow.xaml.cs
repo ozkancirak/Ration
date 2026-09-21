@@ -48,13 +48,13 @@ public sealed partial class SettingsWindow : Window
         this.ExtendsContentIntoTitleBar = true;
         this.SetTitleBar(AppTitleBar);
 
-        // 6c: Başlangıç boyutu 580×480 civarı kompakt boyut
+        // Tur 5: Başlangıç 520×640; içerik ScrollViewer ile dar yükseklikte kayar.
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
         double scale = dpi / 96.0;
 
-        int width = (int)(580 * scale);
-        int height = (int)(480 * scale);
+        int width = (int)Math.Round(520 * scale);
+        int height = (int)Math.Round(640 * scale);
         _appWindow.Resize(new SizeInt32(width, height));
 
         // Pencere çerçevesi için Immersive Dark Mode

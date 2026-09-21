@@ -6,17 +6,22 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     Title="Ayarlar — Kalan">
 
-    <Grid Background="Transparent" RowSpacing="0">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="36" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <ScrollViewer x:Name="SettingsScrollViewer"
+                  Background="Transparent"
+                  MinWidth="440"
+                  MinHeight="420"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalContentAlignment="Center">
+        <StackPanel x:Name="SettingsContent"
+                    Spacing="16"
+                    MaxWidth="600"
+                    HorizontalAlignment="Center"
+                    Padding="24,0,24,24">
 
-        <!-- Özel Başlık Çubuğu (Drag Region) -->
-        <Grid x:Name="AppTitleBar"
-              Grid.Row="0"
-              Padding="16,0">
+            <!-- Özel Başlık Çubuğu (Drag Region) -->
+            <Grid x:Name="AppTitleBar"
+                  Height="36">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                 <FontIcon Glyph="&#xE713;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                 <TextBlock Text="Kalan"
@@ -24,22 +29,13 @@
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            VerticalAlignment="Center" />
             </StackPanel>
-        </Grid>
+            </Grid>
 
-        <!-- 6b: Sabit Pencere Başlığı ("Ayarlar" kaydırma dışında sol üstte sabit kalır) -->
-        <Grid Grid.Row="1"
-              Padding="24,8,24,12">
             <TextBlock Text="Ayarlar"
                        Style="{StaticResource TitleTextBlockStyle}"
-                       VerticalAlignment="Center" />
-        </Grid>
+                       Margin="0,8,0,0" />
 
-        <!-- İçerik Alanı (Mica üzerinde kayan kartlar) -->
-        <ScrollViewer Grid.Row="2"
-                      Background="Transparent"
-                      Padding="24,0,24,24"
-                      VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="16" MaxWidth="760" HorizontalAlignment="Stretch">
+            <!-- İçerik tek panel içinde; kaydırma bunun dışındaki ScrollViewer'a aittir. -->
 
                 <!-- Bölüm: Sağlayıcılar -->
                 <TextBlock Text="Sağlayıcılar"
@@ -172,7 +168,6 @@
                                VerticalAlignment="Center" />
                 </controls:SettingsCard>
 
-            </StackPanel>
-        </ScrollViewer>
-    </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </Window>
