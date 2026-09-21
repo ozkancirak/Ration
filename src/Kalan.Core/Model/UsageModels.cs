@@ -39,7 +39,9 @@ public sealed record UsageWindow(
     // null iken tempo satırı gösterilmez, uydurma tahmin üretilmez.
     TimeSpan? WindowLength = null,
     // Antigravity gibi sağlayıcılar pencereleri iki seviyeli gruplar altında verir.
-    string? GroupName = null);
+    string? GroupName = null,
+    // Grup açıklaması, model adları gibi ikinci seviyedeki bağlamı taşır.
+    string? GroupDescription = null);
 
 public sealed record CreditBalance(
     decimal RemainingCredits,
@@ -74,4 +76,9 @@ public sealed record UsageSnapshot(
     string? StaleReason,
     // Sağlayıcının bildirdiği plan adı ("plus", "max"...). Bilgi amaçlıdır,
     // kota hesabına girmez; bilinmiyorsa null.
-    string? PlanName = null);
+    string? PlanName = null,
+    // Sağlayıcı kotası olmayan yerel modların kullanıcıya açıklayacağı durum.
+    string? StatusDetail = null,
+    // OpenCode gibi kaynaklarda kimlik değerleri değil, yalnızca yapılandırılmış
+    // sağlayıcı adları gösterilir.
+    IReadOnlyList<string>? ConfiguredProviders = null);

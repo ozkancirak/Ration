@@ -25,6 +25,7 @@ public sealed class AntigravityTests
               "groups": [
                 {
                   "displayName": "Claude Sonnet",
+                  "description": "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS",
                   "buckets": [
                     { "window": "5h", "remainingFraction": 0.25, "resetTime": "2026-09-21T12:00:00Z" },
                     { "window": "weekly", "remainingFraction": 0.80, "resetTime": "2026-09-27T12:00:00Z" },
@@ -43,6 +44,9 @@ public sealed class AntigravityTests
         Assert.Equal(TimeSpan.FromHours(5), windows[0].WindowLength);
         Assert.Equal("5 saatlik", windows[0].Label);
         Assert.Equal("Claude Sonnet", windows[0].GroupName);
+        Assert.Equal(
+            "Models within this group: Claude Opus, Claude Sonnet, GPT-OSS",
+            windows[0].GroupDescription);
         Assert.Equal(WindowKind.Weekly, windows[1].Kind);
         Assert.Equal(20d, windows[1].Percent, precision: 10);
         Assert.Equal("Haftalık", windows[1].Label);
@@ -55,6 +59,16 @@ public sealed class AntigravityTests
     {
         Assert.Empty(AntigravityUsageParser.ParseWindows("{\"groups\":[]}"));
         Assert.Empty(AntigravityUsageParser.ParseWindows("{\"groups\": [{\"displayName\": \"x\"}]}"));
+    }
+
+    [Theory]
+    [InlineData("{\"userStatus\":{\"userTier\":{\"name\":\"Pro\",\"description\":\"Tier\"}}}", "Pro")]
+    [InlineData("{\"userStatus\":{\"userTier\":{\"description\":\"Team\"}}}", "Team")]
+    [InlineData("{\"userStatus\":{\"planStatus\":{\"planInfo\":{\"planDisplayName\":\"Business\",\"planName\":\"business\"}}}}", "Business")]
+    [InlineData("{\"userStatus\":{\"planStatus\":{\"planInfo\":{\"planName\":\"starter\"}}}}", "starter")]
+    public void Parser_ReadsPlanNameInDocumentedOrder(string json, string expected)
+    {
+        Assert.Equal(expected, AntigravityUsageParser.ParsePlanName(json));
     }
 
     [Fact]
@@ -93,9 +107,14 @@ public sealed class AntigravityTests
     {
         var handler = new RecordingHandler
         {
-            Response = _ => JsonResponse(
-                System.Net.HttpStatusCode.OK,
-                """{"groups":[{"displayName":"Gemini","buckets":[{"window":"5h","remainingFraction":0.5}]}]}"""),
+            Response = request => request.RequestUri!.AbsolutePath.EndsWith(
+                "GetUserStatus", StringComparison.Ordinal)
+                ? JsonResponse(
+                    System.Net.HttpStatusCode.OK,
+                    """{"userStatus":{"userTier":{"name":"Pro"}}}""")
+                : JsonResponse(
+                    System.Net.HttpStatusCode.OK,
+                    """{"groups":[{"displayName":"Gemini","buckets":[{"window":"5h","remainingFraction":0.5}]}]}"""),
         };
 
         using var http = new HttpClient(handler);
@@ -106,12 +125,19 @@ public sealed class AntigravityTests
             rawResponseSink: _ => { });
 
         var snapshot = await source.FetchAsync(CancellationToken.None);
-        var request = Assert.Single(handler.Requests);
+        var request = Assert.Single(handler.Requests, request =>
+            request.RequestUri!.AbsolutePath.EndsWith("RetrieveUserQuotaSummary", StringComparison.Ordinal));
+        var statusRequest = Assert.Single(handler.Requests, request =>
+            request.RequestUri!.AbsolutePath.EndsWith("GetUserStatus", StringComparison.Ordinal));
 
         Assert.Equal(ProviderStatus.Ok, snapshot.Status);
         Assert.Equal("csrf-test", request.Headers.GetValues("X-Codeium-Csrf-Token").Single());
         Assert.Equal("1", request.Headers.GetValues("Connect-Protocol-Version").Single());
         Assert.False(request.Headers.Contains("host_bridge_token"));
+        Assert.Equal("Pro", snapshot.PlanName);
+        Assert.Contains("\"ideName\":\"antigravity\"", handler.RequestBodies.Single(body =>
+            body.Contains("ideName", StringComparison.Ordinal)));
+        Assert.Equal("csrf-test", statusRequest.Headers.GetValues("X-Codeium-Csrf-Token").Single());
     }
 
     [Fact]
@@ -139,7 +165,7 @@ public sealed class AntigravityTests
         var snapshot = await source.FetchAsync(CancellationToken.None);
 
         Assert.Equal(ProviderStatus.Ok, snapshot.Status);
-        Assert.Equal(new[] { "http", "https" }, handler.Requests
+        Assert.Equal(new[] { "http", "https", "https" }, handler.Requests
             .Select(request => request.RequestUri!.Scheme)
             .ToArray());
     }
@@ -156,6 +182,7 @@ public sealed class AntigravityTests
     {
         public List<int> Ports { get; } = [];
         public List<HttpRequestMessage> Requests { get; } = [];
+        public List<string> RequestBodies { get; } = [];
         public Func<HttpRequestMessage, HttpResponseMessage>? Response { get; init; }
 
         protected override Task<HttpResponseMessage> SendAsync(
@@ -164,6 +191,7 @@ public sealed class AntigravityTests
         {
             Ports.Add(request.RequestUri!.Port);
             Requests.Add(request);
+            RequestBodies.Add(request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty);
             return Task.FromResult(Response?.Invoke(request) ?? new HttpResponseMessage(
                 System.Net.HttpStatusCode.ServiceUnavailable));
         }

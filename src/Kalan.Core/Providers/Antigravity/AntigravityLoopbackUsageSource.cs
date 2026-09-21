@@ -12,6 +12,8 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 {
     private const string EndpointPath =
         "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
+    private const string UserStatusEndpointPath =
+        "/exa.language_server_pb.LanguageServerService/GetUserStatus";
     private const string HttpsErrorText = "Client sent an HTTP request to an HTTPS server";
 
     private readonly HttpClient _loopbackHttp;
@@ -166,6 +168,12 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                     $"degraded data=empty port={candidate.Port} transport={probe.Scheme}");
             }
 
+            // Plan adı quotaInfo içinde değildir; ayrı çağrı yalnızca başlık
+            // rozetini doldurur ve kota pencerelerine hiç dokunmaz.
+            var planName = await FetchPlanNameAsync(
+                candidate with { Scheme = probe.Scheme },
+                ct).ConfigureAwait(false);
+
             return Complete(
                 new UsageSnapshot(
                     ProviderId: "antigravity",
@@ -176,7 +184,7 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StaleReason: null,
-                    PlanName: parsed.PlanName),
+                    PlanName: planName),
                 stopwatch,
                 $"ok windows={windows.Count} port={candidate.Port} transport={probe.Scheme}");
         }
@@ -256,6 +264,54 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
             StatusCode: (int)response.StatusCode,
             Body: body,
             Scheme: candidate.Scheme);
+    }
+
+    private async Task<string?> FetchPlanNameAsync(
+        PortCandidate candidate,
+        CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{candidate.Scheme}://127.0.0.1:{candidate.Port}{UserStatusEndpointPath}");
+        request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+        if (!string.IsNullOrWhiteSpace(candidate.CsrfToken))
+        {
+            request.Headers.TryAddWithoutValidation(
+                "X-Codeium-Csrf-Token",
+                candidate.CsrfToken);
+        }
+
+        request.Content = new StringContent(
+            "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"ideVersion\":\"unknown\",\"locale\":\"en\"}}",
+            Encoding.UTF8,
+            "application/json");
+
+        try
+        {
+            using var response = await _loopbackHttp.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                ct).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return null;
+
+            try
+            {
+                return AntigravityUsageParser.ParsePlanName(body);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     private IReadOnlyList<PortCandidate> GetCandidates()

@@ -25,6 +25,7 @@ public static class AntigravityUsageParser
             if (group.ValueKind != JsonValueKind.Object) continue;
 
             var groupName = ReadString(group, "displayName");
+            var groupDescription = ReadString(group, "description");
             var buckets = FindArray(group, "buckets", "quotaBuckets", "windows");
             if (buckets is null) continue;
 
@@ -54,11 +55,14 @@ public static class AntigravityUsageParser
                     ResetsAt: reset,
                     Label: WindowLabel(kind),
                     WindowLength: length,
-                    GroupName: groupName));
+                    GroupName: groupName,
+                    GroupDescription: groupDescription));
             }
         }
 
-        return new ParseResult(windows, FindPlanName(document.RootElement));
+        // RetrieveUserQuotaSummary plan döndürmez. Plan bilgisi ayrı GetUserStatus
+        // çağrısından gelir; kota gövdesinden tahminde bulunmak rozetleri kirletir.
+        return new ParseResult(windows, null);
     }
 
     private static JsonElement? FindNestedGroups(JsonElement root)
@@ -127,25 +131,41 @@ public static class AntigravityUsageParser
         _ => kind.ToString(),
     };
 
-    private static string? FindPlanName(JsonElement root)
+    public static string? ParsePlanName(string json)
     {
-        foreach (var element in EnumerateContainers(root))
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        foreach (var element in EnumerateStatusContainers(root))
         {
-            foreach (var key in new[] { "planName", "plan", "tier", "subscriptionType" })
+            var status = element;
+            if (element.TryGetProperty("userStatus", out var nestedStatus) &&
+                nestedStatus.ValueKind == JsonValueKind.Object)
             {
-                var value = ReadString(element, key);
-                if (!string.IsNullOrWhiteSpace(value)) return value;
+                status = nestedStatus;
+            }
+
+            var paths = new[]
+            {
+                new[] { "userTier", "name" },
+                new[] { "userTier", "description" },
+                new[] { "planStatus", "planInfo", "planDisplayName" },
+                new[] { "planStatus", "planInfo", "planName" },
+            };
+            foreach (var path in paths)
+            {
+                var value = ReadPath(status, path);
+                if (!string.IsNullOrWhiteSpace(value)) return value.Trim();
             }
         }
 
         return null;
     }
 
-    private static IEnumerable<JsonElement> EnumerateContainers(JsonElement root)
+    private static IEnumerable<JsonElement> EnumerateStatusContainers(JsonElement root)
     {
         yield return root;
 
-        foreach (var wrapperName in new[] { "response", "userQuota", "quotaSummary", "userQuotaSummary" })
+        foreach (var wrapperName in new[] { "response", "userStatus" })
         {
             if (root.TryGetProperty(wrapperName, out var wrapper) &&
                 wrapper.ValueKind == JsonValueKind.Object)
@@ -153,6 +173,21 @@ public static class AntigravityUsageParser
                 yield return wrapper;
             }
         }
+    }
+
+    private static string? ReadPath(JsonElement element, IReadOnlyList<string> path)
+    {
+        var current = element;
+        foreach (var segment in path)
+        {
+            if (current.ValueKind != JsonValueKind.Object ||
+                !current.TryGetProperty(segment, out current))
+            {
+                return null;
+            }
+        }
+
+        return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
     }
 
     private static string? ReadString(JsonElement element, string name) =>

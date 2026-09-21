@@ -37,7 +37,8 @@
                     Spacing="4" />
 
         <!--  Seçili sağlayıcının detayı (taşarsa burası kayar; sekmeler ve eylemler sabit)  -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer x:Name="DetailScrollViewer"
+                      Grid.Row="1"
                       Background="Transparent"
                       VerticalScrollBarVisibility="Auto"
                       VerticalScrollMode="Auto">
@@ -162,20 +163,38 @@
             </Grid>
         </ScrollViewer>
 
-        <!--  Eylem satırı: Yenile · Ayarlar · Çıkış  -->
+        <!--  Eylem satırı: ikon düğmeleri; Çıkış sağ tık menüsündedir.  -->
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     Spacing="4">
             <Button x:Name="RefreshButton"
-                    Content="Yenile"
                     Style="{StaticResource SubtleButtonStyle}"
+                    Width="32"
+                    Height="32"
+                    MinWidth="32"
+                    MinHeight="32"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    ToolTipService.ToolTip="Yenile"
+                    Content="&#xE72C;"
+                    FontFamily="Segoe Fluent Icons"
+                    FontSize="16"
                     AutomationProperties.Name="Kotaları Şimdi Yenile" />
             <Button x:Name="SettingsButton"
-                    Content="Ayarlar"
-                    Style="{StaticResource SubtleButtonStyle}" />
-            <Button x:Name="ExitButton"
-                    Content="Çıkış"
-                    Style="{StaticResource SubtleButtonStyle}" />
+                    Style="{StaticResource SubtleButtonStyle}"
+                    Width="32"
+                    Height="32"
+                    MinWidth="32"
+                    MinHeight="32"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    ToolTipService.ToolTip="Ayarlar"
+                    Content="&#xE713;"
+                    FontFamily="Segoe Fluent Icons"
+                    FontSize="16"
+                    AutomationProperties.Name="Ayarlar" />
         </StackPanel>
     </Grid>
 </Window>

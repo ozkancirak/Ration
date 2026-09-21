@@ -19,6 +19,17 @@ public sealed class OpenCodeTests
     }
 
     [Fact]
+    public void AuthContent_ListsConfiguredProvidersWithoutValues()
+    {
+        var info = OpenCodeCredentialStore.TryReadInfo(
+            contentOverride: """{"opencode-go":{"key":"secret"},"anthropic":{"key":"a"},"github-copilot":{"token":"b"}}""");
+
+        Assert.NotNull(info);
+        Assert.Equal("secret", info!.AccessToken);
+        Assert.Equal(new[] { "anthropic", "github-copilot" }, info.ConfiguredProviders);
+    }
+
+    [Fact]
     public void Parser_DolarLimitYuzdeleriniDogruPencerelereKoyar()
     {
         const string json = """
@@ -64,7 +75,7 @@ public sealed class OpenCodeTests
     }
 
     [Fact]
-    public void LocalReader_CanliDbYerineKopyayiSorgular()
+    public async Task LocalReader_CanliDbYerineKopyayiSorgular()
     {
         var root = Path.Combine(Path.GetTempPath(), $"kalan-opencode-{Guid.NewGuid():N}");
         var databasePath = Path.Combine(root, "opencode.db");
@@ -104,6 +115,24 @@ public sealed class OpenCodeTests
             Assert.Equal(50, report.CacheCreationTokens);
             Assert.False(Directory.Exists(cacheDirectory) &&
                          Directory.EnumerateDirectories(cacheDirectory).Any());
+
+            using var http = new HttpClient(new RecordingHandler(_ =>
+                throw new InvalidOperationException("Sunucu kotası olmamalı.")));
+            var source = new OpenCodeUsageSource(
+                http,
+                credentials: () => null,
+                databasePath: databasePath,
+                databaseCacheDirectory: cacheDirectory,
+                authInfo: () => new OpenCodeAuthInfo(
+                    AccessToken: null,
+                    ConfiguredProviders: new[] { "anthropic", "github-copilot" }));
+
+            var snapshot = await source.FetchAsync();
+            Assert.Equal("Kota yok", snapshot.PlanName);
+            Assert.Contains("kendi kotası yok", snapshot.StatusDetail);
+            Assert.Equal(new[] { "anthropic", "github-copilot" }, snapshot.ConfiguredProviders);
+            Assert.Equal(390, snapshot.Cost!.InputTokens + snapshot.Cost.OutputTokens +
+                snapshot.Cost.CacheReadTokens + snapshot.Cost.CacheCreationTokens);
         }
         finally
         {

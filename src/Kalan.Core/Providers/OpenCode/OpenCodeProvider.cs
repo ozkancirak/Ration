@@ -7,7 +7,19 @@ using Kalan.Core.Model;
 
 namespace Kalan.Core.Providers.OpenCode;
 
-public sealed record OpenCodeCredentials(string AccessToken);
+public sealed record OpenCodeCredentials(
+    string AccessToken,
+    IReadOnlyList<string>? ConfiguredProviders = null);
+
+public sealed record OpenCodeAuthInfo(
+    string? AccessToken,
+    IReadOnlyList<string> ConfiguredProviders)
+{
+    public OpenCodeCredentials? ToCredentials() =>
+        string.IsNullOrWhiteSpace(AccessToken)
+            ? null
+            : new OpenCodeCredentials(AccessToken, ConfiguredProviders);
+}
 
 /// <summary>
 /// OpenCode auth.json'ı salt okunur okur. OPENCODE_AUTH_CONTENT ayarlıysa
@@ -16,6 +28,11 @@ public sealed record OpenCodeCredentials(string AccessToken);
 public static class OpenCodeCredentialStore
 {
     public static OpenCodeCredentials? TryRead(string? path = null, string? contentOverride = null)
+    {
+        return TryReadInfo(path, contentOverride)?.ToCredentials();
+    }
+
+    public static OpenCodeAuthInfo? TryReadInfo(string? path = null, string? contentOverride = null)
     {
         var environmentContent = Environment.GetEnvironmentVariable("OPENCODE_AUTH_CONTENT");
         if (environmentContent is not null)
@@ -43,7 +60,7 @@ public static class OpenCodeCredentialStore
         catch (UnauthorizedAccessException) { return null; }
     }
 
-    private static OpenCodeCredentials? Parse(string content)
+    private static OpenCodeAuthInfo? Parse(string content)
     {
         try
         {
@@ -53,19 +70,32 @@ public static class OpenCodeCredentialStore
         catch (JsonException) { return null; }
     }
 
-    private static OpenCodeCredentials? Parse(JsonElement root)
+    private static OpenCodeAuthInfo? Parse(JsonElement root)
     {
-        if (root.ValueKind != JsonValueKind.Object ||
-            !root.TryGetProperty("opencode-go", out var entry) ||
-            entry.ValueKind != JsonValueKind.Object ||
-            !entry.TryGetProperty("key", out var keyElement) ||
-            keyElement.ValueKind != JsonValueKind.String)
+        if (root.ValueKind != JsonValueKind.Object)
         {
             return null;
         }
 
-        var key = keyElement.GetString();
-        return string.IsNullOrWhiteSpace(key) ? null : new OpenCodeCredentials(key);
+        string? key = null;
+        if (root.TryGetProperty("opencode-go", out var entry) &&
+            entry.ValueKind == JsonValueKind.Object &&
+            entry.TryGetProperty("key", out var keyElement) &&
+            keyElement.ValueKind == JsonValueKind.String)
+        {
+            key = keyElement.GetString();
+        }
+
+        var configuredProviders = root.EnumerateObject()
+            .Select(property => property.Name)
+            .Where(name => !name.Equals("opencode-go", StringComparison.OrdinalIgnoreCase))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new OpenCodeAuthInfo(
+            string.IsNullOrWhiteSpace(key) ? null : key,
+            configuredProviders);
     }
 }
 
@@ -99,8 +129,12 @@ public sealed class OpenCodeUsageSource : IUsageSource
 
     private readonly HttpClient _http;
     private readonly Func<OpenCodeCredentials?> _credentials;
+    private readonly Func<OpenCodeAuthInfo?> _authInfo;
     private readonly string _databasePath;
     private readonly string _databaseCacheDirectory;
+
+    private const string NoQuotaDetail =
+        "OpenCode'un kendi kotası yok; yapılandırılmış sağlayıcıların aboneliğini kullanıyor.";
 
     public SourceKind Kind => SourceKind.LocalFile;
 
@@ -110,10 +144,12 @@ public sealed class OpenCodeUsageSource : IUsageSource
         HttpClient http,
         Func<OpenCodeCredentials?>? credentials = null,
         string? databasePath = null,
-        string? databaseCacheDirectory = null)
+        string? databaseCacheDirectory = null,
+        Func<OpenCodeAuthInfo?>? authInfo = null)
     {
         _http = http;
-        _credentials = credentials ?? (() => OpenCodeCredentialStore.TryRead());
+        _authInfo = authInfo ?? (() => OpenCodeCredentialStore.TryReadInfo());
+        _credentials = credentials ?? (() => _authInfo()?.ToCredentials());
         _databasePath = databasePath ?? KnownPaths.OpenCodeDatabaseFile;
         _databaseCacheDirectory = databaseCacheDirectory ?? KnownPaths.OpenCodeDatabaseCacheDir;
     }
@@ -123,17 +159,22 @@ public sealed class OpenCodeUsageSource : IUsageSource
     public async Task<UsageSnapshot> FetchAsync(CancellationToken ct = default)
     {
         LastStatusCode = null;
-        var credentials = _credentials();
+        var authInfo = _authInfo();
+        var credentials = _credentials() ?? authInfo?.ToCredentials();
 
         if (credentials is not null)
         {
             return await FetchRemoteAsync(credentials, ct).ConfigureAwait(false);
         }
 
+        var configuredProviders = authInfo?.ConfiguredProviders ?? Array.Empty<string>();
+
         if (!File.Exists(_databasePath))
         {
-            return Snapshot.Empty("opencode", ProviderStatus.NotInstalled,
-                "OpenCode kurulu değil veya opencode.db bulunamadı.", Kind);
+            return LocalStatusSnapshot(
+                ProviderStatus.NotInstalled,
+                "OpenCode kurulu değil veya opencode.db bulunamadı.",
+                configuredProviders);
         }
 
         try
@@ -145,8 +186,10 @@ public sealed class OpenCodeUsageSource : IUsageSource
 
             if (cost is null)
             {
-                return Snapshot.Empty("opencode", ProviderStatus.Degraded,
-                    "OpenCode yerel veritabanı okunamadı.", Kind);
+                return LocalStatusSnapshot(
+                    ProviderStatus.Degraded,
+                    "OpenCode yerel veritabanı okunamadı.",
+                    configuredProviders);
             }
 
             return new UsageSnapshot(
@@ -158,14 +201,35 @@ public sealed class OpenCodeUsageSource : IUsageSource
                 ResolvedVia: Kind,
                 FetchedAt: DateTimeOffset.UtcNow,
                 StaleReason: "Yerel OpenCode token sayımı · son 30 gün",
-                PlanName: null);
+                PlanName: "Kota yok",
+                StatusDetail: NoQuotaDetail,
+                ConfiguredProviders: configuredProviders);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return Snapshot.Empty("opencode", ProviderStatus.Degraded,
-                $"OpenCode yerel veritabanı okunamadı: {ex.GetType().Name}", Kind);
+            return LocalStatusSnapshot(
+                ProviderStatus.Degraded,
+                $"OpenCode yerel veritabanı okunamadı: {ex.GetType().Name}",
+                configuredProviders);
         }
     }
+
+    private static UsageSnapshot LocalStatusSnapshot(
+        ProviderStatus status,
+        string reason,
+        IReadOnlyList<string> configuredProviders) =>
+        new(
+            ProviderId: "opencode",
+            Windows: Array.Empty<UsageWindow>(),
+            Credits: null,
+            Cost: null,
+            Status: status,
+            ResolvedVia: SourceKind.LocalFile,
+            FetchedAt: DateTimeOffset.UtcNow,
+            StaleReason: reason,
+            PlanName: "Kota yok",
+            StatusDetail: NoQuotaDetail,
+            ConfiguredProviders: configuredProviders);
 
     private async Task<UsageSnapshot> FetchRemoteAsync(
         OpenCodeCredentials credentials,
@@ -197,7 +261,8 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StaleReason: "OpenCode Go aboneliği yok — kota yok.",
-                    PlanName: "OpenCode Go");
+                    PlanName: "OpenCode Go",
+                    StatusDetail: "OpenCode Go aboneliği yok — sunucu kotası kullanılamıyor.");
             }
 
             if (!response.IsSuccessStatusCode)
