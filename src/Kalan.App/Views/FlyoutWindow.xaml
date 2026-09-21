@@ -41,7 +41,23 @@
                       Background="Transparent"
                       VerticalScrollBarVisibility="Auto"
                       VerticalScrollMode="Auto">
-            <StackPanel x:Name="DetailPanel" Spacing="16">
+            <Grid>
+                <StackPanel x:Name="WelcomePanel"
+                            Spacing="8"
+                            Visibility="Collapsed">
+                    <TextBlock Text="Henüz bir sağlayıcı bulunamadı."
+                               Style="{StaticResource SubtitleTextBlockStyle}"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="Kalan'ın veri okuyabilmesi için aşağıdaki sağlayıcılardan birini kurup giriş yapın."
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
+                    <StackPanel x:Name="WelcomeProvidersPanel"
+                                Spacing="6"
+                                Margin="0,8,0,0" />
+                </StackPanel>
+
+                <StackPanel x:Name="DetailPanel" Spacing="16">
 
                 <!--  Sağlayıcı adı + plan + tazelik  -->
                 <StackPanel Spacing="2">
@@ -142,7 +158,8 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
-            </StackPanel>
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
 
         <!--  Eylem satırı: Yenile · Ayarlar · Çıkış  -->

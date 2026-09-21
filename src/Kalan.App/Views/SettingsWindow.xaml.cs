@@ -1,3 +1,5 @@
+using Process = System.Diagnostics.Process;
+using ProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
@@ -10,6 +12,7 @@ using Kalan.Core.Cost;
 using Kalan.Core.Diagnostics;
 using Kalan.Core.Providers;
 using Kalan.Platform.Windows.Interop;
+using Kalan.Platform.Windows.App;
 using Kalan.Platform.Windows.Theme;
 
 namespace Kalan.App.Views;
@@ -33,6 +36,22 @@ public sealed partial class SettingsWindow : Window
                     providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId);
             }
         };
+
+        StartupToggle.IsOn = StartupRegistration.IsEnabled();
+        StartupToggle.Toggled += (_, _) =>
+        {
+            bool requested = StartupToggle.IsOn;
+            if (!StartupRegistration.SetEnabled(requested))
+            {
+                StartupToggle.IsOn = !requested;
+            }
+        };
+
+        CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
+        OpenLogButton.Click += (_, _) => OpenLog();
+        VersionText.Text = $"Sürüm {UpdateService.CurrentVersion}";
+        UpdateStatusText.Text = "Henüz denetlenmedi.";
+        UpdateLastCheckedText.Text = LastCheckedText(UpdateService.LastCheckedAt);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -135,6 +154,44 @@ public sealed partial class SettingsWindow : Window
             Directory.Exists(KnownPaths.ClaudeProjectsDir), priced);
         SetCostStatus(CodexCostBadge, CodexCostStatus, CodexCostReason,
             Directory.Exists(KnownPaths.CodexSessionsDir), priced);
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        UpdateStatusText.Text = "Denetleniyor…";
+        try
+        {
+            var result = await UpdateService.CheckAsync();
+            UpdateStatusText.Text = result.Message;
+            UpdateLastCheckedText.Text = LastCheckedText(result.CheckedAt);
+        }
+        finally
+        {
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private static string LastCheckedText(DateTimeOffset? value) =>
+        value is { } checkedAt
+            ? $"Son kontrol: {checkedAt.ToLocalTime():dd.MM.yyyy HH:mm}"
+            : "Son kontrol: yok";
+
+    private static void OpenLog()
+    {
+        try
+        {
+            Trace.Info("diagnostics", "log-open");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Trace.LogPath,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            Trace.Error("diagnostics", $"log-open failed type={ex.GetType().Name}");
+        }
     }
 
     private static void SetCostStatus(InfoBadge badge, TextBlock status, TextBlock reason, bool dirExists, bool priced)

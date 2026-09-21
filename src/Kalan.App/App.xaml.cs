@@ -2,6 +2,7 @@ using System;
 using Microsoft.UI.Xaml;
 using Kalan.Core.Diagnostics;
 using Kalan.App.Views;
+using Kalan.Platform.Windows.App;
 
 namespace Kalan.App;
 
@@ -9,6 +10,7 @@ public partial class App : Application
 {
     private FlyoutWindow? _flyoutWindow;
     private SettingsWindow? _settingsWindow;
+    private SingleInstanceLease? _singleInstance;
 
     public App()
     {
@@ -23,6 +25,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {
             Trace.Info("app", "process-exit");
+            _singleInstance?.Dispose();
         };
 
         this.UnhandledException += (s, e) =>
@@ -55,6 +58,12 @@ public partial class App : Application
         try
         {
             Trace.Info("app", "launch");
+            if (!SingleInstanceLease.TryAcquire(cmdArgs, out _singleInstance))
+            {
+                Environment.Exit(0);
+                return;
+            }
+
             if (HasFlag(cmdArgs, "--log"))
             {
                 foreach (var line in Trace.ReadLastLines(100))

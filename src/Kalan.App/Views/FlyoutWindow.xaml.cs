@@ -26,6 +26,7 @@ using Kalan.Platform.Windows.Power;
 using Kalan.Platform.Windows.Providers;
 using Kalan.Platform.Windows.Theme;
 using Kalan.Platform.Windows.Tray;
+using Kalan.Platform.Windows.App;
 using XamlPath = Microsoft.UI.Xaml.Shapes.Path;
 
 namespace Kalan.App.Views;
@@ -153,6 +154,7 @@ public sealed partial class FlyoutWindow : Window
         ExitButton.Click += (s, e) => ExitApplication();
 
         BuildTabs();
+        UpdateWelcomeState();
 
         // Menü native WinUI penceresidir (TrayMenuWindow); WinForms menüsü yok.
         // Önce menü kurulur (tray lambdaları ona kapanır).
@@ -200,6 +202,16 @@ public sealed partial class FlyoutWindow : Window
 
     private IntPtr WindowSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
     {
+        if (uMsg == SingleInstanceLease.WakeWindowMessageId)
+        {
+            this.DispatcherQueue.TryEnqueue(() =>
+            {
+                Trace.Info("single-instance", "wake received");
+                ShowFlyout();
+            });
+            return IntPtr.Zero;
+        }
+
         const uint WM_SETTINGCHANGE = 0x001A;
         const uint WM_THEMECHANGED = 0x031A;
         const uint WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
@@ -385,6 +397,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void RefreshAllMeters()
     {
+        UpdateWelcomeState();
         UpdateTabs();
         RenderDetail();
     }
@@ -552,11 +565,50 @@ public sealed partial class FlyoutWindow : Window
     {
         EnsureTab(snapshot.ProviderId);
         MaybeAutoSelect();
+        UpdateWelcomeState();
         UpdateTabs();
         RenderDetail();
         EnqueueResize();
         RecalculateTrayIcon();
     }
+
+    private void UpdateWelcomeState()
+    {
+        var discovered = _scheduler.Current.Values.Any(HasDiscoveredProvider);
+        WelcomePanel.Visibility = discovered ? Visibility.Collapsed : Visibility.Visible;
+        DetailPanel.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
+        TabStrip.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
+
+        if (discovered || WelcomeProvidersPanel.Children.Count > 0) return;
+
+        foreach (var provider in _providers)
+        {
+            var line = new TextBlock
+            {
+                Text = $"{provider.DisplayName} — {ProviderSearchLocation(provider.Id)}",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
+            };
+            QuotaVisuals.SetTextStyle(line, "CaptionTextBlockStyle");
+            WelcomeProvidersPanel.Children.Add(line);
+        }
+    }
+
+    private static bool HasDiscoveredProvider(UsageSnapshot snapshot) =>
+        snapshot.Status is ProviderStatus.Ok or ProviderStatus.Degraded
+            ? snapshot.Windows.Count > 0 || snapshot.Cost is not null ||
+              snapshot.Credits is not null || snapshot.PlanName is not null
+            : snapshot.Status is (ProviderStatus.AuthRequired or ProviderStatus.Error) &&
+              snapshot.ResolvedVia is not null;
+
+    private static string ProviderSearchLocation(string providerId) => providerId.ToLowerInvariant() switch
+    {
+        "claude" => "%USERPROFILE%\\.claude\\.credentials.json",
+        "codex" => "%USERPROFILE%\\.codex\\auth.json",
+        "antigravity" => "language_server.exe veya %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log",
+        "opencode" => "%USERPROFILE%\\.local\\share\\opencode\\auth.json veya opencode.db",
+        _ => "yerel sağlayıcı kaynakları",
+    };
 
     /// <summary>
     /// Kullanıcı henüz sekme seçmediyse verisi olan ilk sağlayıcıyı göster.

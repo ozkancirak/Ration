@@ -166,7 +166,33 @@
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE7E8;" />
                     </controls:SettingsCard.HeaderIcon>
-                    <ToggleSwitch IsOn="false" OnContent="Açık" OffContent="Kapalı" />
+                    <ToggleSwitch x:Name="StartupToggle"
+                                  OnContent="Açık"
+                                  OffContent="Kapalı" />
+                </controls:SettingsCard>
+
+                <controls:SettingsCard Header="Güncellemeler"
+                                       Description="GitHub Releases üzerinden yalnızca sürüm kontrolü yapar">
+                    <StackPanel Spacing="4" MinWidth="240">
+                        <Button x:Name="CheckUpdatesButton"
+                                Content="Güncellemeleri denetle"
+                                HorizontalAlignment="Left" />
+                        <TextBlock x:Name="UpdateStatusText"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="UpdateLastCheckedText"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </controls:SettingsCard>
+
+                <controls:SettingsCard Header="Tanılama"
+                                       Description="Sorun giderme için Kalan günlüğünü aç">
+                    <Button x:Name="OpenLogButton"
+                            Content="Günlüğü aç"
+                            HorizontalAlignment="Left" />
                 </controls:SettingsCard>
 
                 <!-- Bölüm: Hakkında -->
@@ -179,10 +205,16 @@
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE946;" />
                     </controls:SettingsCard.HeaderIcon>
-                    <TextBlock Text="Sürüm 0.2"
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                               VerticalAlignment="Center" />
+                    <StackPanel Spacing="4">
+                        <TextBlock x:Name="VersionText"
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="Sağlayıcı işaretleri Simple Icons (CC0) kullanır."
+                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                 </controls:SettingsCard>
 
         </StackPanel>
