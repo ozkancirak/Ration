@@ -22,7 +22,10 @@ public static class RawResponseRedactor
     {
         // kimlik
         "email", "user_id", "userId", "account_id", "accountId",
-        "organization_id", "organizationId", "org_id", "orgId", "uuid", "id",
+        "organization_id", "organizationId", "org_id", "orgId", "project_id",
+        "projectId", "session_id", "sessionId", "request_id", "requestId",
+        "bucket_id", "bucketId",
+        "model_id", "modelId", "uuid", "id",
         // kimlik doğrulama (kota yanıtlarında beklenmez ama güvenlik ağı)
         "token", "id_token", "access_token", "refresh_token", "accessToken",
         "refreshToken", "api_key", "apiKey", "session_key", "sessionKey",

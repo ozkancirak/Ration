@@ -150,6 +150,7 @@ public class ProviderParsingTests
         {
           "claudeAiOauth": {
             "accessToken": "sentetik-token",
+            "refreshToken": "sentetik-refresh-token",
             "expiresAt": {{gecmisZaman}},
             "subscriptionType": "max"
           }
@@ -162,6 +163,7 @@ public class ProviderParsingTests
 
             Assert.NotNull(credentials);
             Assert.Equal("max", credentials!.SubscriptionType);
+            Assert.Equal("sentetik-refresh-token", credentials.RefreshToken);
             Assert.True(credentials.IsExpired);
         }
         finally

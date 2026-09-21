@@ -37,7 +37,9 @@ public sealed record UsageWindow(
     string? Label = null,
     // Pencerenin toplam uzunluğu (tempo hesabı için). Kaynak vermiyorsa null;
     // null iken tempo satırı gösterilmez, uydurma tahmin üretilmez.
-    TimeSpan? WindowLength = null);
+    TimeSpan? WindowLength = null,
+    // Antigravity gibi sağlayıcılar pencereleri iki seviyeli gruplar altında verir.
+    string? GroupName = null);
 
 public sealed record CreditBalance(
     decimal RemainingCredits,

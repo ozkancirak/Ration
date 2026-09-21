@@ -12,31 +12,55 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 {
     private const string EndpointPath =
         "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
+    private const string HttpsErrorText = "Client sent an HTTP request to an HTTPS server";
 
-    private readonly HttpClient _http;
+    private readonly HttpClient _loopbackHttp;
     private readonly string _defaultLogPath;
     private readonly string? _overrideLogPath;
     private readonly Func<IReadOnlyList<int>> _findProcessPorts;
-    private int _cachedPort;
+    private readonly Func<IReadOnlyList<AntigravityProcessEndpoint>> _findProcessEndpoints;
+    private readonly Action<string> _rawResponseSink;
+    private CachedEndpoint? _cachedEndpoint;
     private int _rawResponseLogged;
 
-    private readonly record struct PortCandidate(int Port, string Source);
+    private readonly record struct CachedEndpoint(
+        int Port,
+        string Scheme,
+        string? CsrfToken);
+
+    private readonly record struct PortCandidate(
+        int Port,
+        string Source,
+        string? CsrfToken,
+        string Scheme);
+
+    private readonly record struct ProbeOutcome(
+        bool HasResponse,
+        bool ConnectionFailed,
+        int? StatusCode,
+        string Body,
+        string Scheme);
 
     public AntigravityLoopbackUsageSource(
-        HttpClient http,
+        HttpClient? http = null,
         string? defaultLogPath = null,
         string? overrideLogPath = null,
-        Func<IReadOnlyList<int>>? findProcessPorts = null)
+        Func<IReadOnlyList<int>>? findProcessPorts = null,
+        Func<IReadOnlyList<AntigravityProcessEndpoint>>? findProcessEndpoints = null,
+        Action<string>? rawResponseSink = null)
     {
-        _http = http;
+        _loopbackHttp = http ?? CreateLoopbackClient();
         _defaultLogPath = defaultLogPath ?? KnownPaths.AntigravityDefaultCliLog;
         _overrideLogPath = overrideLogPath ?? (
             defaultLogPath is null ? KnownPaths.AntigravityOverrideCliLog : null);
         _findProcessPorts = findProcessPorts ?? (() => Array.Empty<int>());
+        _findProcessEndpoints = findProcessEndpoints ?? (
+            () => Array.Empty<AntigravityProcessEndpoint>());
+        _rawResponseSink = rawResponseSink ?? (
+            body => KalanTrace.RawResponse("provider.raw", body));
     }
 
-    // Tur 7 test çağrı biçimini korur; gerçek uygulama WMI'nin bütün portlarını
-    // üstteki çoklu aday callback'iyle verir.
+    // Tur 7 test çağrı biçimini korur.
     public AntigravityLoopbackUsageSource(
         HttpClient http,
         string? logPath,
@@ -52,8 +76,6 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 
     public SourceKind Kind => SourceKind.Cli;
 
-    // Kaynak yokken de FetchAsync çalışmalı; böylece UI "kurulu değil" ile
-    // "veri yok" durumunu birbirinden ayırabilir.
     public Task<bool> IsAvailableAsync(CancellationToken ct) => Task.FromResult(true);
 
     public async Task<UsageSnapshot> FetchAsync(CancellationToken ct)
@@ -83,101 +105,80 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                 "provider.source",
                 $"provider=antigravity source=loopback candidate={candidate.Source} probe=port-{candidate.Port}");
 
+            var probe = await ProbeCandidateAsync(candidate, ct).ConfigureAwait(false);
+            if (probe.ConnectionFailed)
+            {
+                connectionFailures++;
+                KalanTrace.Info(
+                    "provider.source",
+                    $"provider=antigravity source=loopback candidate={candidate.Source} result=connection-failed");
+                continue;
+            }
+
+            httpResponses++;
+            KalanTrace.Info(
+                "provider.source",
+                $"provider=antigravity source=loopback candidate={candidate.Source} result=http-{probe.StatusCode} transport={probe.Scheme}");
+
+            if (IsJson(probe.Body))
+            {
+                _cachedEndpoint = new CachedEndpoint(
+                    candidate.Port,
+                    probe.Scheme,
+                    candidate.CsrfToken);
+            }
+
+            if (probe.StatusCode != (int)HttpStatusCode.OK) continue;
+
+            // İlk HTTP 200, içerik bozuk olsa bile seçilen porttur.
+            _cachedEndpoint = new CachedEndpoint(
+                candidate.Port,
+                probe.Scheme,
+                candidate.CsrfToken);
+
+            if (Interlocked.Exchange(ref _rawResponseLogged, 1) == 0)
+            {
+                _rawResponseSink(probe.Body);
+            }
+
+            AntigravityUsageParser.ParseResult parsed;
             try
             {
-                using var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"http://127.0.0.1:{candidate.Port}{EndpointPath}");
-                request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
-                request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
-
-                using var response = await _http.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    ct).ConfigureAwait(false);
-
-                if (response.StatusCode != HttpStatusCode.OK)
-                {
-                    httpResponses++;
-                    KalanTrace.Info(
-                        "provider.source",
-                        $"provider=antigravity source=loopback candidate={candidate.Source} result=http-{(int)response.StatusCode}");
-                    continue;
-                }
-
-                // İlk HTTP 200, içerik bozuk olsa bile seçilen porttur.
-                _cachedPort = candidate.Port;
-                var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-                if (Interlocked.Exchange(ref _rawResponseLogged, 1) == 0)
-                {
-                    KalanTrace.RawResponse("provider.raw", body);
-                }
-
-                IReadOnlyList<UsageWindow> windows;
-                try
-                {
-                    windows = AntigravityUsageParser.ParseWindows(body);
-                }
-                catch (JsonException)
-                {
-                    return Complete(
-                        Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                            "Antigravity kota yanıtı tanınmadı; veri yok.", Kind),
-                        stopwatch,
-                        $"degraded data=invalid port={candidate.Port}");
-                }
-
-                if (windows.Count == 0)
-                {
-                    return Complete(
-                        Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                            "Antigravity kota verisi yok.", Kind),
-                        stopwatch,
-                        $"degraded data=empty port={candidate.Port}");
-                }
-
-                return Complete(
-                    new UsageSnapshot(
-                        ProviderId: "antigravity",
-                        Windows: windows,
-                        Credits: null,
-                        Cost: null,
-                        Status: ProviderStatus.Ok,
-                        ResolvedVia: Kind,
-                        FetchedAt: DateTimeOffset.UtcNow,
-                        StaleReason: null),
-                    stopwatch,
-                    $"ok windows={windows.Count} port={candidate.Port}");
+                parsed = AntigravityUsageParser.Parse(probe.Body);
             }
-            catch (HttpRequestException)
-            {
-                connectionFailures++;
-                KalanTrace.Info(
-                    "provider.source",
-                    $"provider=antigravity source=loopback candidate={candidate.Source} result=connection-refused");
-            }
-            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
-            {
-                connectionFailures++;
-                KalanTrace.Info(
-                    "provider.source",
-                    $"provider=antigravity source=loopback candidate={candidate.Source} result=timeout");
-            }
-            catch (OperationCanceledException)
+            catch (JsonException)
             {
                 return Complete(
-                    Snapshot.Empty("antigravity", ProviderStatus.Error,
-                        "Antigravity isteği iptal edildi.", Kind),
+                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
+                        "Antigravity kota yanıtı tanınmadı; veri yok.", Kind),
                     stopwatch,
-                    "error cancelled");
+                    $"degraded data=invalid port={candidate.Port} transport={probe.Scheme}");
             }
-            catch (Exception ex)
+
+            var windows = parsed.Windows;
+
+            if (windows.Count == 0)
             {
-                httpResponses++;
-                KalanTrace.Info(
-                    "provider.source",
-                    $"provider=antigravity source=loopback candidate={candidate.Source} result=error type={ex.GetType().Name}");
+                return Complete(
+                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
+                        "Antigravity kota verisi yok.", Kind),
+                    stopwatch,
+                    $"degraded data=empty port={candidate.Port} transport={probe.Scheme}");
             }
+
+            return Complete(
+                new UsageSnapshot(
+                    ProviderId: "antigravity",
+                    Windows: windows,
+                    Credits: null,
+                    Cost: null,
+                    Status: ProviderStatus.Ok,
+                    ResolvedVia: Kind,
+                    FetchedAt: DateTimeOffset.UtcNow,
+                    StaleReason: null,
+                    PlanName: parsed.PlanName),
+                stopwatch,
+                $"ok windows={windows.Count} port={candidate.Port} transport={probe.Scheme}");
         }
 
         if (connectionFailures == candidates.Count && httpResponses == 0)
@@ -196,33 +197,127 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
             $"degraded no-200 candidates={candidates.Count}");
     }
 
+    private async Task<ProbeOutcome> ProbeCandidateAsync(
+        PortCandidate candidate,
+        CancellationToken ct)
+    {
+        try
+        {
+            var probe = await SendOnceAsync(candidate, ct).ConfigureAwait(false);
+            if (candidate.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
+                probe.Body.Contains(HttpsErrorText, StringComparison.OrdinalIgnoreCase))
+            {
+                KalanTrace.Info(
+                    "provider.source",
+                    $"provider=antigravity source=loopback port={candidate.Port} result=tls-port");
+                return await SendOnceAsync(
+                    candidate with { Scheme = "https" },
+                    ct).ConfigureAwait(false);
+            }
+
+            return probe;
+        }
+        catch (HttpRequestException)
+        {
+            return new ProbeOutcome(false, true, null, string.Empty, candidate.Scheme);
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return new ProbeOutcome(false, true, null, string.Empty, candidate.Scheme);
+        }
+    }
+
+    private async Task<ProbeOutcome> SendOnceAsync(
+        PortCandidate candidate,
+        CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{candidate.Scheme}://127.0.0.1:{candidate.Port}{EndpointPath}");
+        request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+        if (!string.IsNullOrWhiteSpace(candidate.CsrfToken))
+        {
+            request.Headers.TryAddWithoutValidation(
+                "X-Codeium-Csrf-Token",
+                candidate.CsrfToken);
+        }
+
+        request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+
+        using var response = await _loopbackHttp.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            ct).ConfigureAwait(false);
+        var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+        return new ProbeOutcome(
+            HasResponse: true,
+            ConnectionFailed: false,
+            StatusCode: (int)response.StatusCode,
+            Body: body,
+            Scheme: candidate.Scheme);
+    }
+
     private IReadOnlyList<PortCandidate> GetCandidates()
     {
         var candidates = new List<PortCandidate>();
-        var seen = new HashSet<int>();
+        var indexes = new Dictionary<int, int>();
+        string? processToken = null;
 
-        void Add(int port, string source)
+        void Add(PortCandidate candidate)
         {
-            if (port is < 1 or > 65535 || !seen.Add(port)) return;
-            candidates.Add(new PortCandidate(port, source));
+            if (candidate.Port is < 1 or > 65535) return;
+            processToken ??= candidate.CsrfToken;
+
+            if (indexes.TryGetValue(candidate.Port, out var index))
+            {
+                var existing = candidates[index];
+                if (existing.CsrfToken is null && candidate.CsrfToken is not null)
+                {
+                    candidates[index] = existing with { CsrfToken = candidate.CsrfToken };
+                }
+
+                return;
+            }
+
+            indexes[candidate.Port] = candidates.Count;
+            candidates.Add(candidate);
         }
 
-        if (_cachedPort != 0) Add(_cachedPort, "cache");
+        if (_cachedEndpoint is { } cached)
+        {
+            Add(new PortCandidate(cached.Port, "cache", cached.CsrfToken, cached.Scheme));
+        }
 
         try
         {
-            foreach (var port in _findProcessPorts()) Add(port, "process");
+            foreach (var endpoint in _findProcessEndpoints())
+            {
+                Add(new PortCandidate(endpoint.Port, "process", endpoint.CsrfToken, "http"));
+            }
         }
         catch
         {
-            // A WMI query failure must not prevent the log sources.
+            // A process metadata failure must not prevent the log fallback.
         }
 
-        AddLogCandidate(_defaultLogPath, "default-log", Add);
+        try
+        {
+            foreach (var port in _findProcessPorts())
+            {
+                Add(new PortCandidate(port, "process", processToken, "http"));
+            }
+        }
+        catch
+        {
+            // A listener discovery failure must not prevent the log fallback.
+        }
+
+        AddLogCandidate(_defaultLogPath, "default-log", processToken, Add);
         if (_overrideLogPath is { } overrideLog &&
             !string.Equals(_defaultLogPath, overrideLog, StringComparison.OrdinalIgnoreCase))
         {
-            AddLogCandidate(overrideLog, "override-log", Add);
+            AddLogCandidate(overrideLog, "override-log", processToken, Add);
         }
 
         return candidates;
@@ -231,12 +326,47 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
     private static void AddLogCandidate(
         string path,
         string source,
-        Action<int, string> add)
+        string? csrfToken,
+        Action<PortCandidate> add)
     {
         if (AntigravityPortFinder.FindNewestLogPort(path) is { } port)
         {
-            add(port, source);
+            add(new PortCandidate(port, source, csrfToken, "http"));
         }
+    }
+
+    private static bool IsJson(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return false;
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind is
+                JsonValueKind.Object or JsonValueKind.Array;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static HttpClient CreateLoopbackClient()
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            Proxy = null,
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+            },
+        };
+
+        return new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+        };
     }
 
     private static UsageSnapshot Complete(

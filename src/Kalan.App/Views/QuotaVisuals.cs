@@ -41,13 +41,16 @@ public static class QuotaVisuals
     }
 
     /// <summary>"2 sa 14 dk", "38 dk", "3 gün" — kalan süreyi kısa yazar.</summary>
-    public static string FormatReset(DateTimeOffset? resetsAt)
+    public static string FormatReset(DateTimeOffset? resetsAt, bool stale = false)
     {
         if (resetsAt is not { } reset) return string.Empty;
 
         var remaining = reset - DateTimeOffset.UtcNow;
 
-        if (remaining <= TimeSpan.Zero) return "sıfırlandı";
+        if (remaining <= TimeSpan.Zero)
+        {
+            return stale ? "sıfırlanmış olabilir" : "sıfırlandı";
+        }
         if (remaining.TotalMinutes < 60) return $"{(int)remaining.TotalMinutes} dk";
         if (remaining.TotalHours < 24) return $"{(int)remaining.TotalHours} sa {remaining.Minutes} dk";
 

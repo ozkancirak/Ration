@@ -41,9 +41,12 @@ public sealed class AntigravityTests
         Assert.Equal(WindowKind.Session, windows[0].Kind);
         Assert.Equal(75, windows[0].Percent);
         Assert.Equal(TimeSpan.FromHours(5), windows[0].WindowLength);
-        Assert.Equal("Claude Sonnet", windows[0].Label);
+        Assert.Equal("5 saatlik", windows[0].Label);
+        Assert.Equal("Claude Sonnet", windows[0].GroupName);
         Assert.Equal(WindowKind.Weekly, windows[1].Kind);
         Assert.Equal(20d, windows[1].Percent, precision: 10);
+        Assert.Equal("Haftalık", windows[1].Label);
+        Assert.Equal("Claude Sonnet", windows[1].GroupName);
         Assert.Equal(TimeSpan.FromDays(7), windows[1].WindowLength);
     }
 
@@ -85,16 +88,83 @@ public sealed class AntigravityTests
         }
     }
 
+    [Fact]
+    public async Task Source_SendsOnlyCsrfHeader()
+    {
+        var handler = new RecordingHandler
+        {
+            Response = _ => JsonResponse(
+                System.Net.HttpStatusCode.OK,
+                """{"groups":[{"displayName":"Gemini","buckets":[{"window":"5h","remainingFraction":0.5}]}]}"""),
+        };
+
+        using var http = new HttpClient(handler);
+        var source = new AntigravityLoopbackUsageSource(
+            http,
+            findProcessEndpoints: () =>
+                new[] { new AntigravityProcessEndpoint(41005, "csrf-test") },
+            rawResponseSink: _ => { });
+
+        var snapshot = await source.FetchAsync(CancellationToken.None);
+        var request = Assert.Single(handler.Requests);
+
+        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        Assert.Equal("csrf-test", request.Headers.GetValues("X-Codeium-Csrf-Token").Single());
+        Assert.Equal("1", request.Headers.GetValues("Connect-Protocol-Version").Single());
+        Assert.False(request.Headers.Contains("host_bridge_token"));
+    }
+
+    [Fact]
+    public async Task Source_RetriesHttpsWhenHttpBodyIdentifiesTlsPort()
+    {
+        var handler = new RecordingHandler
+        {
+            Response = request => request.RequestUri!.Scheme == "http"
+                ? new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("Client sent an HTTP request to an HTTPS server"),
+                }
+                : JsonResponse(
+                    System.Net.HttpStatusCode.OK,
+                    """{"groups":[{"displayName":"Gemini","buckets":[{"window":"weekly","remainingFraction":0.5}]}]}"""),
+        };
+
+        using var http = new HttpClient(handler);
+        var source = new AntigravityLoopbackUsageSource(
+            http,
+            findProcessEndpoints: () =>
+                new[] { new AntigravityProcessEndpoint(41006, "csrf-test") },
+            rawResponseSink: _ => { });
+
+        var snapshot = await source.FetchAsync(CancellationToken.None);
+
+        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        Assert.Equal(new[] { "http", "https" }, handler.Requests
+            .Select(request => request.RequestUri!.Scheme)
+            .ToArray());
+    }
+
+    private static HttpResponseMessage JsonResponse(
+        System.Net.HttpStatusCode statusCode,
+        string json) =>
+        new(statusCode)
+        {
+            Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"),
+        };
+
     private sealed class RecordingHandler : HttpMessageHandler
     {
         public List<int> Ports { get; } = [];
+        public List<HttpRequestMessage> Requests { get; } = [];
+        public Func<HttpRequestMessage, HttpResponseMessage>? Response { get; init; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             Ports.Add(request.RequestUri!.Port);
-            return Task.FromResult(new HttpResponseMessage(
+            Requests.Add(request);
+            return Task.FromResult(Response?.Invoke(request) ?? new HttpResponseMessage(
                 System.Net.HttpStatusCode.ServiceUnavailable));
         }
     }

@@ -13,10 +13,11 @@ public static class ProviderRegistry
 {
     public static IReadOnlyList<IUsageProvider> CreateAll(
         HttpClient http,
-        Func<IReadOnlyList<int>>? findAntigravityProcessPorts = null) =>
+        Func<IReadOnlyList<int>>? findAntigravityProcessPorts = null,
+        Func<IReadOnlyList<AntigravityProcessEndpoint>>? findAntigravityProcessEndpoints = null) =>
     [
         new ClaudeProvider(http),
         new CodexProvider(http),
-        new AntigravityProvider(http, findAntigravityProcessPorts),
+        new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
     ];
 }

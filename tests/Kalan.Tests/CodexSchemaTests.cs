@@ -174,6 +174,7 @@ public class RawResponseRedactorTests
         {
           "csrf_token": "sentetik-csrf",
           "host_bridge_token": "sentetik-bridge",
+          "bucketId": "sentetik-bucket",
           "plan_type": "plus"
         }
         """;
@@ -182,6 +183,7 @@ public class RawResponseRedactorTests
 
         Assert.DoesNotContain("sentetik-csrf", redacted);
         Assert.DoesNotContain("sentetik-bridge", redacted);
+        Assert.DoesNotContain("sentetik-bucket", redacted);
         Assert.Contains("plus", redacted);
     }
 }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Management;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using Kalan.Core.Providers.Antigravity;
 
 namespace Kalan.Platform.Windows.Providers;
 
@@ -31,6 +32,14 @@ public static class AntigravityProcessPortFinder
 
     private static readonly Regex SecretQueryValue = new(
         @"(?<prefix>(?:[?&])(?:csrf[_-]?token|access[_-]?token|refresh[_-]?token|token)=)(?<value>[^&\s]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static readonly Regex ExtensionCsrfArgument = new(
+        @"(?:^|\s)--extension_server_csrf_token(?:=|\s+)(?<value>""[^""]*""|\S+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static readonly Regex CsrfArgument = new(
+        @"(?:^|\s)--csrf_token(?:=|\s+)(?<value>""[^""]*""|\S+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     [DllImport("iphlpapi.dll", SetLastError = true)]
@@ -66,6 +75,26 @@ public static class AntigravityProcessPortFinder
             .Select(listener => listener.Port)
             .Distinct()
             .OrderBy(port => port)
+            .ToArray();
+    }
+
+    public static IReadOnlyList<AntigravityProcessEndpoint> FindEndpoints()
+    {
+        var candidatePids = FindCandidateProcessIds();
+        if (candidatePids.Count == 0) return Array.Empty<AntigravityProcessEndpoint>();
+
+        var commandLines = ReadCommandLines(candidatePids);
+        var tokens = commandLines.ToDictionary(
+            pair => pair.Key,
+            pair => ExtractCsrfToken(pair.Value));
+
+        return FindLoopbackListeners()
+            .Where(listener => candidatePids.Contains(listener.ProcessId))
+            .OrderBy(listener => listener.ProcessId)
+            .ThenByDescending(listener => listener.Port)
+            .Select(listener => new AntigravityProcessEndpoint(
+                listener.Port,
+                tokens.TryGetValue(listener.ProcessId, out var token) ? token : null))
             .ToArray();
     }
 
@@ -264,5 +293,22 @@ public static class AntigravityProcessPortFinder
         return SecretQueryValue.Replace(
             redacted,
             match => match.Groups["prefix"].Value + "[gizlendi]");
+    }
+
+    private static string? ExtractCsrfToken(string commandLine)
+    {
+        var token = ReadArgument(ExtensionCsrfArgument, commandLine);
+        return string.IsNullOrWhiteSpace(token)
+            ? ReadArgument(CsrfArgument, commandLine)
+            : token;
+    }
+
+    private static string? ReadArgument(Regex argument, string commandLine)
+    {
+        var match = argument.Match(commandLine);
+        if (!match.Success) return null;
+
+        var value = match.Groups["value"].Value.Trim();
+        return value.Trim('"');
     }
 }

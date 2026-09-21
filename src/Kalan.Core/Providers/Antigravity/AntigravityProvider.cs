@@ -6,9 +6,16 @@ public sealed class AntigravityProvider : IUsageProvider
 {
     public AntigravityProvider(
         HttpClient http,
-        Func<IReadOnlyList<int>>? findProcessPorts = null)
+        Func<IReadOnlyList<int>>? findProcessPorts = null,
+        Func<IReadOnlyList<AntigravityProcessEndpoint>>? findProcessEndpoints = null)
     {
-        Sources = [new AntigravityLoopbackUsageSource(http, findProcessPorts: findProcessPorts)];
+        Sources =
+        [
+            new AntigravityLoopbackUsageSource(
+                http: null,
+                findProcessPorts: findProcessPorts,
+                findProcessEndpoints: findProcessEndpoints),
+        ];
     }
 
     public string Id => "antigravity";

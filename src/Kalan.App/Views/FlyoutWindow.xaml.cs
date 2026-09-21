@@ -131,7 +131,10 @@ public sealed partial class FlyoutWindow : Window
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1");
 
-        _providers = ProviderRegistry.CreateAll(_http, AntigravityProcessPortFinder.FindPorts);
+        _providers = ProviderRegistry.CreateAll(
+            _http,
+            AntigravityProcessPortFinder.FindPorts,
+            AntigravityProcessPortFinder.FindEndpoints);
         _selectedId = _providers.FirstOrDefault()?.Id ?? "claude";
 
         _scheduler = new RefreshScheduler(_providers, options: new RefreshOptions
@@ -482,6 +485,7 @@ public sealed partial class FlyoutWindow : Window
         foreach (var (id, (button, meter)) in _tabs)
         {
             var selected = id.Equals(_selectedId, StringComparison.OrdinalIgnoreCase);
+            var tabBrush = ProviderIconBrush(GetProviderTab(id), selected);
             button.IsChecked = selected;
             button.Background = selected ? selectedFill : clear;
 
@@ -491,13 +495,13 @@ public sealed partial class FlyoutWindow : Window
             {
                 SetProviderIconBrush(
                     icon,
-                    ProviderIconBrush(GetProviderTab(id), selected));
+                    tabBrush);
             }
 
             if (!_scheduler.Current.TryGetValue(id, out var snapshot))
             {
                 meter.Value = 0;
-                meter.Foreground = QuotaVisuals.Fill("ControlStrongFillColorDisabledBrush");
+                meter.Foreground = tabBrush;
                 continue;
             }
 
@@ -505,21 +509,21 @@ public sealed partial class FlyoutWindow : Window
             {
                 // Hata: mini ölçer yerine critical renginde 2px dolu çizgi.
                 meter.Value = 100;
-                meter.Foreground = QuotaVisuals.Fill("SystemFillColorCriticalBrush");
+                meter.Foreground = tabBrush;
                 continue;
             }
 
             if (snapshot.Status == ProviderStatus.NotInstalled || snapshot.Windows.Count == 0)
             {
                 meter.Value = 0;
-                meter.Foreground = QuotaVisuals.Fill("ControlStrongFillColorDisabledBrush");
+                meter.Foreground = tabBrush;
                 AutomationProperties.SetName(button, $"{snapshot.ProviderId}, veri yok");
                 continue;
             }
 
             var percent = MainPercent(snapshot);
             meter.Value = percent;
-            meter.Foreground = QuotaVisuals.MeterBrush(percent);
+            meter.Foreground = tabBrush;
             AutomationProperties.SetName(button, $"{snapshot.ProviderId}, yüzde {percent:F0}");
         }
     }
@@ -729,88 +733,115 @@ public sealed partial class FlyoutWindow : Window
     {
         DetailWindows.Children.Clear();
         var now = DateTimeOffset.UtcNow;
+        var stale = snapshot.Status == ProviderStatus.Degraded && snapshot.StaleReason is not null;
+        var groups = snapshot.Windows
+            .GroupBy(window => window.GroupName ?? string.Empty, StringComparer.Ordinal)
+            .ToList();
+        var showGroupHeadings = groups.Count > 1;
 
-        foreach (var window in snapshot.Windows)
+        foreach (var group in groups)
         {
-            var block = new StackPanel { Spacing = 6 };
-
-            var label = new TextBlock
+            var groupPanel = new StackPanel { Spacing = 8 };
+            if (showGroupHeadings && !string.IsNullOrWhiteSpace(group.Key))
             {
-                Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label,
-                TextWrapping = TextWrapping.Wrap,
-            };
-            QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
-            block.Children.Add(label);
-
-            var bar = new ProgressBar
-            {
-                Value = window.Percent,
-                Maximum = 100,
-                Height = 3,
-                CornerRadius = new CornerRadius(1.5),
-                Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
-                Foreground = QuotaVisuals.MeterBrush(window.Percent),
-            };
-            AutomationProperties.SetName(bar, $"{label.Text}, yüzde {window.Percent:F0}");
-            block.Children.Add(bar);
-
-            var row = new Grid();
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-
-            var percentText = new TextBlock
-            {
-                Text = $"%{window.Percent:F0} kullanıldı",
-                TextWrapping = TextWrapping.Wrap,
-            };
-            QuotaVisuals.SetTextStyle(percentText, "CaptionTextBlockStyle");
-            Grid.SetColumn(percentText, 0);
-            row.Children.Add(percentText);
-
-            var reset = QuotaVisuals.FormatReset(window.ResetsAt);
-            var resetText = new TextBlock
-            {
-                Text = string.IsNullOrEmpty(reset) ? string.Empty : reset == "sıfırlandı" ? reset : $"{reset} sonra",
-                Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
-                TextWrapping = TextWrapping.Wrap,
-            };
-            QuotaVisuals.SetTextStyle(resetText, "CaptionTextBlockStyle");
-            Grid.SetColumn(resetText, 1);
-            row.Children.Add(resetText);
-            block.Children.Add(row);
-
-            if (window.Percent >= 100)
-            {
-                // Tükendi rozeti: tempo satırı yerine hap.
-                var badgeText = new TextBlock
+                var heading = new TextBlock
                 {
-                    Text = PaceCalculator.FormatConsumedBadge(window, now),
+                    Text = group.Key,
                     TextWrapping = TextWrapping.Wrap,
                 };
-                QuotaVisuals.SetTextStyle(badgeText, "CaptionTextBlockStyle");
-                var badge = new Border
-                {
-                    Background = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush"),
-                    CornerRadius = QuotaVisuals.PillCorner(),
-                    Padding = new Thickness(6, 1, 6, 1),
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Child = badgeText,
-                };
-                block.Children.Add(badge);
+                QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
+                groupPanel.Children.Add(heading);
             }
-            else if (PaceCalculator.Calculate(window, now) is { } pace)
+
+            foreach (var window in group)
             {
-                var tempoText = new TextBlock
+                var block = new StackPanel { Spacing = 6 };
+
+                var label = new TextBlock
                 {
-                    Text = PaceCalculator.Format(window, pace, now),
+                    Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label,
+                    TextWrapping = TextWrapping.Wrap,
+                };
+                QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
+                block.Children.Add(label);
+
+                var bar = new ProgressBar
+                {
+                    Value = window.Percent,
+                    Maximum = 100,
+                    Height = 3,
+                    CornerRadius = new CornerRadius(1.5),
+                    Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
+                    Foreground = QuotaVisuals.MeterBrush(window.Percent),
+                };
+                AutomationProperties.SetName(bar, $"{label.Text}, yüzde {window.Percent:F0}");
+                block.Children.Add(bar);
+
+                var row = new Grid();
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+
+                var percentText = new TextBlock
+                {
+                    Text = $"%{window.Percent:F0} kullanıldı",
+                    TextWrapping = TextWrapping.Wrap,
+                };
+                QuotaVisuals.SetTextStyle(percentText, "CaptionTextBlockStyle");
+                Grid.SetColumn(percentText, 0);
+                row.Children.Add(percentText);
+
+                var reset = QuotaVisuals.FormatReset(window.ResetsAt, stale);
+                var resetText = new TextBlock
+                {
+                    Text = reset switch
+                    {
+                        "" => string.Empty,
+                        "sıfırlandı" or "sıfırlanmış olabilir" => reset,
+                        _ => $"{reset} sonra",
+                    },
                     Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
                     TextWrapping = TextWrapping.Wrap,
                 };
-                QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
-                block.Children.Add(tempoText);
+                QuotaVisuals.SetTextStyle(resetText, "CaptionTextBlockStyle");
+                Grid.SetColumn(resetText, 1);
+                row.Children.Add(resetText);
+                block.Children.Add(row);
+
+                if (window.Percent >= 100)
+                {
+                    // Tükendi rozeti: tempo satırı yerine hap.
+                    var badgeText = new TextBlock
+                    {
+                        Text = PaceCalculator.FormatConsumedBadge(window, now),
+                        TextWrapping = TextWrapping.Wrap,
+                    };
+                    QuotaVisuals.SetTextStyle(badgeText, "CaptionTextBlockStyle");
+                    var badge = new Border
+                    {
+                        Background = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush"),
+                        CornerRadius = QuotaVisuals.PillCorner(),
+                        Padding = new Thickness(6, 1, 6, 1),
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        Child = badgeText,
+                    };
+                    block.Children.Add(badge);
+                }
+                else if (!stale && PaceCalculator.Calculate(window, now) is { } pace)
+                {
+                    var tempoText = new TextBlock
+                    {
+                        Text = PaceCalculator.Format(window, pace, now),
+                        Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
+                        TextWrapping = TextWrapping.Wrap,
+                    };
+                    QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
+                    block.Children.Add(tempoText);
+                }
+
+                groupPanel.Children.Add(block);
             }
 
-            DetailWindows.Children.Add(block);
+            DetailWindows.Children.Add(groupPanel);
         }
     }
 

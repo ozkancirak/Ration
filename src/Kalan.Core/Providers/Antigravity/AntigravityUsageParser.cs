@@ -5,19 +5,26 @@ namespace Kalan.Core.Providers.Antigravity;
 
 public static class AntigravityUsageParser
 {
-    public static IReadOnlyList<UsageWindow> ParseWindows(string json)
+    public sealed record ParseResult(
+        IReadOnlyList<UsageWindow> Windows,
+        string? PlanName);
+
+    public static IReadOnlyList<UsageWindow> ParseWindows(string json) =>
+        Parse(json).Windows;
+
+    public static ParseResult Parse(string json)
     {
         using var document = JsonDocument.Parse(json);
         var groups = FindArray(document.RootElement, "groups", "quotaGroups")
             ?? FindNestedGroups(document.RootElement);
-        if (groups is null) return Array.Empty<UsageWindow>();
+        if (groups is null) return new ParseResult(Array.Empty<UsageWindow>(), null);
 
         var windows = new List<UsageWindow>();
         foreach (var group in groups.Value.EnumerateArray())
         {
             if (group.ValueKind != JsonValueKind.Object) continue;
 
-            var label = ReadString(group, "displayName") ?? "Antigravity";
+            var groupName = ReadString(group, "displayName");
             var buckets = FindArray(group, "buckets", "quotaBuckets", "windows");
             if (buckets is null) continue;
 
@@ -45,12 +52,13 @@ public static class AntigravityUsageParser
                     Limit: 100,
                     Percent: percent,
                     ResetsAt: reset,
-                    Label: label,
-                    WindowLength: length));
+                    Label: WindowLabel(kind),
+                    WindowLength: length,
+                    GroupName: groupName));
             }
         }
 
-        return windows;
+        return new ParseResult(windows, FindPlanName(document.RootElement));
     }
 
     private static JsonElement? FindNestedGroups(JsonElement root)
@@ -110,6 +118,41 @@ public static class AntigravityUsageParser
         }
 
         return false;
+    }
+
+    private static string WindowLabel(WindowKind kind) => kind switch
+    {
+        WindowKind.Session => "5 saatlik",
+        WindowKind.Weekly => "Haftalık",
+        _ => kind.ToString(),
+    };
+
+    private static string? FindPlanName(JsonElement root)
+    {
+        foreach (var element in EnumerateContainers(root))
+        {
+            foreach (var key in new[] { "planName", "plan", "tier", "subscriptionType" })
+            {
+                var value = ReadString(element, key);
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<JsonElement> EnumerateContainers(JsonElement root)
+    {
+        yield return root;
+
+        foreach (var wrapperName in new[] { "response", "userQuota", "quotaSummary", "userQuotaSummary" })
+        {
+            if (root.TryGetProperty(wrapperName, out var wrapper) &&
+                wrapper.ValueKind == JsonValueKind.Object)
+            {
+                yield return wrapper;
+            }
+        }
     }
 
     private static string? ReadString(JsonElement element, string name) =>

@@ -24,7 +24,10 @@ using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
 http.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1");
 
-var providers = ProviderRegistry.CreateAll(http, AntigravityProcessPortFinder.FindPorts)
+var providers = ProviderRegistry.CreateAll(
+        http,
+        AntigravityProcessPortFinder.FindPorts,
+        AntigravityProcessPortFinder.FindEndpoints)
     .ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
@@ -42,6 +45,13 @@ if (HasFlag(args, "--log"))
 if (HasFlag(args, "--selftest"))
 {
     return RunSelfTest(args);
+}
+
+if (args.Length >= 2 &&
+    args[0].Equals("--raw", StringComparison.OrdinalIgnoreCase) &&
+    !args[1].StartsWith('-'))
+{
+    return await RunUsageAsync(args[1], asJson: false, showRaw: true);
 }
 
 var command = args[0].ToLowerInvariant();
@@ -167,12 +177,22 @@ void PrintRawResponses(List<IUsageProvider> selected)
     {
         foreach (var source in provider.Sources)
         {
-            var raw = source switch
+            if (source is ClaudeOAuthUsageSource claude)
             {
-                ClaudeOAuthUsageSource claude => claude.LastRawResponse,
-                CodexOAuthUsageSource codex => codex.LastRawResponse,
-                _ => null,
-            };
+                if (claude.LastRawResponse is not null)
+                {
+                    Console.WriteLine($"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---");
+                    Console.WriteLine(RawResponseRedactor.Redact(claude.LastRawResponse));
+                    Console.WriteLine();
+                }
+
+                PrintClaudeDiagnostics(claude);
+                continue;
+            }
+
+            var raw = source is CodexOAuthUsageSource codex
+                ? codex.LastRawResponse
+                : null;
 
             if (raw is null) continue;
 
@@ -183,6 +203,41 @@ void PrintRawResponses(List<IUsageProvider> selected)
             Console.WriteLine();
         }
     }
+}
+
+void PrintClaudeDiagnostics(ClaudeOAuthUsageSource source)
+{
+    static string YesNo(bool? value) => value switch
+    {
+        true => "evet",
+        false => "hayır",
+        _ => "—",
+    };
+
+    Console.WriteLine("--- Claude tanı (kimlik değerleri gizlendi) ---");
+    Console.WriteLine($".credentials.json okunabildi: {YesNo(source.LastCredentialsAvailable)}");
+    Console.WriteLine($"expiresAt: {(source.LastCredentialsExpiresAt?.ToUniversalTime().ToString("O") ?? "yok")}");
+    Console.WriteLine($"expiresAt geçmiş: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}");
+    Console.WriteLine($"refreshToken mevcut: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}");
+    Console.WriteLine($"HTTP kodu: {source.LastStatusCode?.ToString() ?? "istek yapılmadı"}");
+    Console.WriteLine($"Retry-After: {source.LastRetryAfter ?? "yok"}");
+    Console.WriteLine($"endpoint: GET {ClaudeOAuthUsageSource.UsageEndpoint}");
+    Console.WriteLine("header: Authorization: Bearer [gizlendi]");
+    Console.WriteLine($"header: anthropic-beta: {ClaudeOAuthUsageSource.OAuthBetaHeader}");
+
+    if (source.LastRefreshAttempted)
+    {
+        Console.WriteLine($"refresh endpoint: POST {ClaudeOAuthUsageSource.RefreshEndpoint}");
+        Console.WriteLine($"refresh HTTP kodu: {source.LastRefreshStatusCode?.ToString() ?? "istek yapılmadı"}");
+        Console.WriteLine("refresh body: grant_type, refresh_token=[gizlendi], client_id, scope");
+        Console.WriteLine($"Kalan cache yazıldı: {YesNo(source.LastRefreshCacheWritten)}");
+        if (source.LastRefreshError is not null)
+        {
+            Console.WriteLine($"refresh sonucu: {source.LastRefreshError}");
+        }
+    }
+
+    Console.WriteLine();
 }
 
 int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
@@ -597,9 +652,26 @@ async Task<int> RunAntigravityDiscoverAsync()
 {
     const string endpointPath =
         "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
+    const string httpsErrorText = "Client sent an HTTP request to an HTTPS server";
 
     var processes = AntigravityProcessPortFinder.FindCandidateProcesses();
     var listeners = AntigravityProcessPortFinder.FindCandidateListeners();
+    IReadOnlyList<AntigravityProcessEndpoint> endpoints;
+    try
+    {
+        endpoints = AntigravityProcessPortFinder.FindEndpoints();
+    }
+    catch
+    {
+        endpoints = Array.Empty<AntigravityProcessEndpoint>();
+    }
+
+    var csrfByPort = endpoints
+        .GroupBy(endpoint => endpoint.Port)
+        .ToDictionary(
+            group => group.Key,
+            group => group.Select(endpoint => endpoint.CsrfToken)
+                .FirstOrDefault(token => !string.IsNullOrWhiteSpace(token)));
 
     Console.WriteLine("Antigravity keşfi");
     Console.WriteLine();
@@ -639,42 +711,41 @@ async Task<int> RunAntigravityDiscoverAsync()
     }
     else
     {
-        using var probeHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        using var probeHandler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            Proxy = null,
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+            },
+        };
+        using var probeHttp = new HttpClient(probeHandler) { Timeout = TimeSpan.FromSeconds(2) };
         probeHttp.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1 discover");
 
-        foreach (var listener in listeners)
+        foreach (var listener in listeners
+                     .OrderBy(listener => listener.ProcessId)
+                     .ThenByDescending(listener => listener.Port))
         {
-            try
+            var probe = await ProbeAntigravityPortAsync(
+                probeHttp,
+                listener.Port,
+                csrfByPort.GetValueOrDefault(listener.Port));
+
+            if (probe.Failure is not null)
             {
-                using var request = new HttpRequestMessage(
-                    HttpMethod.Post,
-                    $"http://127.0.0.1:{listener.Port}{endpointPath}");
-                request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
-                request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
-
-                using var response = await probeHttp.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead);
-                var body = await response.Content.ReadAsStringAsync();
-                var shape = DescribeJsonShape(body);
-
                 Console.WriteLine(
-                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP={(int)response.StatusCode} gövde={shape}");
-
-                if ((int)response.StatusCode == 200)
-                {
-                    PrintAntigravityGroupNames(body);
-                }
+                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.Failure} gövde=(yok)");
+                continue;
             }
-            catch (HttpRequestException)
+
+            var shape = DescribeJsonShape(probe.Body);
+            Console.WriteLine(
+                $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.StatusCode} taşıma={probe.Scheme} gövde={shape}");
+
+            if (probe.StatusCode == 200)
             {
-                Console.WriteLine(
-                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP=bağlantı-reddedildi gövde=(yok)");
-            }
-            catch (TaskCanceledException)
-            {
-                Console.WriteLine(
-                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP=zaman-aşımı gövde=(yok)");
+                PrintAntigravityGroupNames(probe.Body);
             }
         }
     }
@@ -692,6 +763,51 @@ async Task<int> RunAntigravityDiscoverAsync()
     }
 
     return 0;
+
+    async Task<(int? StatusCode, string Body, string Scheme, string? Failure)> ProbeAntigravityPortAsync(
+        HttpClient client,
+        int port,
+        string? csrfToken)
+    {
+        try
+        {
+            foreach (var scheme in new[] { "http", "https" })
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{scheme}://127.0.0.1:{port}{endpointPath}");
+                request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+                if (!string.IsNullOrWhiteSpace(csrfToken))
+                {
+                    request.Headers.TryAddWithoutValidation("X-Codeium-Csrf-Token", csrfToken);
+                }
+
+                request.Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+                using var response = await client.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead);
+                var body = await response.Content.ReadAsStringAsync();
+
+                if (scheme == "http" &&
+                    body.Contains(httpsErrorText, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                return ((int)response.StatusCode, body, scheme, null);
+            }
+
+            return (null, string.Empty, "https", "bağlantı-reddedildi");
+        }
+        catch (HttpRequestException)
+        {
+            return (null, string.Empty, "http", "bağlantı-reddedildi");
+        }
+        catch (TaskCanceledException)
+        {
+            return (null, string.Empty, "http", "zaman-aşımı");
+        }
+    }
 }
 
 void PrintAntigravityLogDiagnostics(string label, string path)
@@ -757,8 +873,18 @@ static void PrintAntigravityGroupNames(string body)
     try
     {
         using var document = JsonDocument.Parse(body);
-        if (!document.RootElement.TryGetProperty("groups", out var groups) ||
-            groups.ValueKind != JsonValueKind.Array)
+        var root = document.RootElement;
+        var groups = root.TryGetProperty("groups", out var directGroups) &&
+                     directGroups.ValueKind == JsonValueKind.Array
+            ? directGroups
+            : root.TryGetProperty("response", out var response) &&
+              response.ValueKind == JsonValueKind.Object &&
+              response.TryGetProperty("groups", out var nestedGroups) &&
+              nestedGroups.ValueKind == JsonValueKind.Array
+                ? nestedGroups
+                : default;
+
+        if (groups.ValueKind != JsonValueKind.Array)
         {
             Console.WriteLine("    200 grup/bucket adı: (groups dizisi yok)");
             return;
@@ -828,6 +954,7 @@ void PrintHelp()
     Console.WriteLine("  kalan usage -p claude");
     Console.WriteLine("  kalan usage -p all --json");
     Console.WriteLine("  kalan usage -p claude --raw     # uç noktanın ham şemasını gösterir");
+    Console.WriteLine("  kalan --raw claude               # Claude HTTP tanısı + redakte yanıt");
     Console.WriteLine("  kalan icon-preview --out contact-sheet.png");
     Console.WriteLine("  kalan --log");
     Console.WriteLine("  kalan --selftest --screenshot-dir .\\selftest");
