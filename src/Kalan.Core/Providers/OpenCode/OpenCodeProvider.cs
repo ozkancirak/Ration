@@ -237,6 +237,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
+        var localCost = ReadLocalCost(ct);
 
         try
         {
@@ -246,8 +247,15 @@ public sealed class OpenCodeUsageSource : IUsageSource
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                return Snapshot.Empty("opencode", ProviderStatus.AuthRequired,
-                    "OpenCode anahtarı geçersiz.", Kind);
+                return new UsageSnapshot(
+                    ProviderId: "opencode",
+                    Windows: Array.Empty<UsageWindow>(),
+                    Credits: null,
+                    Cost: localCost,
+                    Status: ProviderStatus.AuthRequired,
+                    ResolvedVia: Kind,
+                    FetchedAt: DateTimeOffset.UtcNow,
+                    StaleReason: "OpenCode anahtarı geçersiz.");
             }
 
             if (response.StatusCode == HttpStatusCode.Forbidden)
@@ -256,7 +264,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     ProviderId: "opencode",
                     Windows: Array.Empty<UsageWindow>(),
                     Credits: null,
-                    Cost: null,
+                    Cost: localCost,
                     Status: ProviderStatus.Ok,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
@@ -267,8 +275,15 @@ public sealed class OpenCodeUsageSource : IUsageSource
 
             if (!response.IsSuccessStatusCode)
             {
-                return Snapshot.Empty("opencode", ProviderStatus.Error,
-                    $"OpenCode kullanım yanıtı: HTTP {(int)response.StatusCode}", Kind);
+                return new UsageSnapshot(
+                    ProviderId: "opencode",
+                    Windows: Array.Empty<UsageWindow>(),
+                    Credits: null,
+                    Cost: localCost,
+                    Status: ProviderStatus.Error,
+                    ResolvedVia: Kind,
+                    FetchedAt: DateTimeOffset.UtcNow,
+                    StaleReason: $"OpenCode kullanım yanıtı: HTTP {(int)response.StatusCode}");
             }
 
             var windows = OpenCodeUsageParser.ParseWindows(body);
@@ -276,7 +291,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
                 ProviderId: "opencode",
                 Windows: windows,
                 Credits: null,
-                Cost: null,
+                Cost: localCost,
                 Status: windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
                 ResolvedVia: Kind,
                 FetchedAt: DateTimeOffset.UtcNow,
@@ -294,6 +309,23 @@ public sealed class OpenCodeUsageSource : IUsageSource
         {
             return Snapshot.Empty("opencode", ProviderStatus.Error,
                 $"OpenCode ağ hatası: {ex.GetType().Name}", Kind);
+        }
+    }
+
+    private CostReport? ReadLocalCost(CancellationToken ct)
+    {
+        if (!File.Exists(_databasePath)) return null;
+
+        try
+        {
+            return OpenCodeLocalUsageReader.Read(
+                _databasePath,
+                _databaseCacheDirectory,
+                ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 }

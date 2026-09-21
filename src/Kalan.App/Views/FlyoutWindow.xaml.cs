@@ -74,6 +74,7 @@ public sealed partial class FlyoutWindow : Window
     public FlyoutWindow()
     {
         InitializeComponent();
+        AppTheme.Apply(RootLayout);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -153,6 +154,8 @@ public sealed partial class FlyoutWindow : Window
 
         // Theme listeners
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
+        AppThemePreference.Changed += OnAppThemeChanged;
+        PricingTableUpdater.Updated += OnPricingUpdated;
         WindowsThemeListener.AccentChanged += OnAccentChanged;
         WindowsThemeListener.DisplayChanged += OnDisplayChanged;
 
@@ -196,7 +199,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void UpdateWindowFrameTheme()
     {
-        bool isDark = !WindowsThemeListener.IsAppLightTheme();
+        bool isDark = !AppThemePreference.IsAppLightTheme();
         int darkMode = isDark ? 1 : 0;
         NativeMethods.DwmSetWindowAttribute(
             _hwnd,
@@ -309,6 +312,8 @@ public sealed partial class FlyoutWindow : Window
         WindowsThemeListener.ThemeChanged -= OnTaskbarThemeChanged;
         WindowsThemeListener.AccentChanged -= OnAccentChanged;
         WindowsThemeListener.DisplayChanged -= OnDisplayChanged;
+        AppThemePreference.Changed -= OnAppThemeChanged;
+        PricingTableUpdater.Updated -= OnPricingUpdated;
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
 
@@ -345,9 +350,32 @@ public sealed partial class FlyoutWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
+            AppTheme.Apply(RootLayout);
             UpdateWindowFrameTheme();
             UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
             RefreshAllMeters();
+        });
+    }
+
+    private void OnAppThemeChanged(AppThemeMode mode)
+    {
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            AppTheme.Apply(RootLayout);
+            UpdateWindowFrameTheme();
+            UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
+            RefreshAllMeters();
+        });
+    }
+
+    private void OnPricingUpdated()
+    {
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_isVisible)
+            {
+                RefreshCost(force: true);
+            }
         });
     }
 
@@ -552,6 +580,7 @@ public sealed partial class FlyoutWindow : Window
         UpdateWelcomeState();
         UpdateTabs();
         RenderDetail();
+        RefreshCost(force: false);
         EnqueueResize();
         RecalculateTrayIcon();
     }
@@ -630,14 +659,21 @@ public sealed partial class FlyoutWindow : Window
             DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
             DetailWindows.Children.Clear();
-            CostSection.Visibility = Visibility.Collapsed;
+            ClearCostSection();
             return;
+        }
+
+        if (!string.Equals(_costForId, snapshot.ProviderId, StringComparison.OrdinalIgnoreCase))
+        {
+            ClearCostSection();
         }
 
         DetailName.Text = TabDisplayName(snapshot.ProviderId);
         DetailIconHost.Content = CreateProviderIcon(GetProviderTab(snapshot.ProviderId), active: true);
         QuotaVisuals.ApplyPlan(DetailPlanBadge, DetailPlanText, snapshot.PlanName);
         QuotaVisuals.SetTextStyle(DetailUnavailableTitle, "CaptionTextBlockStyle");
+        DetailUnavailableTitle.Visibility = Visibility.Visible;
+        MostUsedModelText.Visibility = Visibility.Collapsed;
 
         // Bayat veri gösteriliyorsa sebep üstte tek satır yazar
         // (örn. hız sınırı + kaç dk önceki veri); taze veride tazelik saati.
@@ -656,21 +692,21 @@ public sealed partial class FlyoutWindow : Window
             DetailWindows.Children.Clear();
         }
         else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
-                 snapshot.Cost is { } localUsage)
+                 snapshot.Cost is { } localUsage &&
+                 snapshot.Windows.Count == 0)
         {
             DetailError.Visibility = Visibility.Collapsed;
-            DetailUnavailableTitle.Text = $"Toplam {CompactTokens(TotalTokens(localUsage))} token";
-            QuotaVisuals.SetTextStyle(DetailUnavailableTitle, "SubtitleTextBlockStyle");
-            DetailUnavailableDetail.Text = FormatOpenCodeLocalUsage(snapshot, localUsage);
+            DetailUnavailableTitle.Visibility = Visibility.Collapsed;
+            DetailUnavailableDetail.Text = FormatOpenCodeNoQuota(snapshot);
             DetailUnavailable.Visibility = Visibility.Visible;
-            DetailWindows.Children.Clear();
+            RenderOpenCodeLocalUsage(localUsage);
         }
         else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
                  snapshot.Windows.Count == 0 &&
                  !string.IsNullOrWhiteSpace(snapshot.StatusDetail))
         {
             DetailError.Visibility = Visibility.Collapsed;
-            DetailUnavailableTitle.Text = "Kota yok";
+            DetailUnavailableTitle.Visibility = Visibility.Collapsed;
             DetailUnavailableDetail.Text = FormatOpenCodeNoQuota(snapshot);
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
@@ -682,6 +718,7 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Antigravity açık değil.";
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
+            MostUsedModelText.Visibility = Visibility.Collapsed;
         }
         else if (snapshot.Windows.Count == 0)
         {
@@ -690,6 +727,7 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Sağlayıcıdan kullanılabilir kota alınamadı.";
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
+            MostUsedModelText.Visibility = Visibility.Collapsed;
         }
         else
         {
@@ -849,6 +887,81 @@ public sealed partial class FlyoutWindow : Window
         usage.InputTokens + usage.OutputTokens +
         usage.CacheReadTokens + usage.CacheCreationTokens;
 
+    private void RenderOpenCodeLocalUsage(CostReport usage)
+    {
+        DetailWindows.Children.Clear();
+
+        var section = new StackPanel { Spacing = 8 };
+        var heading = new TextBlock { Text = "Kullanım" };
+        QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
+        section.Children.Add(heading);
+
+        AddTokenRow(section, "Toplam", $"{CompactTokens(TotalTokens(usage))} token");
+        AddTokenRow(section, "Girdi", CompactTokens(usage.InputTokens));
+        AddTokenRow(section, "Çıktı", CompactTokens(usage.OutputTokens));
+        AddTokenRow(section, "Akıl yürütme", CompactTokens(usage.ReasoningTokens));
+        AddTokenRow(
+            section,
+            "Cache",
+            CompactTokens(usage.CacheReadTokens + usage.CacheCreationTokens));
+
+        DetailWindows.Children.Add(section);
+        SetMostUsedModel(usage);
+    }
+
+    private static void AddTokenRow(StackPanel section, string label, string value)
+    {
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var labelText = new TextBlock
+        {
+            Text = label,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        QuotaVisuals.SetTextStyle(labelText, "CaptionTextBlockStyle");
+        row.Children.Add(labelText);
+
+        var valueText = new TextBlock
+        {
+            Text = value,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        QuotaVisuals.SetTextStyle(valueText, "CaptionTextBlockStyle");
+        Grid.SetColumn(valueText, 1);
+        row.Children.Add(valueText);
+
+        section.Children.Add(row);
+    }
+
+    private void SetMostUsedModel(CostReport? report)
+    {
+        var models = report?.Models?
+            .Where(model => model.Tokens > 0)
+            .OrderByDescending(model => model.Tokens)
+            .ToList();
+
+        if (models is not { Count: > 1 })
+        {
+            MostUsedModelText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var total = models.Sum(model => model.Tokens);
+        if (total <= 0)
+        {
+            MostUsedModelText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var top = models[0];
+        var percent = top.Tokens * 100d / total;
+        MostUsedModelText.Text = $"En çok: {top.Model} · %{percent:F0}";
+        MostUsedModelText.Visibility = Visibility.Visible;
+    }
+
     private static string FormatOpenCodeNoQuota(UsageSnapshot snapshot)
     {
         var lines = new List<string>
@@ -860,32 +973,6 @@ public sealed partial class FlyoutWindow : Window
             lines.Add(string.Join(" · ", providers));
         }
 
-        if (!string.IsNullOrWhiteSpace(snapshot.StaleReason))
-        {
-            lines.Add(snapshot.StaleReason!);
-        }
-
-        return string.Join("\n", lines);
-    }
-
-    private static string FormatOpenCodeLocalUsage(UsageSnapshot snapshot, CostReport usage)
-    {
-        var breakdown =
-            $"Girdi {CompactTokens(usage.InputTokens)} · " +
-            $"Çıktı {CompactTokens(usage.OutputTokens)} · " +
-            $"Akıl yürütme {CompactTokens(usage.ReasoningTokens)} · " +
-            $"Cache {CompactTokens(usage.CacheReadTokens + usage.CacheCreationTokens)}";
-
-        var lines = new List<string>
-        {
-            snapshot.StatusDetail ?? "Yerel OpenCode token sayımı · son 30 gün",
-            breakdown,
-        };
-        if (snapshot.ConfiguredProviders is { Count: > 0 } providers)
-        {
-            lines.Insert(1, string.Join(" · ", providers));
-        }
-
         return string.Join("\n", lines);
     }
 
@@ -894,13 +981,39 @@ public sealed partial class FlyoutWindow : Window
     private void RefreshCost(bool force)
     {
         var id = _selectedId;
+        if (!IsCostProvider(id))
+        {
+            ClearCostSection();
+            return;
+        }
+
         if (!force && id.Equals(_costForId, StringComparison.OrdinalIgnoreCase)
             && DateTimeOffset.UtcNow - _costAt < TimeSpan.FromMinutes(5))
         {
             return;
         }
 
+        if (id.Equals("opencode", StringComparison.OrdinalIgnoreCase))
+        {
+            _costForId = id;
+            _costAt = DateTimeOffset.UtcNow;
+            var localCost = _scheduler.Current.TryGetValue(id, out var snapshot)
+                ? snapshot.Cost
+                : null;
+            if (localCost is null)
+            {
+                ClearCostSection();
+                return;
+            }
+
+            var pricing = PricingTable.LoadOrEmpty();
+            ApplyCost(null, CostEstimator.Estimate(localCost, pricing), pricing);
+            return;
+        }
+
         var run = ++_costRun;
+        _costForId = id;
+        _costAt = DateTimeOffset.UtcNow;
         Task.Run(() =>
         {
             CostScanResult ScanToday(string pid) => pid switch
@@ -944,33 +1057,83 @@ public sealed partial class FlyoutWindow : Window
         }, TaskScheduler.Default);
     }
 
-    private void ApplyCost(CostReport today, CostReport month, PricingTable pricing)
+    private static bool IsCostProvider(string providerId) =>
+        providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ||
+        providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
+        providerId.Equals("opencode", StringComparison.OrdinalIgnoreCase);
+
+    private void ClearCostSection()
+    {
+        _costForId = null;
+        _costAt = DateTimeOffset.MinValue;
+        _costRun++;
+        CostSection.Visibility = Visibility.Collapsed;
+        CostSummary.Text = string.Empty;
+        CostUnknownModels.Text = string.Empty;
+        CostUnknownModels.Visibility = Visibility.Collapsed;
+        MostUsedModelText.Visibility = Visibility.Collapsed;
+    }
+
+    private void ApplyCost(CostReport? today, CostReport? month, PricingTable pricing)
     {
         var lines = new List<string>(2);
+        var reports = new[] { today, month }.Where(report => report is not null).Cast<CostReport>().ToArray();
 
         // Fiyat tablosu boşsa para kısmı GÖSTERİLMEZ; sıfır dolar yanlış bilgidir.
-        string Line(string prefix, CostReport report)
+        string Line(string prefix, CostReport? report)
         {
-            var total = report.InputTokens + report.OutputTokens + report.CacheReadTokens + report.CacheCreationTokens;
+            if (report is null) return string.Empty;
+            var total = report.TotalTokens;
             if (total <= 0) return string.Empty;
-            return pricing.IsEmpty
+            return pricing.IsEmpty || report.Models is not { Count: > 0 }
                 ? $"{prefix} {CompactTokens(total)} token"
                 : $"{prefix} {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(total)} token";
         }
 
         var todayLine = Line("Bugün", today);
-        var monthLine = Line("Son 30 gün:", month);
+        var monthLine = Line("Son 30 gün", month);
 
         if (!string.IsNullOrEmpty(todayLine)) lines.Add(todayLine);
         if (!string.IsNullOrEmpty(monthLine)) lines.Add(monthLine);
 
+        var unpricedCount = pricing.IsEmpty
+            ? 0
+            : reports
+            .SelectMany(report => report.ModelsWithoutPricing ?? Array.Empty<string>())
+            .Where(model => !string.IsNullOrWhiteSpace(model))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        var mostUsed = reports
+            .OrderByDescending(report => report.TotalTokens)
+            .FirstOrDefault(report => report.TotalTokens > 0);
+        SetMostUsedModel(mostUsed);
+
         if (lines.Count == 0)
         {
             CostSection.Visibility = Visibility.Collapsed;
+            CostSummary.Text = string.Empty;
+            CostUnknownModels.Text = string.Empty;
+            CostUnknownModels.Visibility = Visibility.Collapsed;
             return;
         }
 
+        var asOf = pricing.DownloadedAt is { } downloadedAt
+            ? $"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla."
+            : "Fiyat tablosu tarihi bilinmiyor.";
+        ToolTipService.SetToolTip(CostTitle, asOf);
         CostSummary.Text = string.Join("\n", lines);
+        if (unpricedCount > 0)
+        {
+            CostUnknownModels.Text =
+                $"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.";
+            CostUnknownModels.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CostUnknownModels.Text = string.Empty;
+            CostUnknownModels.Visibility = Visibility.Collapsed;
+        }
         CostSection.Visibility = Visibility.Visible;
         EnqueueResize();
     }
@@ -997,7 +1160,7 @@ public sealed partial class FlyoutWindow : Window
 
     public void UpdateTrayIcon(double? percent, string? tooltip = null)
     {
-        bool isLightTheme = WindowsThemeListener.IsTaskbarLightTheme();
+        bool isLightTheme = AppThemePreference.IsTaskbarLightTheme();
 
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
@@ -1152,8 +1315,15 @@ public sealed partial class FlyoutWindow : Window
         }
 
         var originalId = _selectedId;
+        var originalCostForId = _costForId;
+        var originalCostAt = _costAt;
+        var originalCostRun = _costRun;
         var originalCostVisibility = CostSection.Visibility;
         var originalCostSummary = CostSummary.Text;
+        var originalCostUnknownModels = CostUnknownModels.Text;
+        var originalCostUnknownModelsVisibility = CostUnknownModels.Visibility;
+        var originalMostUsedModelVisibility = MostUsedModelText.Visibility;
+        var originalMostUsedModelText = MostUsedModelText.Text;
         var tallest = 0d;
 
         foreach (var provider in _providers)
@@ -1178,6 +1348,13 @@ public sealed partial class FlyoutWindow : Window
         RenderDetail();
         CostSection.Visibility = originalCostVisibility;
         CostSummary.Text = originalCostSummary;
+        CostUnknownModels.Text = originalCostUnknownModels;
+        CostUnknownModels.Visibility = originalCostUnknownModelsVisibility;
+        MostUsedModelText.Visibility = originalMostUsedModelVisibility;
+        MostUsedModelText.Text = originalMostUsedModelText;
+        _costForId = originalCostForId;
+        _costAt = originalCostAt;
+        _costRun = originalCostRun;
         RootLayout.Measure(new Windows.Foundation.Size(FlyoutWidthDip, double.PositiveInfinity));
         return Math.Max(tallest, RootLayout.DesiredSize.Height);
     }

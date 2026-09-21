@@ -41,6 +41,9 @@ public static class OpenCodeLocalUsageReader
             using (var connection = new SqliteConnection(connectionString))
             {
                 connection.Open();
+                var modelUsage = HasColumn(connection, "model")
+                    ? ReadModelUsage(connection, periodStart)
+                    : null;
 
                 using var command = connection.CreateCommand();
                 command.CommandText = """
@@ -69,7 +72,8 @@ public static class OpenCodeLocalUsageReader
                         OutputTokens: ReadLong(reader, 2),
                         ReasoningTokens: ReadLong(reader, 3),
                         CacheReadTokens: ReadLong(reader, 4),
-                        CacheCreationTokens: ReadLong(reader, 5));
+                        CacheCreationTokens: ReadLong(reader, 5),
+                        Models: modelUsage);
                 }
             }
         }
@@ -114,6 +118,69 @@ public static class OpenCodeLocalUsageReader
         reader.IsDBNull(ordinal)
             ? 0m
             : Convert.ToDecimal(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+
+    private static bool HasColumn(SqliteConnection connection, string columnName)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info(session);";
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(1)) continue;
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<ModelTokenUsage> ReadModelUsage(
+        SqliteConnection connection,
+        DateTimeOffset periodStart)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                COALESCE(NULLIF(TRIM(model), ''), '(bilinmeyen model)') AS model_name,
+                SUM(COALESCE(tokens_input, 0)) AS input_tokens,
+                SUM(COALESCE(tokens_output, 0)) AS output_tokens,
+                SUM(COALESCE(tokens_cache_read, 0)) AS cache_read_tokens,
+                SUM(COALESCE(tokens_cache_write, 0)) AS cache_write_tokens,
+                SUM(
+                    COALESCE(tokens_input, 0) +
+                    COALESCE(tokens_output, 0) +
+                    COALESCE(tokens_cache_read, 0) +
+                    COALESCE(tokens_cache_write, 0)) AS total_tokens
+            FROM session
+            WHERE time_created >= $threshold
+            GROUP BY model_name
+            ORDER BY total_tokens DESC;
+            """;
+        command.Parameters.AddWithValue("$threshold", periodStart.ToUnixTimeMilliseconds());
+
+        using var reader = command.ExecuteReader();
+        var models = new List<ModelTokenUsage>();
+        while (reader.Read())
+        {
+            var model = reader.IsDBNull(0) ? "(bilinmeyen model)" : reader.GetString(0);
+            var input = ReadLong(reader, 1);
+            var output = ReadLong(reader, 2);
+            var cacheRead = ReadLong(reader, 3);
+            var cacheWrite = ReadLong(reader, 4);
+            var tokens = reader.IsDBNull(5)
+                ? 0L
+                : Convert.ToInt64(reader.GetValue(5), CultureInfo.InvariantCulture);
+            if (tokens > 0)
+            {
+                models.Add(new ModelTokenUsage(model, tokens, input, output, cacheRead, cacheWrite));
+            }
+        }
+
+        return models;
+    }
 
     private static void TryDeleteDirectory(string path)
     {

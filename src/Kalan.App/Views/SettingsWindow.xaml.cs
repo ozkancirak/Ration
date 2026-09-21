@@ -27,6 +27,7 @@ public sealed partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        AppTheme.Apply(SettingsScrollViewer);
         RefreshProviderIcons();
 
         TrayProviderSelection.SelectionChanged += (s, e) =>
@@ -37,6 +38,22 @@ public sealed partial class SettingsWindow : Window
                     providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId);
             }
         };
+
+        ThemeSelection.SelectedItem = ThemeSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item =>
+                string.Equals(
+                    item.Tag as string,
+                    AppThemePreference.ToTag(AppThemePreference.Current),
+                    StringComparison.OrdinalIgnoreCase));
+        ThemeSelection.SelectionChanged += (_, _) =>
+        {
+            if (ThemeSelection.SelectedItem is ComboBoxItem { Tag: string tag })
+            {
+                AppThemePreference.Set(AppThemePreference.FromTag(tag));
+            }
+        };
+        AppThemePreference.Changed += OnAppThemeChanged;
 
         StartupToggle.IsOn = StartupRegistration.IsEnabled();
         StartupToggle.Toggled += (_, _) =>
@@ -114,6 +131,21 @@ public sealed partial class SettingsWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
+            AppTheme.Apply(SettingsScrollViewer);
+            UpdateWindowFrameTheme();
+            RefreshProviderIcons();
+        });
+    }
+
+    private void OnAppThemeChanged(AppThemeMode mode)
+    {
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            AppTheme.Apply(SettingsScrollViewer);
+            ThemeSelection.SelectedItem = ThemeSelection.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item =>
+                    string.Equals(item.Tag as string, AppThemePreference.ToTag(mode), StringComparison.OrdinalIgnoreCase));
             UpdateWindowFrameTheme();
             RefreshProviderIcons();
         });
@@ -127,7 +159,7 @@ public sealed partial class SettingsWindow : Window
 
     private void UpdateWindowFrameTheme()
     {
-        bool isDark = !WindowsThemeListener.IsAppLightTheme();
+        bool isDark = !AppThemePreference.IsAppLightTheme();
         int darkMode = isDark ? 1 : 0;
         NativeMethods.DwmSetWindowAttribute(
             _hwnd,
@@ -138,6 +170,7 @@ public sealed partial class SettingsWindow : Window
 
     public void ShowAndFocus()
     {
+        AppTheme.Apply(SettingsScrollViewer);
         RefreshCostStatus();
         _appWindow.Show();
         this.Activate();

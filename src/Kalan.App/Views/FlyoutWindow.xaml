@@ -156,15 +156,30 @@
 
                 <!--  Kota pencereleri: koddan üretilir (etiket + 3px ölçer + yüzde/süre + tempo)  -->
                 <StackPanel x:Name="DetailWindows" Spacing="14" />
+                <TextBlock x:Name="MostUsedModelText"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
 
                 <!--  Maliyet özeti (yerel JSONL taraması; veri yoksa gizli)  -->
                 <StackPanel x:Name="CostSection" Spacing="4" Visibility="Collapsed">
-                    <TextBlock Text="Maliyet"
+                    <TextBlock x:Name="CostTitle"
+                               Text="API karşılığı"
                                Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <TextBlock Text="Aboneliğinle ödediğin tutar değil; aynı kullanım API fiyatlarıyla bu kadar tutardı."
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" />
                     <TextBlock x:Name="CostSummary"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" />
+                    <TextBlock x:Name="CostUnknownModels"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
                 </StackPanel>
                 </StackPanel>
             </Grid>

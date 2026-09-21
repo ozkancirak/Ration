@@ -1,4 +1,5 @@
 using Kalan.Core.Cost;
+using Kalan.Core.Model;
 
 namespace Kalan.Tests;
 
@@ -201,6 +202,52 @@ public class PricingTests
         Assert.Equal(1_000, report.InputTokens);
         Assert.Equal(2_000, report.OutputTokens);
         Assert.Single(report.ModelsWithoutPricing!);
+    }
+
+    [Fact]
+    public void LiteLlmFiyatlariTokenBasinaDonusturulurVeAliasEklenir()
+    {
+        var downloadedAt = new DateTimeOffset(2026, 9, 21, 12, 0, 0, TimeSpan.Zero);
+        var table = PricingTable.FromLiteLlmJson("""
+            {
+              "global.anthropic.claude-sonnet-4-6": {
+                "input_cost_per_token": 0.000003,
+                "output_cost_per_token": 0.000015,
+                "cache_read_input_token_cost": 0.0000003,
+                "cache_creation_input_token_cost": 0.00000375
+              },
+              "sample_spec": { "input_cost_per_token": "not-a-price" }
+            }
+            """, downloadedAt);
+
+        var rate = table.Find("claude-sonnet-4-6-20260901");
+
+        Assert.NotNull(rate);
+        Assert.Equal(3m, rate!.InputPerMillion);
+        Assert.Equal(15m, rate.OutputPerMillion);
+        Assert.Equal(0.3m, rate.CacheReadPerMillion);
+        Assert.Equal(3.75m, rate.CacheWritePerMillion);
+        Assert.Equal(downloadedAt, table.DownloadedAt);
+    }
+
+    [Fact]
+    public void ModelBazliTokenlarVeEnCokKullanilanModelTasincir()
+    {
+        var tally = new TokenTally();
+        tally.Add("az-model", 10, 10, 0, 0);
+        tally.Add("cok-model", 60, 20, 0, 0);
+
+        var report = CostEstimator.Estimate(
+            new CostScanResult(tally, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow, 1),
+            PricingTable.Empty);
+
+        Assert.Equal(
+            new[]
+            {
+                new ModelTokenUsage("cok-model", 80, 60, 20),
+                new ModelTokenUsage("az-model", 20, 10, 10),
+            },
+            report.Models);
     }
 }
 

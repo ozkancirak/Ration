@@ -32,6 +32,7 @@ public sealed partial class TrayMenuWindow : Window
     public TrayMenuWindow()
     {
         InitializeComponent();
+        AppTheme.Apply(RootLayout);
 
         var (appWindow, hwnd) = PopoverHelper.Attach(this);
         _appWindow = appWindow;
@@ -63,11 +64,30 @@ public sealed partial class TrayMenuWindow : Window
 
         // Tema canlı değişimi: akrilik kendiliğinden uyar; ikon/ayraç
         // fırçaları ThemeResource'tan yeniden alınır.
-        WindowsThemeListener.ThemeChanged += _ => this.DispatcherQueue.TryEnqueue(RefreshChrome);
+        WindowsThemeListener.ThemeChanged += OnSystemThemeChanged;
         WindowsThemeListener.AccentChanged += () => this.DispatcherQueue.TryEnqueue(RefreshChrome);
+        AppThemePreference.Changed += OnAppThemeChanged;
 
         _appWindow.Resize(new SizeInt32(160, 120));
         _isVisible = false;
+    }
+
+    private void OnSystemThemeChanged(bool isLightTheme)
+    {
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            AppTheme.Apply(RootLayout);
+            RefreshChrome();
+        });
+    }
+
+    private void OnAppThemeChanged(AppThemeMode mode)
+    {
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            AppTheme.Apply(RootLayout);
+            RefreshChrome();
+        });
     }
 
     private void RefreshChrome()
@@ -87,6 +107,7 @@ public sealed partial class TrayMenuWindow : Window
 
     public void ShowAtCursor()
     {
+        AppTheme.Apply(RootLayout);
         var (physW, physH) = MeasureMenu(out int dipW, out int dipH);
 
         var (x, y) = FlyoutPositioner.CalculatePosition(

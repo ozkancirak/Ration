@@ -140,6 +140,17 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="Tema"
+                                       Description="Kalan'ın renk teması">
+                    <ComboBox x:Name="ThemeSelection"
+                              MinWidth="140"
+                              AutomationProperties.Name="Tema">
+                        <ComboBoxItem Content="Sistem" Tag="system" />
+                        <ComboBoxItem Content="Açık" Tag="light" />
+                        <ComboBoxItem Content="Koyu" Tag="dark" />
+                    </ComboBox>
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="Tepside göster"
                                        Description="Tepsi ikonunda hangi sağlayıcının kotası gösterilsin">
                     <controls:SettingsCard.HeaderIcon>

@@ -31,19 +31,25 @@ public sealed record ModelRate(
 /// </summary>
 public sealed class PricingTable
 {
+    private const decimal Million = 1_000_000m;
     private readonly Dictionary<string, ModelRate> _rates;
 
     public string Currency { get; }
+    public DateTimeOffset? DownloadedAt { get; }
 
     public bool IsEmpty => _rates.Count == 0;
 
-    public PricingTable(IDictionary<string, ModelRate>? rates = null, string currency = "USD")
+    public PricingTable(
+        IDictionary<string, ModelRate>? rates = null,
+        string currency = "USD",
+        DateTimeOffset? downloadedAt = null)
     {
         _rates = rates is null
             ? new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, ModelRate>(rates, StringComparer.OrdinalIgnoreCase);
 
         Currency = currency;
+        DownloadedAt = downloadedAt;
     }
 
     public static PricingTable Empty { get; } = new();
@@ -65,6 +71,7 @@ public sealed class PricingTable
 
             var rates = new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase);
             var currency = "USD";
+            DateTimeOffset? downloadedAt = null;
 
             foreach (var property in document.RootElement.EnumerateObject())
             {
@@ -74,16 +81,30 @@ public sealed class PricingTable
                     continue;
                 }
 
+                if (property.NameEquals("_metadata") &&
+                    property.Value.ValueKind == JsonValueKind.Object)
+                {
+                    downloadedAt = ReadTimestamp(property.Value, "downloadedAtUtc");
+                    continue;
+                }
+
+                if (property.NameEquals("downloadedAtUtc"))
+                {
+                    downloadedAt = ReadTimestamp(document.RootElement, "downloadedAtUtc");
+                    continue;
+                }
+
+                if (property.Name.StartsWith('_')) continue;
+
                 if (property.Value.ValueKind != JsonValueKind.Object) continue;
 
-                rates[property.Name] = new ModelRate(
-                    ReadDecimal(property.Value, "input"),
-                    ReadDecimal(property.Value, "output"),
-                    ReadDecimal(property.Value, "cacheRead"),
-                    ReadDecimal(property.Value, "cacheWrite"));
+                if (TryReadNormalizedRate(property.Value, out var rate))
+                {
+                    rates[property.Name] = rate;
+                }
             }
 
-            return new PricingTable(rates, currency);
+            return new PricingTable(rates, currency, downloadedAt);
         }
         catch (JsonException) { return Empty; }
         catch (IOException) { return Empty; }
@@ -111,6 +132,101 @@ public sealed class PricingTable
         return best;
     }
 
+    /// <summary>
+    /// LiteLLM fiyatlarını uygulamanın per-million formatına çevirir.
+    /// Sağlayıcı/region öneklerinin sonundaki model adı da alias olarak eklenir;
+    /// böylece loglardaki "claude-sonnet-..." ve "gpt-..." adları eşleşir.
+    /// </summary>
+    public static PricingTable FromLiteLlmJson(
+        string json,
+        DateTimeOffset downloadedAt)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return Empty;
+        }
+
+        var sourceRates = new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Object) continue;
+            if (TryReadLiteLlmRate(property.Value, out var rate))
+            {
+                sourceRates[property.Name] = rate;
+            }
+        }
+
+        if (sourceRates.Count == 0) return Empty;
+
+        var rates = new Dictionary<string, ModelRate>(sourceRates, StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, rate) in sourceRates)
+        {
+            foreach (var alias in Aliases(key))
+            {
+                rates.TryAdd(alias, rate);
+            }
+        }
+
+        return new PricingTable(rates, "USD", downloadedAt);
+    }
+
+    internal IReadOnlyDictionary<string, ModelRate> Rates => _rates;
+
+    internal static DateTimeOffset? TryReadDownloadedAt(string? path = null)
+    {
+        path ??= DefaultPath;
+        if (!File.Exists(path)) return null;
+
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var document = JsonDocument.Parse(stream);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            if (document.RootElement.TryGetProperty("_metadata", out var metadata) &&
+                metadata.ValueKind == JsonValueKind.Object)
+            {
+                return ReadTimestamp(metadata, "downloadedAtUtc");
+            }
+
+            return ReadTimestamp(document.RootElement, "downloadedAtUtc");
+        }
+        catch (JsonException) { return null; }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    internal string ToCacheJson(string source)
+    {
+        var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["_metadata"] = new Dictionary<string, string>
+            {
+                ["source"] = source,
+                ["downloadedAtUtc"] = (DownloadedAt ?? DateTimeOffset.UtcNow).ToString("O"),
+            },
+            ["currency"] = Currency,
+        };
+
+        foreach (var (model, rate) in _rates)
+        {
+            if (model.StartsWith('_')) continue;
+            payload[model] = new
+            {
+                input = rate.InputPerMillion,
+                output = rate.OutputPerMillion,
+                cacheRead = rate.CacheReadPerMillion,
+                cacheWrite = rate.CacheWritePerMillion,
+            };
+        }
+
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            WriteIndented = false,
+        });
+    }
+
     private static decimal ReadDecimal(JsonElement element, string name)
     {
         if (!element.TryGetProperty(name, out var value)) return 0m;
@@ -127,6 +243,101 @@ public sealed class PricingTable
         }
 
         return 0m;
+    }
+
+    private static bool TryReadNormalizedRate(JsonElement element, out ModelRate rate)
+    {
+        var hasAny = HasProperty(element, "input") ||
+                     HasProperty(element, "output") ||
+                     HasProperty(element, "cacheRead") ||
+                     HasProperty(element, "cacheWrite");
+        if (!hasAny)
+        {
+            rate = default!;
+            return false;
+        }
+
+        rate = new ModelRate(
+            ReadDecimal(element, "input"),
+            ReadDecimal(element, "output"),
+            ReadDecimal(element, "cacheRead"),
+            ReadDecimal(element, "cacheWrite"));
+        return true;
+    }
+
+    private static bool TryReadLiteLlmRate(JsonElement element, out ModelRate rate)
+    {
+        var input = ReadLiteLlmDecimal(element, "input_cost_per_token", out var hasInput);
+        var output = ReadLiteLlmDecimal(element, "output_cost_per_token", out var hasOutput);
+        var cacheRead = ReadLiteLlmDecimal(element, "cache_read_input_token_cost", out var hasCacheRead);
+        var cacheWrite = ReadLiteLlmDecimal(element, "cache_creation_input_token_cost", out var hasCacheWrite);
+
+        if (!hasCacheWrite)
+        {
+            cacheWrite = ReadLiteLlmDecimal(element, "cache_write_input_token_cost", out hasCacheWrite);
+        }
+
+        if (!hasInput && !hasOutput && !hasCacheRead && !hasCacheWrite)
+        {
+            rate = default!;
+            return false;
+        }
+
+        rate = new ModelRate(input * Million, output * Million, cacheRead * Million, cacheWrite * Million);
+        return true;
+    }
+
+    private static decimal ReadLiteLlmDecimal(
+        JsonElement element,
+        string name,
+        out bool present)
+    {
+        if (!element.TryGetProperty(name, out var value) ||
+            value.ValueKind is not (JsonValueKind.Number or JsonValueKind.String))
+        {
+            present = false;
+            return 0m;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number)
+        {
+            present = value.TryGetDecimal(out var number);
+            return present ? number : 0m;
+        }
+
+        if (!decimal.TryParse(value.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+        {
+            present = false;
+            return 0m;
+        }
+
+        present = true;
+        return parsed;
+    }
+
+    private static bool HasProperty(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) &&
+        value.ValueKind is JsonValueKind.Number or JsonValueKind.String;
+
+    private static IEnumerable<string> Aliases(string key)
+    {
+        for (var index = 0; index < key.Length; index++)
+        {
+            if (key[index] is not ('/' or '.')) continue;
+            var alias = key[(index + 1)..];
+            if (alias.Length > 0) yield return alias;
+        }
+    }
+
+    private static DateTimeOffset? ReadTimestamp(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value) ||
+            value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return DateTimeOffset.TryParse(value.GetString(), out var parsed) ? parsed : null;
     }
 }
 
@@ -170,6 +381,50 @@ public static class CostEstimator
             CacheReadTokens: scan.Tally.TotalCacheReadTokens,
             CacheCreationTokens: scan.Tally.TotalCacheCreationTokens,
             ReasoningTokens: scan.Tally.TotalReasoningTokens,
-            ModelsWithoutPricing: unpriced);
+            ModelsWithoutPricing: unpriced,
+            Models: scan.Tally.Models
+                .Where(model => model.TotalTokens > 0)
+                .Select(model => new ModelTokenUsage(
+                    model.Model,
+                    model.TotalTokens,
+                    model.InputTokens,
+                    model.OutputTokens,
+                    model.CacheReadTokens,
+                    model.CacheCreationTokens))
+                .ToArray());
+    }
+
+    /// <summary>
+    /// OpenCode gibi token raporunu zaten üretmiş kaynaklar için aynı fiyat
+    /// hesabını uygular. Model kırılımı yoksa güvenilir bir API karşılığı
+    /// çıkarılamaz; bu durumda yalnızca token sayıları korunur.
+    /// </summary>
+    public static CostReport Estimate(CostReport usage, PricingTable pricing)
+    {
+        var total = 0m;
+        var unpriced = new List<string>();
+
+        foreach (var model in usage.Models ?? Array.Empty<ModelTokenUsage>())
+        {
+            var rate = pricing.Find(model.Model);
+            if (rate is null)
+            {
+                if (model.Tokens > 0) unpriced.Add(model.Model);
+                continue;
+            }
+
+            total +=
+                model.InputTokens / Million * rate.InputPerMillion +
+                model.OutputTokens / Million * rate.OutputPerMillion +
+                model.CacheReadTokens / Million * rate.CacheReadPerMillion +
+                model.CacheCreationTokens / Million * rate.CacheWritePerMillion;
+        }
+
+        return usage with
+        {
+            TotalCost = Math.Round(total, 4),
+            Currency = pricing.Currency,
+            ModelsWithoutPricing = usage.Models is null ? usage.ModelsWithoutPricing : unpriced,
+        };
     }
 }

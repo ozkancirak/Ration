@@ -48,6 +48,14 @@ public sealed record CreditBalance(
     decimal? TotalCredits,
     string Currency);
 
+public sealed record ModelTokenUsage(
+    string Model,
+    long Tokens,
+    long InputTokens = 0,
+    long OutputTokens = 0,
+    long CacheReadTokens = 0,
+    long CacheCreationTokens = 0);
+
 public sealed record CostReport(
     decimal TotalCost,
     string Currency,
@@ -63,7 +71,11 @@ public sealed record CostReport(
     // Akıl yürütme token'ları OutputTokens'ın alt kümesidir; bilgi amaçlı tutulur,
     // toplama ve maliyete ikinci kez eklenmez.
     long ReasoningTokens = 0,
-    IReadOnlyList<string>? ModelsWithoutPricing = null);
+    IReadOnlyList<string>? ModelsWithoutPricing = null,
+    IReadOnlyList<ModelTokenUsage>? Models = null)
+{
+    public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
+}
 
 public sealed record UsageSnapshot(
     string ProviderId,

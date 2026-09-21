@@ -91,6 +91,7 @@ public sealed class OpenCodeTests
                 create.CommandText = """
                     CREATE TABLE session (
                         time_created INTEGER NOT NULL,
+                        model TEXT,
                         cost REAL,
                         tokens_input INTEGER,
                         tokens_output INTEGER,
@@ -98,7 +99,7 @@ public sealed class OpenCodeTests
                         tokens_cache_read INTEGER,
                         tokens_cache_write INTEGER
                     );
-                    INSERT INTO session VALUES ($time, 1.25, 100, 200, 30, 40, 50);
+                    INSERT INTO session VALUES ($time, 'ornek-model', 1.25, 100, 200, 30, 40, 50);
                     """;
                 create.Parameters.AddWithValue("$time", DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds());
                 create.ExecuteNonQuery();
@@ -113,6 +114,9 @@ public sealed class OpenCodeTests
             Assert.Equal(30, report.ReasoningTokens);
             Assert.Equal(40, report.CacheReadTokens);
             Assert.Equal(50, report.CacheCreationTokens);
+            Assert.Equal(
+                new[] { new ModelTokenUsage("ornek-model", 390, 100, 200, 40, 50) },
+                report.Models);
             Assert.False(Directory.Exists(cacheDirectory) &&
                          Directory.EnumerateDirectories(cacheDirectory).Any());
 

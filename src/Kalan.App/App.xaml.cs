@@ -1,5 +1,6 @@
 using System;
 using Microsoft.UI.Xaml;
+using Kalan.Core.Cost;
 using Kalan.Core.Diagnostics;
 using Kalan.App.Views;
 using Kalan.Platform.Windows.App;
@@ -121,6 +122,8 @@ public partial class App : Application
                 _flyoutWindow.InitializeHidden();
                 Trace.Info("window", "flyout.hidden tray-ready");
             }
+
+            _ = PricingTableUpdater.RefreshIfDueAsync();
 
             if (!string.IsNullOrEmpty(screenshotPath) && targetWindow != null)
             {

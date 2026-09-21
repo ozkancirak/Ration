@@ -111,7 +111,7 @@ internal static class ProviderIcons
             return QuotaVisuals.Fill("TextFillColorTertiaryBrush");
         }
 
-        if (definition.UsePrimaryBrushInDarkTheme && !WindowsThemeListener.IsAppLightTheme())
+        if (definition.UsePrimaryBrushInDarkTheme && !AppThemePreference.IsAppLightTheme())
         {
             return QuotaVisuals.Fill("TextFillColorPrimaryBrush");
         }

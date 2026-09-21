@@ -137,7 +137,10 @@ public static class QuotaVisuals
         return new CornerRadius(4);
     }
 
-    /// <summary>Plan rozetini gösterir ya da gizler ("plus", "max"...).</summary>
+    /// <summary>
+    /// Plan rozetini gösterir ya da gizler. Antigravity "Google AI Pro/Ultra"
+    /// döndürür; ürün ailesi önekini rozetten çıkarıp yalnızca planı gösteririz.
+    /// </summary>
     public static void ApplyPlan(Border badge, TextBlock text, string? planName)
     {
         if (string.IsNullOrWhiteSpace(planName))
@@ -146,7 +149,20 @@ public static class QuotaVisuals
             return;
         }
 
-        text.Text = planName.ToUpperInvariant();
+        var displayName = planName.Trim();
+        const string googleAiPrefix = "Google AI ";
+        if (displayName.StartsWith(googleAiPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            displayName = displayName[googleAiPrefix.Length..].Trim();
+        }
+
+        if (displayName.Length == 0)
+        {
+            badge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        text.Text = displayName.ToUpperInvariant();
         badge.Visibility = Visibility.Visible;
     }
 
