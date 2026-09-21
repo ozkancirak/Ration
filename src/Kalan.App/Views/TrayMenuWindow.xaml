@@ -5,36 +5,89 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Kalan Menü">
 
-    <!--
-        Native tepsi menüsü: WinForms ContextMenuStrip yerine WinUI penceresi.
-        Satır 32px, solda 16px FontIcon, Body tip rampası. Renkler ThemeResource'tan
-        gelir (hover/seçili dahil); akrilik ve metin tema değişiminde kendiliğinden uyar.
-        Kök saydamdır, pencere köşesi DWM ile yuvarlatılır (kart çerçevesi yok).
-    -->
-
     <Grid x:Name="RootLayout"
           Background="Transparent"
           Padding="4">
-        <ListView x:Name="MenuList"
-                  SelectionMode="None"
-                  IsItemClickEnabled="True"
-                  Background="Transparent"
-                  BorderThickness="0"
-                  Padding="0">
-            <!-- 4 öğelik menüde sanallaştırma yok: ilk ölçümde doğru genişlik.
-                 ListViewItem görselleri ve klavye gezinmesi aynen kalır. -->
-            <ListView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel />
-                </ItemsPanelTemplate>
-            </ListView.ItemsPanel>
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
-                    <Setter Property="MinHeight" Value="32" />
-                    <Setter Property="Padding" Value="12,0" />
-                    <Setter Property="Margin" Value="0" />
-                </Style>
-            </ListView.ItemContainerStyle>
-        </ListView>
+        <Grid.Resources>
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver"
+                             Color="{ThemeResource SubtleFillColorSecondary}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed"
+                             Color="{ThemeResource SubtleFillColorTertiary}" />
+
+            <Style x:Key="TrayMenuButtonStyle" TargetType="Button">
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+            </Style>
+        </Grid.Resources>
+
+        <StackPanel x:Name="MenuStack"
+                    Spacing="0">
+            <Button x:Name="RefreshButton"
+                    Style="{StaticResource TrayMenuButtonStyle}"
+                    AutomationProperties.Name="Yenile">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="12"
+                            VerticalAlignment="Center">
+                    <Viewbox Width="16"
+                             Height="16"
+                             Stretch="Uniform">
+                        <FontIcon Glyph="&#xE72C;"
+                                  FontSize="16"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </Viewbox>
+                    <TextBlock Text="Yenile"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="SettingsButton"
+                    Style="{StaticResource TrayMenuButtonStyle}"
+                    AutomationProperties.Name="Ayarlar">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="12"
+                            VerticalAlignment="Center">
+                    <Viewbox Width="16"
+                             Height="16"
+                             Stretch="Uniform">
+                        <FontIcon Glyph="&#xE713;"
+                                  FontSize="16"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </Viewbox>
+                    <TextBlock Text="Ayarlar"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Border x:Name="MenuSeparator"
+                    Height="1"
+                    Background="{ThemeResource CardStrokeColorDefaultBrush}"
+                    Margin="0,4" />
+
+            <Button x:Name="ExitButton"
+                    Style="{StaticResource TrayMenuButtonStyle}"
+                    AutomationProperties.Name="Çıkış">
+                <StackPanel Orientation="Horizontal"
+                            Spacing="12"
+                            VerticalAlignment="Center">
+                    <Viewbox Width="16"
+                             Height="16"
+                             Stretch="Uniform">
+                        <FontIcon Glyph="&#xE7E8;"
+                                  FontSize="16"
+                                  Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    </Viewbox>
+                    <TextBlock Text="Çıkış"
+                               Style="{StaticResource BodyTextBlockStyle}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
     </Grid>
 </Window>

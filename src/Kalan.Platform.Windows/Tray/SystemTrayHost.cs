@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using Kalan.Core.Diagnostics;
 using Kalan.Platform.Windows.Interop;
 
 namespace Kalan.Platform.Windows.Tray;
@@ -27,6 +28,7 @@ public sealed class SystemTrayHost : IDisposable
         {
             if (e.Button == MouseButtons.Left)
             {
+                Trace.Info("tray", "left-click");
                 LeftClicked?.Invoke();
             }
         };
@@ -35,6 +37,7 @@ public sealed class SystemTrayHost : IDisposable
         {
             if (e.Button == MouseButtons.Right)
             {
+                Trace.Info("tray", "right-click");
                 RightClicked?.Invoke();
             }
         };

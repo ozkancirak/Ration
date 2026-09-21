@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Cost;
+using Kalan.Core.Diagnostics;
 using Kalan.Core.Discovery;
 using Kalan.Core.Model;
 using Kalan.Core.Providers;
@@ -11,6 +12,8 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using Kalan.Platform.Windows.Theme;
 using Kalan.Platform.Windows.Tray;
+using AppProcess = System.Diagnostics.Process;
+using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
 // Kalan CLI — UI olmadan doğrulamanın birincil aracı (AGENTS.md §7).
 // Token değerleri hiçbir çıktıda gösterilmez (AGENTS.md §2.3).
@@ -28,6 +31,17 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
 {
     PrintHelp();
     return 0;
+}
+
+if (HasFlag(args, "--log"))
+{
+    PrintLog();
+    return 0;
+}
+
+if (HasFlag(args, "--selftest"))
+{
+    return RunSelfTest(args);
 }
 
 var command = args[0].ToLowerInvariant();
@@ -313,6 +327,21 @@ void PrintDiagnostics()
     Console.WriteLine();
 }
 
+void PrintLog()
+{
+    var lines = Trace.ReadLastLines(100);
+    if (lines.Count == 0)
+    {
+        Console.WriteLine($"Günlük yok: {Trace.LogPath}");
+        return;
+    }
+
+    foreach (var line in lines)
+    {
+        Console.WriteLine(line);
+    }
+}
+
 void PrintPath(string label, string path, bool isFile)
 {
     var exists = isFile ? File.Exists(path) : Directory.Exists(path);
@@ -334,6 +363,71 @@ void PrintThemeInfo()
     Console.WriteLine($"  Accent (Light1)     : #{light1.R:X2}{light1.G:X2}{light1.B:X2} (R:{light1.R} G:{light1.G} B:{light1.B})");
     Console.WriteLine($"  Accent (Dark1)      : #{dark1.R:X2}{dark1.G:X2}{dark1.B:X2} (R:{dark1.R} G:{dark1.G} B:{dark1.B})");
     Console.WriteLine();
+}
+
+int RunSelfTest(string[] forwardedArgs)
+{
+    var executable = FindAppExecutable();
+    if (executable is null)
+    {
+        Console.Error.WriteLine("Kalan.App.exe bulunamadı; önce Kalan.App projesini derleyin.");
+        return 2;
+    }
+
+    try
+    {
+        var startInfo = new AppProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = Path.GetDirectoryName(executable) ?? AppContext.BaseDirectory,
+            UseShellExecute = false,
+        };
+        foreach (var argument in forwardedArgs)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = AppProcess.Start(startInfo);
+        if (process is null)
+        {
+            Console.Error.WriteLine("Self-test süreci başlatılamadı.");
+            return 1;
+        }
+
+        process.WaitForExit();
+        return process.ExitCode;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Self-test başlatılamadı: {ex.GetType().Name}");
+        return 1;
+    }
+}
+
+string? FindAppExecutable()
+{
+    var candidates = new List<string>
+    {
+        Path.Combine(AppContext.BaseDirectory, "Kalan.App.exe"),
+    };
+
+    // Kaynak ağaçta CLI ve App ayrı projeler olduğundan Debug/Release çıktılarını
+    // sınırlı, deterministik adaylar olarak kontrol et; tüm diski tarama.
+    string sourceRoot = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    foreach (var configuration in new[] { "Debug", "Release" })
+    {
+        candidates.Add(Path.Combine(
+            sourceRoot,
+            "Kalan.App",
+            "bin",
+            configuration,
+            "net10.0-windows10.0.26100.0",
+            "win-x64",
+            "Kalan.App.exe"));
+    }
+
+    return candidates.FirstOrDefault(File.Exists);
 }
 
 void RenderIconPreview(string outputPath)
@@ -504,12 +598,16 @@ void PrintHelp()
     Console.WriteLine("  kalan --discover [gemini|copilot|all] [--json]  # dosya + şema keşfi, değer yazmaz");
     Console.WriteLine("  kalan icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");
     Console.WriteLine("  kalan diagnose [--raw]");
+    Console.WriteLine("  kalan --log                         # kalan.log son 100 satır");
+    Console.WriteLine("  kalan --selftest [--screenshot-dir DIR]  # gerçek menü girdisi testi");
     Console.WriteLine();
     Console.WriteLine("Örnekler:");
     Console.WriteLine("  kalan usage -p claude");
     Console.WriteLine("  kalan usage -p all --json");
     Console.WriteLine("  kalan usage -p claude --raw     # uç noktanın ham şemasını gösterir");
     Console.WriteLine("  kalan icon-preview --out contact-sheet.png");
+    Console.WriteLine("  kalan --log");
+    Console.WriteLine("  kalan --selftest --screenshot-dir .\\selftest");
     Console.WriteLine();
     Console.WriteLine("Çıkış kodu: tüm sağlayıcılar Ok ise 0, değilse 1.");
 }

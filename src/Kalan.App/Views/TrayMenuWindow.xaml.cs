@@ -1,11 +1,9 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
-using Windows.System;
+using Kalan.Core.Diagnostics;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.Theme;
 
@@ -19,8 +17,6 @@ namespace Kalan.App.Views;
 /// </summary>
 public sealed partial class TrayMenuWindow : Window
 {
-    private sealed record MenuAction(string Label, string Glyph, Action Execute);
-
     private readonly AppWindow _appWindow;
     private readonly IntPtr _hwnd;
     private bool _isVisible;
@@ -30,6 +26,8 @@ public sealed partial class TrayMenuWindow : Window
     public event Action? ExitRequested;
 
     public bool IsMenuVisible => _isVisible;
+    public IReadOnlyList<Button> ButtonsForSelfTest =>
+        new[] { RefreshButton, SettingsButton, ExitButton };
 
     public TrayMenuWindow()
     {
@@ -42,28 +40,29 @@ public sealed partial class TrayMenuWindow : Window
         PopoverHelper.ConfigureChrome(this, _appWindow, _hwnd);
         PopoverHelper.ConfigureDismissal(this, _appWindow, HideMenu, RootLayout);
 
-        AddItem("Yenile", "\uE72C", () => RefreshRequested?.Invoke());
-        AddItem("Ayarlar", "\uE713", () => SettingsRequested?.Invoke());
-        AddSeparator();
-        AddItem("Çıkış", "\uE7E8", () => ExitRequested?.Invoke());
-
-        MenuList.ItemClick += (s, e) =>
+        RefreshButton.Click += (s, e) =>
         {
-            if ((e.ClickedItem as ListViewItem)?.Tag is MenuAction action) Execute(action);
+            HideMenu();
+            Trace.Info("menu", "click action=Yenile");
+            RefreshRequested?.Invoke();
         };
 
-        MenuList.KeyDown += (s, e) =>
+        SettingsButton.Click += (s, e) =>
         {
-            if (e.Key is VirtualKey.Enter or VirtualKey.Space
-                && FocusManager.GetFocusedElement(Content.XamlRoot) is ListViewItem { Tag: MenuAction action })
-            {
-                Execute(action);
-                e.Handled = true;
-            }
+            HideMenu();
+            Trace.Info("menu", "click action=Ayarlar");
+            SettingsRequested?.Invoke();
         };
 
-        // Tema canlı değişimi: akrilik kendiliğinden uyar; kodla verilen
-        // fırçaları (ikon, ayraç) burada tazele. Metinler stil üzerinden canlıdır.
+        ExitButton.Click += (s, e) =>
+        {
+            HideMenu();
+            Trace.Info("menu", "click action=Çıkış");
+            ExitRequested?.Invoke();
+        };
+
+        // Tema canlı değişimi: akrilik kendiliğinden uyar; ikon/ayraç
+        // fırçaları ThemeResource'tan yeniden alınır.
         WindowsThemeListener.ThemeChanged += _ => this.DispatcherQueue.TryEnqueue(RefreshChrome);
         WindowsThemeListener.AccentChanged += () => this.DispatcherQueue.TryEnqueue(RefreshChrome);
 
@@ -71,72 +70,19 @@ public sealed partial class TrayMenuWindow : Window
         _isVisible = false;
     }
 
-    private void AddItem(string label, string glyph, Action execute)
-    {
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 12,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        row.Children.Add(new FontIcon
-        {
-            Glyph = glyph,
-            FontSize = 16,
-            Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        });
-        var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-        QuotaVisuals.SetTextStyle(text, "BodyTextBlockStyle");
-        row.Children.Add(text);
-
-        var container = new ListViewItem { Content = row, Tag = new MenuAction(label, glyph, execute) };
-        AutomationProperties.SetName(container, label);
-        MenuList.Items.Add(container);
-    }
-
-    private void AddSeparator()
-    {
-        var line = new Border
-        {
-            Height = 1,
-            Background = QuotaVisuals.Fill("CardStrokeColorDefaultBrush"),
-            Margin = new Thickness(0, 4, 0, 4),
-        };
-        MenuList.Items.Add(new ListViewItem
-        {
-            Content = line,
-            IsEnabled = false,
-            IsTabStop = false,
-            IsHitTestVisible = false,
-            MinHeight = 10,
-            Padding = new Thickness(0),
-        });
-    }
-
-    private void Execute(MenuAction action)
-    {
-        // Önce kapat, sonra çalıştır.
-        HideMenu();
-        action.Execute();
-    }
-
     private void RefreshChrome()
     {
-        foreach (var container in MenuList.Items.OfType<ListViewItem>())
+        foreach (var button in ButtonsForSelfTest)
         {
-            if (container.Content is StackPanel row)
+            if (button.Content is StackPanel row
+                && row.Children.FirstOrDefault() is Viewbox box
+                && box.Child is FontIcon icon)
             {
-                foreach (var icon in row.Children.OfType<FontIcon>())
-                {
-                    icon.Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush");
-                }
-            }
-            else if (container.Content is Border line)
-            {
-                line.Background = QuotaVisuals.Fill("CardStrokeColorDefaultBrush");
+                icon.Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush");
             }
         }
+
+        MenuSeparator.Background = QuotaVisuals.Fill("CardStrokeColorDefaultBrush");
     }
 
     public void ShowAtCursor()
@@ -154,8 +100,8 @@ public sealed partial class TrayMenuWindow : Window
         _appWindow.MoveAndResize(new RectInt32(x, y, physW, physH));
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
         _isVisible = true;
-
-        MenuList.Focus(FocusState.Programmatic);
+        RefreshButton.Focus(FocusState.Programmatic);
+        Trace.Info("menu", "show");
 
         // İlk karede öğeler henüz gerçekleşmemiştir; yerleşim bitince
         // yeniden ölç ve boyu düzelt (konum sabit kalır).
@@ -188,5 +134,40 @@ public sealed partial class TrayMenuWindow : Window
         if (!_isVisible) return;
         _isVisible = false;
         PopoverHelper.HidePopover(_appWindow, RootLayout);
+        Trace.Info("menu", "hide");
+    }
+
+    /// <summary>
+    /// UIA kullanmadan self-test'in gerçek fare tıklaması için bir düğmenin
+    /// ekran dikdörtgenini hesaplar. XAML ölçüleri DIP, AppWindow konumu ise
+    /// fiziksel pikseldir; DPI dönüşümü bu sınırda yapılır.
+    /// </summary>
+    public NativeMethods.RECT GetButtonScreenRect(Button button)
+    {
+        var transform = button.TransformToVisual(null);
+        var dipBounds = transform.TransformBounds(
+            new Windows.Foundation.Rect(0, 0, button.ActualWidth, button.ActualHeight));
+
+        uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
+        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
+        if (dpi == 0) dpi = 96;
+        double scale = dpi / 96.0;
+
+        var position = _appWindow.Position;
+        NativeMethods.GetWindowRect(_hwnd, out var windowRect);
+        var rect = new NativeMethods.RECT
+        {
+            Left = position.X + (int)Math.Round(dipBounds.X * scale),
+            Top = position.Y + (int)Math.Round(dipBounds.Y * scale),
+            Right = position.X + (int)Math.Round((dipBounds.X + dipBounds.Width) * scale),
+            Bottom = position.Y + (int)Math.Round((dipBounds.Y + dipBounds.Height) * scale),
+        };
+
+        string name = AutomationProperties.GetName(button);
+        Trace.Info(
+            "selftest",
+            $"rect window={windowRect.Left},{windowRect.Top},{windowRect.Width}x{windowRect.Height} "
+            + $"button={name} x={rect.Left} y={rect.Top} w={rect.Width} h={rect.Height}");
+        return rect;
     }
 }

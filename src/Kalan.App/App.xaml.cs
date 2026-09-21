@@ -1,6 +1,6 @@
 using System;
-using System.IO;
 using Microsoft.UI.Xaml;
+using Kalan.Core.Diagnostics;
 using Kalan.App.Views;
 
 namespace Kalan.App;
@@ -14,61 +14,132 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup.log");
-
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            File.AppendAllText(logPath, $"AppDomain UnhandledException: {e.ExceptionObject}\n");
+            var type = e.ExceptionObject?.GetType().Name ?? "unknown";
+            Trace.Error("app.unhandled", $"type={type}");
         };
 
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {
-            File.AppendAllText(logPath, $"ProcessExit called at {DateTime.Now}\nStack:\n{Environment.StackTrace}\n");
+            Trace.Info("app", "process-exit");
         };
 
         this.UnhandledException += (s, e) =>
         {
-            File.AppendAllText(logPath, $"Xaml UnhandledException: {e.Exception}\n");
+            Trace.Error("xaml", $"type={e.Exception.GetType().Name}");
         };
     }
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup.log");
+        var cmdArgs = Environment.GetCommandLineArgs();
+        string? screenshotPath = null;
+        for (int i = 0; i < cmdArgs.Length; i++)
+        {
+            if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < cmdArgs.Length && !cmdArgs[i + 1].StartsWith("--"))
+                {
+                    screenshotPath = cmdArgs[i + 1];
+                }
+                else
+                {
+                    screenshotPath = "screenshot.png";
+                }
+                break;
+            }
+        }
+
         try
         {
-            File.WriteAllText(logPath, $"App.OnLaunched started at {DateTime.Now}\n");
-            _flyoutWindow = new FlyoutWindow();
-            File.AppendAllText(logPath, "FlyoutWindow created\n");
-            // --show/--settings/--menu: el ile düzen doğrulama kancaları.
-            var cmdArgs = Environment.GetCommandLineArgs();
-            if (cmdArgs.Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)))
+            Trace.Info("app", "launch");
+            if (HasFlag(cmdArgs, "--log"))
             {
-                _flyoutWindow.ShowFlyout();
-                File.AppendAllText(logPath, "FlyoutWindow --show ile acik baslatildi\n");
+                foreach (var line in Trace.ReadLastLines(100))
+                {
+                    Console.WriteLine(line);
+                }
+
+                Environment.Exit(0);
+                return;
             }
-            else if (cmdArgs.Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
+
+            // --show/--settings/--menu/--selftest/--screenshot: el ile düzen ve
+            // görsel doğrulama kancaları. Self-test normal açılışta çalışmaz.
+            Window? targetWindow = null;
+            if (HasFlag(cmdArgs, "--selftest"))
             {
+                _flyoutWindow = new FlyoutWindow();
                 _flyoutWindow.InitializeHidden();
+                _flyoutWindow.ShowMenuForVerification();
+                Trace.Info("selftest", "launch");
+                _ = SelfTestRunner.RunAsync(_flyoutWindow, GetOption(cmdArgs, "--screenshot-dir"));
+            }
+            else if (HasFlag(cmdArgs, "--settings"))
+            {
                 _settingsWindow = new SettingsWindow();
                 _settingsWindow.ShowAndFocus();
-                File.AppendAllText(logPath, "SettingsWindow --settings ile acik baslatildi\n");
+                targetWindow = _settingsWindow;
+                Trace.Info("window", "settings.show command-line");
             }
             else if (cmdArgs.Any(a => a.Equals("--menu", StringComparison.OrdinalIgnoreCase)))
             {
+                _flyoutWindow = new FlyoutWindow();
                 _flyoutWindow.InitializeHidden();
                 _flyoutWindow.ShowMenuForVerification();
-                File.AppendAllText(logPath, "TrayMenuWindow --menu ile acik baslatildi\n");
+                targetWindow = _flyoutWindow.MenuWindow;
+                Trace.Info("menu", "show command-line");
+            }
+            else if (cmdArgs.Any(a => a.Equals("--show", StringComparison.OrdinalIgnoreCase)) || !string.IsNullOrEmpty(screenshotPath))
+            {
+                _flyoutWindow = new FlyoutWindow();
+                _flyoutWindow.ShowFlyout();
+                targetWindow = _flyoutWindow;
+                Trace.Info("window", "flyout.show command-line");
             }
             else
             {
+                _flyoutWindow = new FlyoutWindow();
                 _flyoutWindow.InitializeHidden();
-                File.AppendAllText(logPath, "FlyoutWindow gizlendi, uygulama tray'de calisiyor\n");
+                Trace.Info("window", "flyout.hidden tray-ready");
+            }
+
+            if (!string.IsNullOrEmpty(screenshotPath) && targetWindow != null)
+            {
+                IntPtr targetHwnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWindow);
+                _ = Task.Run(async () =>
+                {
+                    // Arayüz bileşenlerinin tam çizilmesi ve animasyonun oturması için bekleme
+                    await Task.Delay(800);
+                    bool ok = await WindowScreenshotHelper.CaptureWindowAsync(targetHwnd, screenshotPath, delayMs: 0);
+                    Trace.Info("screenshot", ok ? "captured" : "failed");
+                    Environment.Exit(ok ? 0 : 1);
+                });
             }
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logPath, $"Exception in OnLaunched: {ex}\n");
+            Trace.Error("app.launch", $"type={ex.GetType().Name}");
+            if (!string.IsNullOrEmpty(screenshotPath))
+            {
+                Environment.Exit(1);
+            }
         }
+    }
+
+    private static bool HasFlag(string[] argv, string flag) =>
+        argv.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+    private static string? GetOption(string[] argv, string name)
+    {
+        for (int i = 0; i < argv.Length - 1; i++)
+        {
+            if (!string.Equals(argv[i], name, StringComparison.OrdinalIgnoreCase)) continue;
+            var value = argv[i + 1];
+            return value.StartsWith("--", StringComparison.Ordinal) ? null : value;
+        }
+
+        return null;
     }
 }

@@ -15,8 +15,8 @@
                   HorizontalContentAlignment="Center">
         <StackPanel x:Name="SettingsContent"
                     Spacing="16"
-                    MaxWidth="600"
-                    HorizontalAlignment="Center"
+                    MaxWidth="1000"
+                    HorizontalAlignment="Stretch"
                     Padding="24,0,24,24">
 
             <!-- Özel Başlık Çubuğu (Drag Region) -->

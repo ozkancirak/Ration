@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using CommunityToolkit.WinUI.Controls;
 using Kalan.Core.Cost;
+using Kalan.Core.Diagnostics;
 using Kalan.Core.Providers;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.Theme;
@@ -66,6 +67,13 @@ public sealed partial class SettingsWindow : Window
 
         int width = (int)Math.Round(520 * scale);
         int height = (int)Math.Round(640 * scale);
+
+        if (_appWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.PreferredMinimumWidth = (int)Math.Round(440 * scale);
+            presenter.PreferredMinimumHeight = (int)Math.Round(420 * scale);
+        }
+
         _appWindow.Resize(new SizeInt32(width, height));
 
         // Pencere çerçevesi için Immersive Dark Mode
@@ -79,6 +87,7 @@ public sealed partial class SettingsWindow : Window
             // Tamamen kapatmak yerine gizle; tray'den tıklandığında anında açılsın
             e.Cancel = true;
             _appWindow.Hide();
+            Trace.Info("window", "settings.hide");
         };
     }
 
@@ -104,6 +113,13 @@ public sealed partial class SettingsWindow : Window
         _appWindow.Show();
         this.Activate();
         NativeMethods.SetForegroundWindow(_hwnd);
+        Trace.Info("window", "settings.show");
+    }
+
+    public void HideForSelfTest()
+    {
+        _appWindow.Hide();
+        Trace.Info("window", "settings.hide selftest");
     }
 
     /// <summary>

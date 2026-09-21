@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Kalan.Core.Abstractions;
+using Kalan.Core.Diagnostics;
 using Kalan.Core.Model;
 using Kalan.Core.Providers;
+using KalanTrace = Kalan.Core.Diagnostics.Trace;
 
 namespace Kalan.Core.Refresh;
 
@@ -124,10 +127,15 @@ public sealed class RefreshScheduler : IAsyncDisposable
     {
         var breaker = _breakers[provider.Id];
         var now = DateTimeOffset.UtcNow;
+        var stopwatch = Stopwatch.StartNew();
+        KalanTrace.Info("provider.refresh", $"start provider={provider.Id}");
 
         if (breaker.IsOpen(now))
         {
             var remaining = (int)Math.Ceiling(breaker.RemainingCooldown(now).TotalSeconds);
+            KalanTrace.Info(
+                "provider.refresh",
+                $"result provider={provider.Id} source=none status=skipped durationMs={stopwatch.ElapsedMilliseconds}");
             PublishFallback(provider.Id, $"Sağlayıcı geçici olarak atlanıyor ({remaining} sn sonra tekrar denenecek)");
             return;
         }
@@ -144,6 +152,9 @@ public sealed class RefreshScheduler : IAsyncDisposable
             }
 
             var snapshot = await ProviderResolver.ResolveAsync(provider, ct).ConfigureAwait(false);
+            KalanTrace.Info(
+                "provider.refresh",
+                $"result provider={provider.Id} source={snapshot.ResolvedVia?.ToString() ?? "none"} status={snapshot.Status} durationMs={stopwatch.ElapsedMilliseconds}");
 
             if (snapshot.Status is ProviderStatus.Ok or ProviderStatus.Degraded)
             {
@@ -161,11 +172,17 @@ public sealed class RefreshScheduler : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
+            KalanTrace.Info(
+                "provider.refresh",
+                $"result provider={provider.Id} source=none status=cancelled durationMs={stopwatch.ElapsedMilliseconds}");
             throw;
         }
         catch (Exception ex)
         {
             breaker.RecordFailure(DateTimeOffset.UtcNow);
+            KalanTrace.Info(
+                "provider.refresh",
+                $"result provider={provider.Id} source=none status=exception:{ex.GetType().Name} durationMs={stopwatch.ElapsedMilliseconds}");
             PublishFallback(provider.Id, $"Beklenmedik hata: {ex.GetType().Name}");
         }
         finally
