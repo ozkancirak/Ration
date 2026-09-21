@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.Graphics;
 using Windows.System;
 using Kalan.Platform.Windows.Interop;
@@ -53,7 +54,8 @@ public sealed partial class TrayMenuWindow : Window
 
         MenuList.KeyDown += (s, e) =>
         {
-            if (e.Key == VirtualKey.Enter && MenuList.SelectedItem is ListViewItem { Tag: MenuAction action })
+            if (e.Key is VirtualKey.Enter or VirtualKey.Space
+                && FocusManager.GetFocusedElement(Content.XamlRoot) is ListViewItem { Tag: MenuAction action })
             {
                 Execute(action);
                 e.Handled = true;
@@ -105,6 +107,8 @@ public sealed partial class TrayMenuWindow : Window
         {
             Content = line,
             IsEnabled = false,
+            IsTabStop = false,
+            IsHitTestVisible = false,
             MinHeight = 10,
             Padding = new Thickness(0),
         });
@@ -145,10 +149,6 @@ public sealed partial class TrayMenuWindow : Window
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd);
         _isVisible = true;
 
-        if (MenuList.SelectedItem is null && MenuList.Items.Count > 0)
-        {
-            MenuList.SelectedIndex = 0;
-        }
         MenuList.Focus(FocusState.Programmatic);
 
         // İlk karede öğeler henüz gerçekleşmemiştir; yerleşim bitince

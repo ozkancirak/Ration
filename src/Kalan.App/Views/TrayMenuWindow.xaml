@@ -16,7 +16,7 @@
           Background="Transparent"
           Padding="4">
         <ListView x:Name="MenuList"
-                  SelectionMode="Single"
+                  SelectionMode="None"
                   IsItemClickEnabled="True"
                   Background="Transparent"
                   BorderThickness="0"
