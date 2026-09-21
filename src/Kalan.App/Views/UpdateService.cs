@@ -8,7 +8,8 @@ namespace Kalan.App.Views;
 public sealed record UpdateCheckResult(
     bool IsInstalled,
     bool UpdateAvailable,
-    string Message,
+    string? AvailableVersion,
+    bool Succeeded,
     DateTimeOffset CheckedAt);
 
 /// <summary>
@@ -60,7 +61,7 @@ public static class UpdateService
             if (!manager.IsInstalled)
             {
                 SaveLastCheckedAt(checkedAt);
-                return new(false, false, "Kurulumdan sonra güncellemeler denetlenebilir.", checkedAt);
+                return new(false, false, null, false, checkedAt);
             }
 
             var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
@@ -68,20 +69,21 @@ public static class UpdateService
 
             if (update is null)
             {
-                return new(true, false, "Kalan güncel.", checkedAt);
+                return new(true, false, null, true, checkedAt);
             }
 
             return new(
                 true,
                 true,
-                $"Yeni sürüm var: {update.TargetFullRelease.Version} — otomatik indirme yok.",
+                update.TargetFullRelease.Version.ToString(),
+                true,
                 checkedAt);
         }
         catch (Exception ex)
         {
             SaveLastCheckedAt(checkedAt);
             Trace.Error("updates", $"check failed type={ex.GetType().Name}");
-            return new(true, false, "Güncellemeler şu anda denetlenemedi.", checkedAt);
+            return new(true, false, null, false, checkedAt);
         }
     }
 

@@ -51,8 +51,7 @@ public sealed partial class SettingsWindow : Window
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         VersionText.Text = $"Sürüm {UpdateService.CurrentVersion}";
-        UpdateStatusText.Text = "Henüz denetlenmedi.";
-        UpdateLastCheckedText.Text = LastCheckedText(UpdateService.LastCheckedAt);
+        UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastCheckedAt);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -122,11 +121,8 @@ public sealed partial class SettingsWindow : Window
 
     private void RefreshProviderIcons()
     {
-        var claude = ProviderIcons.CreateIconElement("claude", active: true);
-        ClaudeProviderExpander.HeaderIcon = claude;
-
-        var codex = ProviderIcons.CreateIconElement("codex", active: true);
-        CodexProviderExpander.HeaderIcon = codex;
+        ClaudeProviderExpander.Header = ProviderIcons.CreateHeader("claude", "Claude Code");
+        CodexProviderExpander.Header = ProviderIcons.CreateHeader("codex", "Codex");
     }
 
     private void UpdateWindowFrameTheme()
@@ -177,8 +173,7 @@ public sealed partial class SettingsWindow : Window
         try
         {
             var result = await UpdateService.CheckAsync();
-            UpdateStatusText.Text = result.Message;
-            UpdateLastCheckedText.Text = LastCheckedText(result.CheckedAt);
+            UpdateStatusText.Text = UpdateStatusTextFor(result);
         }
         finally
         {
@@ -186,10 +181,23 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
-    private static string LastCheckedText(DateTimeOffset? value) =>
+    private static string UpdateStatusTextFor(DateTimeOffset? value) =>
         value is { } checkedAt
-            ? $"Son kontrol: {checkedAt.ToLocalTime():dd.MM.yyyy HH:mm}"
-            : "Son kontrol: yok";
+            ? $"Güncel · {checkedAt.ToLocalTime():HH:mm}'de denetlendi"
+            : "Henüz denetlenmedi";
+
+    private static string UpdateStatusTextFor(UpdateCheckResult result)
+    {
+        if (result.UpdateAvailable && !string.IsNullOrWhiteSpace(result.AvailableVersion))
+        {
+            return $"Sürüm {result.AvailableVersion} hazır";
+        }
+
+        var checkedAt = result.CheckedAt.ToLocalTime();
+        return result.Succeeded
+            ? $"Güncel · {checkedAt:HH:mm}'de denetlendi"
+            : $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi";
+    }
 
     private static void OpenLog()
     {

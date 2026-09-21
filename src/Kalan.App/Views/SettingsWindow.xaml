@@ -14,7 +14,7 @@
                   VerticalScrollBarVisibility="Auto"
                   HorizontalContentAlignment="Center">
         <StackPanel x:Name="SettingsContent"
-                    Spacing="16"
+                    Spacing="8"
                     MaxWidth="1000"
                     HorizontalAlignment="Stretch"
                     Padding="24,0,24,24">
@@ -40,15 +40,12 @@
             <!-- Bölüm: Sağlayıcılar -->
             <TextBlock Text="Sağlayıcılar"
                        Style="{StaticResource SubtitleTextBlockStyle}"
-                       Margin="0,4,0,0" />
+                       Margin="0,16,0,0" />
 
             <controls:SettingsExpander x:Name="ClaudeProviderExpander"
                                        Header="Claude Code"
                                        Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
                                        IsExpanded="true">
-                <controls:SettingsExpander.HeaderIcon>
-                    <PathIcon />
-                </controls:SettingsExpander.HeaderIcon>
                 <controls:SettingsExpander.Items>
                         <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
@@ -90,9 +87,6 @@
                                        Header="Codex"
                                        Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
                                        IsExpanded="true">
-                <controls:SettingsExpander.HeaderIcon>
-                    <PathIcon />
-                </controls:SettingsExpander.HeaderIcon>
                 <controls:SettingsExpander.Items>
                         <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
@@ -128,10 +122,10 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
-                <!-- Bölüm: Genel Tercihler -->
-                <TextBlock Text="Genel Tercihler"
-                           Style="{StaticResource SubtitleTextBlockStyle}"
-                           Margin="0,8,0,0" />
+            <!-- Bölüm: Genel Tercihler -->
+            <TextBlock Text="Genel Tercihler"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,16,0,0" />
 
                 <controls:SettingsCard Header="Yenileme Sıklığı"
                                        Description="Kotaların arka planda otomatik sorgulanma aralığı">
@@ -173,21 +167,20 @@
                                   OffContent="Kapalı" />
                 </controls:SettingsCard>
 
-                <controls:SettingsCard Header="Güncellemeler"
-                                       Description="GitHub Releases üzerinden yalnızca sürüm kontrolü yapar">
-                    <StackPanel Spacing="4" MinWidth="240">
-                        <Button x:Name="CheckUpdatesButton"
-                                Content="Güncellemeleri denetle"
-                                HorizontalAlignment="Left" />
-                        <TextBlock x:Name="UpdateStatusText"
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap" />
-                        <TextBlock x:Name="UpdateLastCheckedText"
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+                <controls:SettingsCard x:Name="UpdatesCard">
+                    <controls:SettingsCard.Header>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Güncellemeler"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock x:Name="UpdateStatusText"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </controls:SettingsCard.Header>
+                    <Button x:Name="CheckUpdatesButton"
+                            Content="Denetle"
+                            HorizontalAlignment="Right" />
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="Tanılama"
@@ -197,27 +190,28 @@
                             HorizontalAlignment="Left" />
                 </controls:SettingsCard>
 
-                <!-- Bölüm: Hakkında -->
-                <TextBlock Text="Hakkında"
-                           Style="{StaticResource SubtitleTextBlockStyle}"
-                           Margin="0,8,0,0" />
+            <!-- Bölüm: Hakkında -->
+            <TextBlock Text="Hakkında"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,16,0,0" />
 
-                <controls:SettingsCard Header="Kalan"
-                                       Description="Windows 11 Native System Tray Quota Tracker">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE946;" />
-                    </controls:SettingsCard.HeaderIcon>
+            <controls:SettingsCard Description="Windows 11 Native System Tray Quota Tracker">
+                    <controls:SettingsCard.Header>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Kalan"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock x:Name="VersionText"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </controls:SettingsCard.Header>
                     <StackPanel Spacing="4">
-                        <TextBlock x:Name="VersionText"
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="Sağlayıcı işaretleri Simple Icons (CC0) kullanır."
+                        <TextBlock Text="Sağlayıcı işaretleri: Simple Icons (CC0), lobe-icons (MIT), OpenAI resmi SVG."
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>
-                </controls:SettingsCard>
+            </controls:SettingsCard>
 
         </StackPanel>
     </ScrollViewer>

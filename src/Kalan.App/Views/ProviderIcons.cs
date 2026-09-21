@@ -1,4 +1,3 @@
-using System.Globalization;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,10 +12,8 @@ namespace Kalan.App.Views;
 internal sealed record ProviderIconDefinition(
     string Id,
     string PathData,
-    double ViewBoxSize,
     string? BrandHex,
     bool UsePrimaryBrushInDarkTheme = false,
-    double LayoutScale = 1,
     bool IsFallback = false);
 
 /// <summary>
@@ -54,16 +51,16 @@ internal static class ProviderIcons
     private static readonly IReadOnlyDictionary<string, ProviderIconDefinition> Definitions =
         new Dictionary<string, ProviderIconDefinition>(StringComparer.OrdinalIgnoreCase)
         {
-            ["claude"] = new("claude", ClaudePathData, 24, "D97757"),
-            ["codex"] = new("codex", ChatGptPathData, 24, null),
-            ["antigravity"] = new("antigravity", AntigravityPathData, 24, "000000", UsePrimaryBrushInDarkTheme: true),
-            ["opencode"] = new("opencode", OpenCodePathData, 24, "000000", UsePrimaryBrushInDarkTheme: true),
+            ["claude"] = new("claude", ClaudePathData, "D97757"),
+            ["codex"] = new("codex", ChatGptPathData, null),
+            ["antigravity"] = new("antigravity", AntigravityPathData, "000000", UsePrimaryBrushInDarkTheme: true),
+            ["opencode"] = new("opencode", OpenCodePathData, "000000", UsePrimaryBrushInDarkTheme: true),
         };
 
     public static ProviderIconDefinition Get(string providerId) =>
         Definitions.TryGetValue(providerId, out var definition)
             ? definition
-            : new ProviderIconDefinition(providerId, FallbackPathData, 24, null, IsFallback: true);
+            : new ProviderIconDefinition(providerId, FallbackPathData, null, IsFallback: true);
 
     public static UIElement Create(string providerId, double size, bool active) =>
         Create(Get(providerId), size, active);
@@ -83,23 +80,28 @@ internal static class ProviderIcons
         };
     }
 
-    public static PathIcon CreateIconElement(string providerId, bool active)
-    {
-        var definition = Get(providerId);
-        var icon = (PathIcon)XamlReader.Load(
-            $"<PathIcon xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Data=\"{definition.PathData}\" />");
-        icon.Width = 20;
-        icon.Height = 20;
-        icon.Foreground = GetBrush(definition, active);
-        return icon;
-    }
-
     private static XamlPath CreatePath(ProviderIconDefinition definition)
+        => (XamlPath)XamlReader.Load(
+            $"<Path xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Data=\"{definition.PathData}\" />");
+
+    public static StackPanel CreateHeader(string providerId, string name)
     {
-        var layoutSize = (definition.ViewBoxSize * definition.LayoutScale)
-            .ToString(CultureInfo.InvariantCulture);
-        return (XamlPath)XamlReader.Load(
-            $"<Path xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Data=\"{definition.PathData}\" Width=\"{layoutSize}\" Height=\"{layoutSize}\" Stretch=\"Uniform\" />");
+        var header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        header.Children.Add(Create(providerId, 20, active: true));
+
+        var label = new TextBlock
+        {
+            Text = name,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
+        header.Children.Add(label);
+        return header;
     }
 
     public static Brush GetBrush(ProviderIconDefinition definition, bool active)
