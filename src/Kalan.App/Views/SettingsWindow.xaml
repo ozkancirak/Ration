@@ -37,18 +37,19 @@
 
             <!-- İçerik tek panel içinde; kaydırma bunun dışındaki ScrollViewer'a aittir. -->
 
-                <!-- Bölüm: Sağlayıcılar -->
-                <TextBlock Text="Sağlayıcılar"
-                           Style="{StaticResource SubtitleTextBlockStyle}"
-                           Margin="0,4,0,0" />
+            <!-- Bölüm: Sağlayıcılar -->
+            <TextBlock Text="Sağlayıcılar"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,4,0,0" />
 
-                <controls:SettingsExpander Header="Claude Code"
-                                           Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
-                                           IsExpanded="true">
-                    <controls:SettingsExpander.HeaderIcon>
-                        <FontIcon Glyph="&#xE945;" />
-                    </controls:SettingsExpander.HeaderIcon>
-                    <controls:SettingsExpander.Items>
+            <controls:SettingsExpander x:Name="ClaudeProviderExpander"
+                                       Header="Claude Code"
+                                       Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
+                                       IsExpanded="true">
+                <controls:SettingsExpander.HeaderIcon>
+                    <PathIcon />
+                </controls:SettingsExpander.HeaderIcon>
+                <controls:SettingsExpander.Items>
                         <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
                                                Description="~/.claude/.credentials.json oturumu">
@@ -82,16 +83,17 @@
                                            Visibility="Collapsed" />
                             </StackPanel>
                         </controls:SettingsCard>
-                    </controls:SettingsExpander.Items>
-                </controls:SettingsExpander>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
 
-                <controls:SettingsExpander Header="Codex"
-                                           Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
-                                           IsExpanded="true">
-                    <controls:SettingsExpander.HeaderIcon>
-                        <FontIcon Glyph="&#xE943;" />
-                    </controls:SettingsExpander.HeaderIcon>
-                    <controls:SettingsExpander.Items>
+            <controls:SettingsExpander x:Name="CodexProviderExpander"
+                                       Header="Codex"
+                                       Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
+                                       IsExpanded="true">
+                <controls:SettingsExpander.HeaderIcon>
+                    <PathIcon />
+                </controls:SettingsExpander.HeaderIcon>
+                <controls:SettingsExpander.Items>
                         <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
                                                Description="~/.codex/auth.json oturumu">
@@ -123,8 +125,8 @@
                                            Visibility="Collapsed" />
                             </StackPanel>
                         </controls:SettingsCard>
-                    </controls:SettingsExpander.Items>
-                </controls:SettingsExpander>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
 
                 <!-- Bölüm: Genel Tercihler -->
                 <TextBlock Text="Genel Tercihler"

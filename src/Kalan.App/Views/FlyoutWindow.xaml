@@ -31,10 +31,17 @@
         </Grid.RowDefinitions>
 
         <!--  Sekme şeridi: ToggleButton'lar koddan üretilir (2-6 sağlayıcı)  -->
-        <StackPanel x:Name="TabStrip"
-                    Grid.Row="0"
-                    Orientation="Horizontal"
-                    Spacing="4" />
+        <ScrollViewer x:Name="TabScrollViewer"
+                      Grid.Row="0"
+                      HorizontalScrollBarVisibility="Hidden"
+                      HorizontalScrollMode="Enabled"
+                      VerticalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Disabled">
+            <StackPanel x:Name="TabStrip"
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        HorizontalAlignment="Left" />
+        </ScrollViewer>
 
         <!--  Seçili sağlayıcının detayı (taşarsa burası kayar; sekmeler ve eylemler sabit)  -->
         <ScrollViewer x:Name="DetailScrollViewer"

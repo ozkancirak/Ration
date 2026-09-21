@@ -27,6 +27,7 @@ public sealed partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        RefreshProviderIcons();
 
         TrayProviderSelection.SelectionChanged += (s, e) =>
         {
@@ -112,7 +113,20 @@ public sealed partial class SettingsWindow : Window
 
     private void OnThemeChanged(bool isLightTheme)
     {
-        this.DispatcherQueue.TryEnqueue(UpdateWindowFrameTheme);
+        this.DispatcherQueue.TryEnqueue(() =>
+        {
+            UpdateWindowFrameTheme();
+            RefreshProviderIcons();
+        });
+    }
+
+    private void RefreshProviderIcons()
+    {
+        var claude = ProviderIcons.CreateIconElement("claude", active: true);
+        ClaudeProviderExpander.HeaderIcon = claude;
+
+        var codex = ProviderIcons.CreateIconElement("codex", active: true);
+        CodexProviderExpander.HeaderIcon = codex;
     }
 
     private void UpdateWindowFrameTheme()
