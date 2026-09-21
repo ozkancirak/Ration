@@ -2,6 +2,7 @@ using Kalan.Core.Abstractions;
 using Kalan.Core.Providers.Antigravity;
 using Kalan.Core.Providers.Claude;
 using Kalan.Core.Providers.Codex;
+using Kalan.Core.Providers.OpenCode;
 
 namespace Kalan.Core.Providers;
 
@@ -19,5 +20,6 @@ public static class ProviderRegistry
         new ClaudeProvider(http),
         new CodexProvider(http),
         new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
+        new OpenCodeProvider(http),
     ];
 }

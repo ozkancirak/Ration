@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
+using Kalan.Core.Diagnostics;
 using Kalan.Platform.Windows.Interop;
 
 namespace Kalan.App.Views;
@@ -100,6 +101,7 @@ internal static class PopoverHelper
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated)
             {
+                Trace.Info("window", "popover.deactivated");
                 onDeactivated?.Invoke();
                 hide();
             }
@@ -126,7 +128,8 @@ internal static class PopoverHelper
     {
         appWindow.Show();
         window.Activate();
-        NativeMethods.SetForegroundWindow(hwnd);
+        bool foreground = NativeMethods.SetForegroundWindow(hwnd);
+        Trace.Info("window", $"popover.show foreground={(foreground ? "ok" : "rejected")}");
         AnimateEntrance(root, edge);
     }
 

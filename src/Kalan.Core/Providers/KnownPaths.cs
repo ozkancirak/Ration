@@ -70,6 +70,36 @@ public static class KnownPaths
             ? Path.Combine(root, "antigravity-cli", "cli.log")
             : null;
 
+    // --- OpenCode (salt okunur) ---
+
+    public static string OpenCodeDataHome
+    {
+        get
+        {
+            var overridden = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            return string.IsNullOrWhiteSpace(overridden)
+                ? Path.Combine(Home, ".local", "share")
+                : overridden;
+        }
+    }
+
+    public static string OpenCodeHome => Path.Combine(OpenCodeDataHome, "opencode");
+
+    public static string OpenCodeAuthFile => Path.Combine(OpenCodeHome, "auth.json");
+
+    public static string OpenCodeDatabaseFile
+    {
+        get
+        {
+            var overridden = Environment.GetEnvironmentVariable("OPENCODE_DB");
+            return string.IsNullOrWhiteSpace(overridden)
+                ? Path.Combine(OpenCodeHome, "opencode.db")
+                : overridden;
+        }
+    }
+
+    public static string OpenCodeDatabaseCacheDir => Path.Combine(CacheDir, "cache", "opencode");
+
     // --- Kalan'ın kendi alanı (yazılabilir tek yer) ---
 
     public static string CacheDir => Path.Combine(

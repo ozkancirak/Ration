@@ -25,7 +25,9 @@ public static class TrayIconRenderer
             && !double.IsNaN(value)
             && !double.IsInfinity(value);
         double usage = hasData ? Math.Clamp(percentage!.Value, 0, 100) : 0;
-        size = Math.Max(16, size);
+        // Çağıran SM_CXSMICON değerini aynen verir; küçük DPI kutusunu 16'ya
+        // zorlamak, Shell'in istediği ikon alanını yeniden büyütüp taşırır.
+        size = Math.Max(8, size);
 
         var bitmap = new Bitmap(size, size);
         using (var g = Graphics.FromImage(bitmap))

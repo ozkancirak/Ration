@@ -613,7 +613,7 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailable.Visibility = Visibility.Collapsed;
             DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Oturum Süresi Doldu" : "Kota Alınamadı";
             DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
-                ? $"{TabDisplayName(snapshot.ProviderId)} CLI ile tekrar giriş yapın."
+                ? snapshot.StaleReason ?? $"{TabDisplayName(snapshot.ProviderId)} CLI ile tekrar giriş yapın."
                 : snapshot.StaleReason ?? "Sunucudan geçerli veri alınamadı.";
             DetailError.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
@@ -623,6 +623,15 @@ public sealed partial class FlyoutWindow : Window
             DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailableTitle.Text = "Kurulu değil veya açık değil";
             DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Antigravity açık değil.";
+            DetailUnavailable.Visibility = Visibility.Visible;
+            DetailWindows.Children.Clear();
+        }
+        else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
+                 snapshot.Cost is { } localUsage)
+        {
+            DetailError.Visibility = Visibility.Collapsed;
+            DetailUnavailableTitle.Text = "Yerel kullanım";
+            DetailUnavailableDetail.Text = FormatOpenCodeLocalUsage(localUsage);
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
         }
@@ -853,6 +862,13 @@ public sealed partial class FlyoutWindow : Window
         WindowKind.Monthly => "Aylık",
         _ => kind.ToString(),
     };
+
+    private static string FormatOpenCodeLocalUsage(CostReport usage) =>
+        $"Son 30 gün · Girdi: {CompactTokens(usage.InputTokens)} · " +
+        $"Çıktı: {CompactTokens(usage.OutputTokens)}\n" +
+        $"Akıl yürütme: {CompactTokens(usage.ReasoningTokens)} · " +
+        $"Cache okuma: {CompactTokens(usage.CacheReadTokens)} · " +
+        $"Cache yazma: {CompactTokens(usage.CacheCreationTokens)}";
 
     // ---- Maliyet özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
 

@@ -111,7 +111,7 @@ async Task<int> RunUsageAsync(string which, bool asJson, bool showRaw)
     }
     else
     {
-        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, all");
+        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all");
         return 2;
     }
 
@@ -161,6 +161,15 @@ void PrintSnapshot(UsageSnapshot snapshot)
     if (snapshot.Credits is { } credits)
     {
         Console.WriteLine($"  {"Kredi",-20} {credits.RemainingCredits}");
+    }
+
+    if (snapshot.Cost is { } cost)
+    {
+        Console.WriteLine($"  {"Girdi token",-20} {cost.InputTokens}");
+        Console.WriteLine($"  {"Çıktı token",-20} {cost.OutputTokens}");
+        Console.WriteLine($"  {"Akıl yürütme",-20} {cost.ReasoningTokens}");
+        Console.WriteLine($"  {"Cache okuma",-20} {cost.CacheReadTokens}");
+        Console.WriteLine($"  {"Cache yazma",-20} {cost.CacheCreationTokens}");
     }
 
     if (snapshot.Windows.Count == 0)
@@ -225,18 +234,6 @@ void PrintClaudeDiagnostics(ClaudeOAuthUsageSource source)
     Console.WriteLine("header: Authorization: Bearer [gizlendi]");
     Console.WriteLine($"header: anthropic-beta: {ClaudeOAuthUsageSource.OAuthBetaHeader}");
 
-    if (source.LastRefreshAttempted)
-    {
-        Console.WriteLine($"refresh endpoint: POST {ClaudeOAuthUsageSource.RefreshEndpoint}");
-        Console.WriteLine($"refresh HTTP kodu: {source.LastRefreshStatusCode?.ToString() ?? "istek yapılmadı"}");
-        Console.WriteLine("refresh body: grant_type, refresh_token=[gizlendi], client_id, scope");
-        Console.WriteLine($"Kalan cache yazıldı: {YesNo(source.LastRefreshCacheWritten)}");
-        if (source.LastRefreshError is not null)
-        {
-            Console.WriteLine($"refresh sonucu: {source.LastRefreshError}");
-        }
-    }
-
     Console.WriteLine();
 }
 
@@ -274,7 +271,7 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
 
     if (results.Count == 0)
     {
-        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, all");
+        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all");
         return 2;
     }
 
@@ -942,7 +939,7 @@ void PrintHelp()
     Console.WriteLine("Kalan — AI kota göstergesi");
     Console.WriteLine();
     Console.WriteLine("Kullanım:");
-    Console.WriteLine("  kalan usage [-p claude|codex|all] [--json] [--raw]");
+    Console.WriteLine("  kalan usage [-p claude|codex|antigravity|opencode|all] [--json] [--raw]");
     Console.WriteLine("  kalan cost  [-p claude|codex|all] [--days N] [--json]");
     Console.WriteLine("  kalan --discover [gemini|copilot|antigravity|all] [--json]  # keşif/şema; değer yazmaz");
     Console.WriteLine("  kalan icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");

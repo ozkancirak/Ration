@@ -8,42 +8,30 @@ namespace Kalan.Tests;
 public sealed class ClaudeUsageSourceTests
 {
     [Fact]
-    public async Task SuresiGecmisToken_Yenilenir_VeYeniTokenKotaIcinKullanilir()
+    public async Task SuresiGecmisToken_YenilemedenGonderilir_Ve401deOturumMesajiDoner()
     {
         var handler = new RecordingHandler((request, _) =>
-            request.RequestUri!.AbsolutePath.EndsWith("/v1/oauth/token", StringComparison.Ordinal)
-                ? JsonResponse(HttpStatusCode.OK,
-                    """{"access_token":"sentetik-yeni-token","refresh_token":"sentetik-yeni-refresh","expires_in":3600}""")
-                : JsonResponse(HttpStatusCode.OK,
-                    """{"five_hour":{"utilization":12}}"""));
+        {
+            Assert.Equal(ClaudeOAuthUsageSource.UsageEndpoint, request.RequestUri!.ToString());
+            return JsonResponse(HttpStatusCode.Unauthorized,
+                """{"error":{"type":"authentication_error"}}""");
+        });
 
-        ClaudeCredentials? saved = null;
         var source = new ClaudeOAuthUsageSource(
             new HttpClient(handler),
             () => new ClaudeCredentials(
                 "sentetik-eski-token",
                 DateTimeOffset.UtcNow.AddMinutes(-1),
                 "max",
-                "sentetik-refresh"),
-            credentials =>
-            {
-                saved = credentials;
-                return true;
-            });
+                "sentetik-refresh"));
 
         var snapshot = await source.FetchAsync();
 
-        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
-        Assert.Equal(2, handler.Calls.Count);
-        Assert.EndsWith("/v1/oauth/token", handler.Calls[0].Uri.AbsolutePath, StringComparison.Ordinal);
-        Assert.Equal(ClaudeOAuthUsageSource.UsageEndpoint, handler.Calls[1].Uri.ToString());
-        Assert.Contains("grant_type", handler.Calls[0].Body, StringComparison.Ordinal);
-        Assert.Equal("Bearer sentetik-yeni-token", handler.Calls[1].Authorization);
-        Assert.NotNull(saved);
-        Assert.Equal("sentetik-yeni-refresh", saved!.RefreshToken);
-        Assert.True(source.LastRefreshAttempted);
-        Assert.Equal(200, source.LastRefreshStatusCode);
-        Assert.True(source.LastRefreshCacheWritten);
+        Assert.Equal(ProviderStatus.AuthRequired, snapshot.Status);
+        Assert.Single(handler.Calls);
+        Assert.Equal("Bearer sentetik-eski-token", handler.Calls[0].Authorization);
+        Assert.Equal("Oturum yenilenmeli — Claude Code'u bir kez çalıştır", snapshot.StaleReason);
+        Assert.Equal(401, source.LastStatusCode);
         Assert.True(source.LastCredentialsExpired);
     }
 
@@ -62,15 +50,13 @@ public sealed class ClaudeUsageSourceTests
 
         var source = new ClaudeOAuthUsageSource(
             new HttpClient(handler),
-            () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
-            _ => true);
+            () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"));
 
         var snapshot = await source.FetchAsync();
 
         Assert.Equal(ProviderStatus.Error, snapshot.Status);
         Assert.Equal(429, source.LastStatusCode);
         Assert.Equal("17", source.LastRetryAfter);
-        Assert.False(source.LastRefreshAttempted);
     }
 
     private static HttpResponseMessage JsonResponse(HttpStatusCode status, string json) =>
