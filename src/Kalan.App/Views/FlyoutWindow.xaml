@@ -48,6 +48,10 @@
                     <StackPanel Orientation="Horizontal"
                                 Spacing="8"
                                 VerticalAlignment="Center">
+                        <ContentControl x:Name="DetailIconHost"
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center" />
                         <TextBlock x:Name="DetailName"
                                    Text="…"
                                    Style="{StaticResource SubtitleTextBlockStyle}"
