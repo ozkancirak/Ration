@@ -2,6 +2,14 @@ using System.Runtime.InteropServices;
 
 namespace Kalan.Platform.Windows.Interop;
 
+public enum FlyoutEdge
+{
+    Bottom,
+    Top,
+    Left,
+    Right,
+}
+
 public static class FlyoutPositioner
 {
     private const int Margin = 8;
@@ -10,7 +18,17 @@ public static class FlyoutPositioner
         => CalculatePosition(trayIconGuid, IntPtr.Zero, 0, windowWidth, windowHeight);
 
     public static (int X, int Y) CalculatePosition(Guid trayIconGuid, IntPtr hWnd, uint uID, int windowWidth, int windowHeight)
+        => CalculatePosition(trayIconGuid, hWnd, uID, windowWidth, windowHeight, out _);
+
+    public static (int X, int Y) CalculatePosition(
+        Guid trayIconGuid,
+        IntPtr hWnd,
+        uint uID,
+        int windowWidth,
+        int windowHeight,
+        out FlyoutEdge edge)
     {
+        edge = FlyoutEdge.Bottom;
         var identifier = new NativeMethods.NOTIFYICONIDENTIFIER
         {
             cbSize = (uint)Marshal.SizeOf(typeof(NativeMethods.NOTIFYICONIDENTIFIER)),
@@ -71,17 +89,20 @@ public static class FlyoutPositioner
 
         if (taskbarAtTop)
         {
+            edge = FlyoutEdge.Top;
             // Taskbar is at the top: place window below icon
             targetY = iconRect.Bottom + Margin;
         }
         else if (taskbarAtLeft)
         {
+            edge = FlyoutEdge.Left;
             // Taskbar is on the left: place window to the right of icon
             targetX = iconRect.Right + Margin;
             targetY = iconRect.Top + (iconRect.Height / 2) - (windowHeight / 2);
         }
         else if (taskbarAtRight)
         {
+            edge = FlyoutEdge.Right;
             // Taskbar is on the right: place window to the left of icon
             targetX = iconRect.Left - windowWidth - Margin;
             targetY = iconRect.Top + (iconRect.Height / 2) - (windowHeight / 2);

@@ -1,13 +1,11 @@
 using System.Drawing;
 using System.Net.Http;
-using System.Numerics;
 using System.Runtime.InteropServices;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Dispatching;
@@ -87,9 +85,6 @@ public sealed partial class FlyoutWindow : Window
         // Subclass hook: WM_DWMCOLORIZATIONCOLORCHANGED (0x0320) ve WM_SETTINGCHANGE (0x001A)
         _subclassProc = WindowSubclassProc;
         NativeMethods.SetWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1), IntPtr.Zero);
-
-        // Enable translation for composition entrance animation
-        ElementCompositionPreview.SetIsTranslationEnabled(RootLayout, true);
 
         // Işıkla kapanma (odak kaybı/Esc/kapatma) ortak tabanda; zaman damgası
         // aynı tıklamanın pencereyi kapatıp hemen yeniden açmasını önler.
@@ -215,9 +210,7 @@ public sealed partial class FlyoutWindow : Window
         // dogrusu AppWindow.Hide(). Once _isVisible=false ki Hide'in
         // tetikledigi Deactivated geri girmesin.
         _isVisible = false;
-        var visual = ElementCompositionPreview.GetElementVisual(RootLayout);
-        visual.Opacity = 0.0f;
-        _appWindow.Hide();
+        PopoverHelper.HidePopover(_appWindow, RootLayout);
     }
 
     private void OpenSettingsWindow()
@@ -807,15 +800,20 @@ public sealed partial class FlyoutWindow : Window
         int targetHeight = Math.Min((int)Math.Round((desiredHeight + 12) * scale), maxHeight);
 
         // 1 & 4d: imlec konumundan hizala, calisma alanina kirp
-        var (x, y) = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, targetWidth, targetHeight);
+        var (x, y) = FlyoutPositioner.CalculatePosition(
+            Guid.Empty,
+            _hwnd,
+            0,
+            targetWidth,
+            targetHeight,
+            out var edge);
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
-        PopoverHelper.ShowPopover(_appWindow, this, _hwnd);
+        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
 
         _isVisible = true;
 
-        PlayEntranceAnimation();
         RefreshCost(force: false);
     }
 
@@ -843,52 +841,13 @@ public sealed partial class FlyoutWindow : Window
         _appWindow.ResizeClient(new SizeInt32(_targetWidth, targetHeight));
     }
 
-    private void PlayEntranceAnimation()
-    {
-        var visual = ElementCompositionPreview.GetElementVisual(RootLayout);
-        var compositor = visual.Compositor;
-
-        bool animationsEnabled = true;
-        try
-        {
-            animationsEnabled = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
-        }
-        catch { }
-
-        if (animationsEnabled)
-        {
-            var slideAnim = compositor.CreateScalarKeyFrameAnimation();
-            slideAnim.Duration = TimeSpan.FromMilliseconds(150);
-            var easing = compositor.CreateCubicBezierEasingFunction(
-                new Vector2(0.0f, 0.0f),
-                new Vector2(0.0f, 1.0f));
-            slideAnim.InsertKeyFrame(0.0f, 12.0f);
-            slideAnim.InsertKeyFrame(1.0f, 0.0f, easing);
-
-            var fadeAnim = compositor.CreateScalarKeyFrameAnimation();
-            fadeAnim.Duration = TimeSpan.FromMilliseconds(150);
-            fadeAnim.InsertKeyFrame(0.0f, 0.0f);
-            fadeAnim.InsertKeyFrame(1.0f, 1.0f);
-
-            visual.StartAnimation("Translation.Y", slideAnim);
-            visual.StartAnimation("Opacity", fadeAnim);
-        }
-        else
-        {
-            RootLayout.Translation = Vector3.Zero;
-            visual.Opacity = 1.0f;
-        }
-    }
-
     public void HideFlyout()
     {
         if (!_isVisible) return;
 
         // Once bayrak, sonra Hide: Hide yeni bir Deactivated tetikleyip geri girebilir.
         _isVisible = false;
-        var visual = ElementCompositionPreview.GetElementVisual(RootLayout);
-        visual.Opacity = 0.0f;
-        _appWindow.Hide();
+        PopoverHelper.HidePopover(_appWindow, RootLayout);
         EfficiencyModeManager.SetEfficiencyMode(true);
     }
 

@@ -143,10 +143,16 @@ public sealed partial class TrayMenuWindow : Window
     {
         var (physW, physH) = MeasureMenu(out int dipW, out int dipH);
 
-        var (x, y) = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, physW, physH);
+        var (x, y) = FlyoutPositioner.CalculatePosition(
+            Guid.Empty,
+            _hwnd,
+            0,
+            physW,
+            physH,
+            out var edge);
 
         _appWindow.MoveAndResize(new RectInt32(x, y, physW, physH));
-        PopoverHelper.ShowPopover(_appWindow, this, _hwnd);
+        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
         _isVisible = true;
 
         MenuList.Focus(FocusState.Programmatic);
@@ -181,6 +187,6 @@ public sealed partial class TrayMenuWindow : Window
     {
         if (!_isVisible) return;
         _isVisible = false;
-        _appWindow.Hide();
+        PopoverHelper.HidePopover(_appWindow, RootLayout);
     }
 }

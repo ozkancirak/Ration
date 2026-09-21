@@ -1,8 +1,10 @@
 using System.Runtime.InteropServices;
+using System.Numerics;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Kalan.Platform.Windows.Interop;
@@ -53,7 +55,20 @@ internal static class PopoverHelper
         presenter.IsMinimizable = false;
         presenter.IsMaximizable = false;
 
-        appWindow.IsShownInSwitchers = false;
+        try
+        {
+            appWindow.IsShownInSwitchers = false;
+        }
+        catch
+        {
+            try
+            {
+                IntPtr exStyle = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE);
+                exStyle = new IntPtr(exStyle.ToInt64() | NativeMethods.WS_EX_TOOLWINDOW);
+                NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, exStyle);
+            }
+            catch { }
+        }
 
         int cornerPreference = (int)NativeMethods.DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND;
         NativeMethods.DwmSetWindowAttribute(
@@ -102,11 +117,77 @@ internal static class PopoverHelper
 
     /// <summary>Göster, etkinleştir, öne çıkar. Tray tıklaması bize foreground hakkı
     /// verdiği için SetForegroundWindow burada başarılı olur (odak + Esc çalışır).</summary>
-    public static void ShowPopover(AppWindow appWindow, Window window, IntPtr hwnd)
+    public static void ShowPopover(
+        AppWindow appWindow,
+        Window window,
+        IntPtr hwnd,
+        FrameworkElement root,
+        FlyoutEdge edge)
     {
         appWindow.Show();
         window.Activate();
         NativeMethods.SetForegroundWindow(hwnd);
+        AnimateEntrance(root, edge);
+    }
+
+    public static void HidePopover(AppWindow appWindow, FrameworkElement root)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(root);
+        visual.StopAnimation("Offset.X");
+        visual.StopAnimation("Offset.Y");
+        visual.StopAnimation("Opacity");
+        visual.Offset = Vector3.Zero;
+        visual.Opacity = 0.0f;
+        appWindow.Hide();
+    }
+
+    private static void AnimateEntrance(FrameworkElement root, FlyoutEdge edge)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(root);
+        var compositor = visual.Compositor;
+
+        bool animationsEnabled = true;
+        try
+        {
+            animationsEnabled = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+        }
+        catch { }
+
+        if (!animationsEnabled)
+        {
+            visual.StopAnimation("Offset.X");
+            visual.StopAnimation("Offset.Y");
+            visual.StopAnimation("Opacity");
+            visual.Offset = Vector3.Zero;
+            visual.Opacity = 1.0f;
+            return;
+        }
+
+        float offset = edge switch
+        {
+            FlyoutEdge.Bottom => 16.0f,
+            FlyoutEdge.Top => -16.0f,
+            FlyoutEdge.Left => -16.0f,
+            FlyoutEdge.Right => 16.0f,
+            _ => 16.0f,
+        };
+        string axis = edge is FlyoutEdge.Left or FlyoutEdge.Right ? "Offset.X" : "Offset.Y";
+
+        var easing = compositor.CreateCubicBezierEasingFunction(
+            new Vector2(0.1f, 0.9f),
+            new Vector2(0.2f, 1.0f));
+        var slide = compositor.CreateScalarKeyFrameAnimation();
+        slide.Duration = TimeSpan.FromMilliseconds(200);
+        slide.InsertKeyFrame(0.0f, offset);
+        slide.InsertKeyFrame(1.0f, 0.0f, easing);
+
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Duration = TimeSpan.FromMilliseconds(200);
+        fade.InsertKeyFrame(0.0f, 0.0f);
+        fade.InsertKeyFrame(1.0f, 1.0f, easing);
+
+        visual.StartAnimation(axis, slide);
+        visual.StartAnimation("Opacity", fade);
     }
 
     /// <summary>
