@@ -11,10 +11,12 @@ namespace Kalan.Core.Providers;
 /// </summary>
 public static class ProviderRegistry
 {
-    public static IReadOnlyList<IUsageProvider> CreateAll(HttpClient http) =>
+    public static IReadOnlyList<IUsageProvider> CreateAll(
+        HttpClient http,
+        Func<IReadOnlyList<int>>? findAntigravityProcessPorts = null) =>
     [
         new ClaudeProvider(http),
         new CodexProvider(http),
-        new AntigravityProvider(http),
+        new AntigravityProvider(http, findAntigravityProcessPorts),
     ];
 }

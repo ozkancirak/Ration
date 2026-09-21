@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Kalan.Core\Kalan.Core.csproj" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

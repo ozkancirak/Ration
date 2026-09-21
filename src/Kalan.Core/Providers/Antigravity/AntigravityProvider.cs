@@ -4,9 +4,11 @@ namespace Kalan.Core.Providers.Antigravity;
 
 public sealed class AntigravityProvider : IUsageProvider
 {
-    public AntigravityProvider(HttpClient http)
+    public AntigravityProvider(
+        HttpClient http,
+        Func<IReadOnlyList<int>>? findProcessPorts = null)
     {
-        Sources = [new AntigravityLoopbackUsageSource(http)];
+        Sources = [new AntigravityLoopbackUsageSource(http, findProcessPorts: findProcessPorts)];
     }
 
     public string Id => "antigravity";

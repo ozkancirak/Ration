@@ -49,21 +49,26 @@ public static class KnownPaths
 
     // --- Antigravity (salt okunur) ---
 
-    public static string GeminiCliHome
+    public static string DefaultGeminiCliHome => Path.Combine(Home, ".gemini");
+
+    public static string? GeminiCliHomeOverride
     {
         get
         {
             var overridden = Environment.GetEnvironmentVariable("GEMINI_CLI_HOME");
-            return string.IsNullOrWhiteSpace(overridden)
-                ? Path.Combine(Home, ".gemini")
-                : overridden;
+            return string.IsNullOrWhiteSpace(overridden) ? null : overridden;
         }
     }
 
-    public static string AntigravityCliLog => Path.Combine(
-        GeminiCliHome,
+    public static string AntigravityDefaultCliLog => Path.Combine(
+        DefaultGeminiCliHome,
         "antigravity-cli",
         "cli.log");
+
+    public static string? AntigravityOverrideCliLog =>
+        GeminiCliHomeOverride is { } root
+            ? Path.Combine(root, "antigravity-cli", "cli.log")
+            : null;
 
     // --- Kalan'ın kendi alanı (yazılabilir tek yer) ---
 

@@ -53,4 +53,49 @@ public sealed class AntigravityTests
         Assert.Empty(AntigravityUsageParser.ParseWindows("{\"groups\":[]}"));
         Assert.Empty(AntigravityUsageParser.ParseWindows("{\"groups\": [{\"displayName\": \"x\"}]}"));
     }
+
+    [Fact]
+    public async Task Source_ProbesProcessThenDefaultAndOverrideLogs()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"kalan-antigravity-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var defaultLog = Path.Combine(root, "default.log");
+        var overrideLog = Path.Combine(root, "override.log");
+        File.WriteAllText(defaultLog, "listening on random port at 41003 for HTTP");
+        File.WriteAllText(overrideLog, "listening on random port at 41004 for HTTP");
+
+        try
+        {
+            var handler = new RecordingHandler();
+            using var http = new HttpClient(handler);
+            var source = new AntigravityLoopbackUsageSource(
+                http,
+                defaultLogPath: defaultLog,
+                overrideLogPath: overrideLog,
+                findProcessPorts: () => new[] { 41001, 41002 });
+
+            var snapshot = await source.FetchAsync(CancellationToken.None);
+
+            Assert.Equal(ProviderStatus.Degraded, snapshot.Status);
+            Assert.Equal(new[] { 41001, 41002, 41003, 41004 }, handler.Ports);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public List<int> Ports { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Ports.Add(request.RequestUri!.Port);
+            return Task.FromResult(new HttpResponseMessage(
+                System.Net.HttpStatusCode.ServiceUnavailable));
+        }
+    }
 }

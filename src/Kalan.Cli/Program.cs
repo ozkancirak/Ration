@@ -12,6 +12,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using Kalan.Platform.Windows.Theme;
 using Kalan.Platform.Windows.Tray;
+using Kalan.Platform.Windows.Providers;
 using AppProcess = System.Diagnostics.Process;
 using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
@@ -21,7 +22,7 @@ using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
 http.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1");
 
-var providers = ProviderRegistry.CreateAll(http)
+var providers = ProviderRegistry.CreateAll(http, AntigravityProcessPortFinder.FindPorts)
     .ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")

@@ -23,6 +23,7 @@ using Kalan.Core.Refresh;
 using Kalan.Core.Usage;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.Power;
+using Kalan.Platform.Windows.Providers;
 using Kalan.Platform.Windows.Theme;
 using Kalan.Platform.Windows.Tray;
 using XamlPath = Microsoft.UI.Xaml.Shapes.Path;
@@ -130,7 +131,7 @@ public sealed partial class FlyoutWindow : Window
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Kalan/0.1");
 
-        _providers = ProviderRegistry.CreateAll(_http);
+        _providers = ProviderRegistry.CreateAll(_http, AntigravityProcessPortFinder.FindPorts);
         _selectedId = _providers.FirstOrDefault()?.Id ?? "claude";
 
         _scheduler = new RefreshScheduler(_providers, options: new RefreshOptions
