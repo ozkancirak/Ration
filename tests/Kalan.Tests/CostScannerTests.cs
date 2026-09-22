@@ -466,6 +466,48 @@ public class PricingTests
             },
             report.Models);
     }
+
+    [Fact]
+    public void UcretsizModelParaliOnekFiyatinaEslenmez()
+    {
+        var freeCatalogPath = Path.Combine(
+            Path.GetTempPath(),
+            $"kalan-free-models-{Guid.NewGuid():N}.json");
+        File.WriteAllText(freeCatalogPath, "{\"models\":[]}");
+
+        try
+        {
+            var tally = new TokenTally();
+            tally.Add(
+                "muse-spark-1.3-contributor-free",
+                inputTokens: 1_000_000,
+                outputTokens: 1_000_000,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0);
+            var scan = new CostScanResult(
+                tally,
+                DateTimeOffset.UtcNow.AddHours(-1),
+                DateTimeOffset.UtcNow,
+                1);
+            var pricing = new PricingTable(new Dictionary<string, ModelRate>
+            {
+                ["muse-spark-1.3"] = new(2.30m, 2.30m, 2.30m, 2.30m),
+            });
+
+            var report = CostEstimator.Estimate(
+                scan,
+                pricing,
+                freeModels: FreeModelCatalog.LoadOrEmpty(freeCatalogPath));
+
+            Assert.Equal(0m, report.TotalCost);
+            Assert.Empty(report.ModelsWithoutPricing!);
+            Assert.Equal("muse-spark-1.3-contributor-free", Assert.Single(report.Models!).Model);
+        }
+        finally
+        {
+            try { File.Delete(freeCatalogPath); } catch (IOException) { }
+        }
+    }
 }
 
 public sealed class JsonlSchemaProbeTests : IDisposable

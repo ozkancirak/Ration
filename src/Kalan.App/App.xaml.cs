@@ -40,6 +40,7 @@ public partial class App : Application
         var cmdArgs = Environment.GetCommandLineArgs();
         string? screenshotPath = null;
         string? verificationProvider = GetOption(cmdArgs, "--provider");
+        bool screenshotBottom = HasFlag(cmdArgs, "--screenshot-bottom");
         for (int i = 0; i < cmdArgs.Length; i++)
         {
             if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase))
@@ -132,6 +133,12 @@ public partial class App : Application
                 {
                     // Arayüz bileşenlerinin tam çizilmesi ve animasyonun oturması için bekleme
                     await Task.Delay(verificationProvider is null ? 800 : 6000);
+                    if (screenshotBottom && _flyoutWindow is not null)
+                    {
+                        _flyoutWindow.DispatcherQueue.TryEnqueue(
+                            _flyoutWindow.ScrollDetailToEndForVerification);
+                        await Task.Delay(150);
+                    }
                     bool ok = await WindowScreenshotHelper.CaptureWindowAsync(targetHwnd, screenshotPath, delayMs: 0);
                     Trace.Info("screenshot", ok ? "captured" : "failed");
                     Environment.Exit(ok ? 0 : 1);

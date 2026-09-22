@@ -67,6 +67,7 @@ public sealed partial class FlyoutWindow : Window
     private long _costRun;
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
+    private CostReport? _displayedLocalCost;
     private readonly Dictionary<string, string> _modelDiagnosticState = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _modelDiagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private bool _allModelDiagnosticsStarted;
@@ -896,7 +897,26 @@ public sealed partial class FlyoutWindow : Window
                 RenderFreeUsage(openCodeUsage);
             }
         }
+
+        // Claude/Codex maliyet taraması kota snapshot'ından bağımsızdır. Kota
+        // hata verse veya yeniden çizilse bile aynı paylaşılan Kullanım
+        // bileşeni yerel raporu göstermeye devam eder.
+        RenderCachedLocalUsageIfNeeded();
     }
+
+    private void RenderCachedLocalUsageIfNeeded()
+    {
+        if (!IsLocalCostProvider(_selectedId) || _displayedLocalCost is not { } usage)
+        {
+            return;
+        }
+
+        RenderTokenUsage(usage, clear: false);
+    }
+
+    private static bool IsLocalCostProvider(string providerId) =>
+        providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ||
+        providerId.Equals("codex", StringComparison.OrdinalIgnoreCase);
 
     private string TabDisplayName(string providerId) =>
         _providers.FirstOrDefault(p => p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? providerId;
@@ -1241,7 +1261,14 @@ public sealed partial class FlyoutWindow : Window
             var aliases = id.Equals("antigravity", StringComparison.OrdinalIgnoreCase)
                 ? ModelAliasTable.LoadOrEmpty()
                 : null;
-            ApplyCost(null, CostEstimator.Estimate(localCost, pricing, aliases), pricing);
+            var freeModels = id.Equals("opencode", StringComparison.OrdinalIgnoreCase)
+                ? FreeModelCatalog.LoadOrEmpty()
+                : null;
+            ApplyCost(
+                null,
+                CostEstimator.Estimate(localCost, pricing, aliases, freeModels),
+                pricing,
+                freeModels);
             return;
         }
 
@@ -1302,6 +1329,7 @@ public sealed partial class FlyoutWindow : Window
         _costForId = null;
         _costAt = DateTimeOffset.MinValue;
         _costRun++;
+        _displayedLocalCost = null;
         CostSection.Visibility = Visibility.Collapsed;
         CostAmount.Text = string.Empty;
         CostSummary.Text = string.Empty;
@@ -1310,7 +1338,11 @@ public sealed partial class FlyoutWindow : Window
         ModelScopeLabel.Visibility = Visibility.Collapsed;
     }
 
-    private void ApplyCost(CostReport? today, CostReport? month, PricingTable pricing)
+    private void ApplyCost(
+        CostReport? today,
+        CostReport? month,
+        PricingTable pricing,
+        FreeModelCatalog? freeModels = null)
     {
         var lines = new List<string>(2);
         var reports = new[] { today, month }.Where(report => report is not null).Cast<CostReport>().ToArray();
@@ -1343,12 +1375,32 @@ public sealed partial class FlyoutWindow : Window
             .OrderByDescending(report => report.TotalTokens)
             .FirstOrDefault(report => report.TotalTokens > 0);
         SetMostUsedModel(_selectedId, mostUsed);
+        _displayedLocalCost = IsLocalCostProvider(_selectedId) ? mostUsed : null;
+        RenderCachedLocalUsageIfNeeded();
 
         if (lines.Count == 0)
         {
             CostSection.Visibility = Visibility.Collapsed;
             CostAmount.Text = string.Empty;
             CostSummary.Text = string.Empty;
+            return;
+        }
+
+        var allModels = reports
+            .SelectMany(report => report.Models ?? Array.Empty<ModelTokenUsage>())
+            .Where(model => model.Tokens > 0)
+            .ToArray();
+        var allModelsFree = freeModels is not null &&
+            allModels.Length > 0 &&
+            allModels.All(model => freeModels.IsFree(model.Model));
+        if (allModelsFree)
+        {
+            // Ücretsiz modellerin API karşılığı 0'dır; sıfır maliyet bölümü
+            // kullanıcıya ek bilgi vermediği için tamamen gizlenir.
+            CostSection.Visibility = Visibility.Collapsed;
+            CostAmount.Text = string.Empty;
+            CostSummary.Text = string.Empty;
+            ToolTipService.SetToolTip(CostInfoIcon, null);
             return;
         }
 
@@ -1468,6 +1520,14 @@ public sealed partial class FlyoutWindow : Window
     public TrayMenuWindow MenuWindow => _menu;
     public SettingsWindow? SettingsWindowForSelfTest => _settingsWindow;
 
+    /// <summary>Screenshot doğrulamasında taşan detayın sonunu görünür kılar.</summary>
+    public void ScrollDetailToEndForVerification()
+    {
+        RootLayout.UpdateLayout();
+        DetailScrollViewer.UpdateLayout();
+        DetailScrollViewer.ChangeView(null, double.MaxValue, null, disableAnimation: true);
+    }
+
     public void ShowFlyout()
     {
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
@@ -1477,8 +1537,8 @@ public sealed partial class FlyoutWindow : Window
         int targetWidth = (int)Math.Round(FlyoutWidthDip * scale);
         _targetWidth = targetWidth;
 
-        // Genişlik sabit kalır; tüm sekmeler ölçülür, en yüksek içerik seçilir.
-        double desiredHeightDip = MeasureTallestContentDip();
+        // Genişlik sabit kalır; yalnızca seçili sekmenin içeriği ölçülür.
+        double desiredHeightDip = MeasureSelectedContentDip();
         if (desiredHeightDip <= 0) desiredHeightDip = 390;
 
         // Imlec konumuna dus: tiklamayla acarken zaten dogru sonucu verir.
@@ -1534,7 +1594,7 @@ public sealed partial class FlyoutWindow : Window
     {
         if (!_isVisible || _targetWidth <= 0) return;
 
-        var desiredHeightDip = MeasureTallestContentDip();
+        var desiredHeightDip = MeasureSelectedContentDip();
         if (desiredHeightDip <= 0) return;
 
         var dpi = NativeMethods.GetDpiForWindow(_hwnd);
@@ -1547,64 +1607,18 @@ public sealed partial class FlyoutWindow : Window
             PopoverHelper.WorkAreaMaxHeight());
         if (targetHeight <= 0) return;
 
-        _appWindow.ResizeClient(new SizeInt32(_targetWidth, targetHeight));
+        PopoverHelper.ResizeWithAnimation(
+            _appWindow,
+            RootLayout,
+            _targetWidth,
+            _appWindow.Size.Height,
+            targetHeight);
     }
 
-    private double MeasureTallestContentDip()
+    private double MeasureSelectedContentDip()
     {
-        if (WelcomePanel.Visibility == Visibility.Visible || _providers.Count == 0)
-        {
-            RootLayout.Measure(new Windows.Foundation.Size(FlyoutWidthDip, double.PositiveInfinity));
-            return RootLayout.DesiredSize.Height;
-        }
-
-        var originalId = _selectedId;
-        var originalCostForId = _costForId;
-        var originalCostAt = _costAt;
-        var originalCostRun = _costRun;
-        var originalCostVisibility = CostSection.Visibility;
-        var originalCostAmount = CostAmount.Text;
-        var originalCostSummary = CostSummary.Text;
-        var originalCostTooltip = ToolTipService.GetToolTip(CostInfoIcon);
-        var originalModelLineVisibility = ModelLine.Visibility;
-        var originalModelLineText = ModelLine.Text;
-        var originalModelScopeVisibility = ModelScopeLabel.Visibility;
-        var originalModelScopeText = ModelScopeLabel.Text;
-        var tallest = 0d;
-
-        foreach (var provider in _providers)
-        {
-            _selectedId = provider.Id;
-            RenderDetail();
-
-            // Maliyet bölümü yalnızca gerçekten seçili sağlayıcıya aittir;
-            // diğer sekmeleri ölçerken eski sağlayıcının satırlarını taşımayız.
-            if (!provider.Id.Equals(originalId, StringComparison.OrdinalIgnoreCase))
-            {
-                CostSection.Visibility = Visibility.Collapsed;
-            }
-
-            RootLayout.Measure(new Windows.Foundation.Size(
-                FlyoutWidthDip,
-                double.PositiveInfinity));
-            tallest = Math.Max(tallest, RootLayout.DesiredSize.Height);
-        }
-
-        _selectedId = originalId;
-        RenderDetail();
-        CostSection.Visibility = originalCostVisibility;
-        CostAmount.Text = originalCostAmount;
-        CostSummary.Text = originalCostSummary;
-        ToolTipService.SetToolTip(CostInfoIcon, originalCostTooltip);
-        ModelLine.Visibility = originalModelLineVisibility;
-        ModelLine.Text = originalModelLineText;
-        ModelScopeLabel.Visibility = originalModelScopeVisibility;
-        ModelScopeLabel.Text = originalModelScopeText;
-        _costForId = originalCostForId;
-        _costAt = originalCostAt;
-        _costRun = originalCostRun;
         RootLayout.Measure(new Windows.Foundation.Size(FlyoutWidthDip, double.PositiveInfinity));
-        return Math.Max(tallest, RootLayout.DesiredSize.Height);
+        return RootLayout.DesiredSize.Height;
     }
 
     public void HideFlyout()

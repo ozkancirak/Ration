@@ -35,23 +35,40 @@ public sealed class PricingTable
 {
     private const decimal Million = 1_000_000m;
     private readonly Dictionary<string, ModelRate> _rates;
+    private readonly Dictionary<string, string> _sources;
 
     public string Currency { get; }
     public DateTimeOffset? DownloadedAt { get; }
+    public string? Source { get; }
 
     public bool IsEmpty => _rates.Count == 0;
 
     public PricingTable(
         IDictionary<string, ModelRate>? rates = null,
         string currency = "USD",
-        DateTimeOffset? downloadedAt = null)
+        DateTimeOffset? downloadedAt = null,
+        IReadOnlyDictionary<string, string>? sources = null,
+        string? source = null)
     {
         _rates = rates is null
             ? new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase)
             : new Dictionary<string, ModelRate>(rates, StringComparer.OrdinalIgnoreCase);
+        _sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var model in _rates.Keys)
+        {
+            if (sources?.TryGetValue(model, out var modelSource) == true)
+            {
+                _sources[model] = modelSource;
+            }
+            else if (!string.IsNullOrWhiteSpace(source))
+            {
+                _sources[model] = source;
+            }
+        }
 
         Currency = currency;
         DownloadedAt = downloadedAt;
+        Source = NormalizeSource(source);
     }
 
     public static PricingTable Empty { get; } = new();
@@ -78,8 +95,10 @@ public sealed class PricingTable
             if (document.RootElement.ValueKind != JsonValueKind.Object) return Empty;
 
             var rates = new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase);
+            var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var currency = "USD";
             DateTimeOffset? downloadedAt = null;
+            string? source = null;
 
             foreach (var property in document.RootElement.EnumerateObject())
             {
@@ -93,6 +112,19 @@ public sealed class PricingTable
                     property.Value.ValueKind == JsonValueKind.Object)
                 {
                     downloadedAt = ReadTimestamp(property.Value, "downloadedAtUtc");
+                    source = NormalizeSource(ReadString(property.Value, "source"));
+                    if (property.Value.TryGetProperty("modelSources", out var modelSources) &&
+                        modelSources.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var modelSource in modelSources.EnumerateObject())
+                        {
+                            if (modelSource.Value.ValueKind == JsonValueKind.String &&
+                                !string.IsNullOrWhiteSpace(modelSource.Value.GetString()))
+                            {
+                                sources[modelSource.Name] = modelSource.Value.GetString()!;
+                            }
+                        }
+                    }
                     continue;
                 }
 
@@ -112,7 +144,13 @@ public sealed class PricingTable
                 }
             }
 
-            var table = new PricingTable(rates, currency, downloadedAt);
+            if (string.IsNullOrWhiteSpace(source) &&
+                path.Equals(KnownPaths.PricingOverridesFile, StringComparison.OrdinalIgnoreCase))
+            {
+                source = "override";
+            }
+
+            var table = new PricingTable(rates, currency, downloadedAt, sources, source);
             if (!useDefaultChain) return table;
 
             var merged = table.MergeMissing(
@@ -132,23 +170,46 @@ public sealed class PricingTable
 
     public ModelRate? Find(string model)
     {
-        if (string.IsNullOrWhiteSpace(model)) return null;
+        return TryFindEntry(model, out _, out var rate) ? rate : null;
+    }
 
-        if (_rates.TryGetValue(model, out var exact)) return exact;
+    public string SourceFor(string model)
+    {
+        if (!TryFindEntry(model, out var key, out _)) return "unknown";
+        return _sources.TryGetValue(key, out var source)
+            ? source
+            : Source ?? "unknown";
+    }
 
-        ModelRate? best = null;
-        var bestLength = 0;
+    private bool TryFindEntry(string model, out string key, out ModelRate rate)
+    {
+        key = string.Empty;
+        rate = default!;
+        if (string.IsNullOrWhiteSpace(model)) return false;
 
-        foreach (var (key, rate) in _rates)
+        if (_rates.TryGetValue(model, out var exactRate))
         {
-            if (key.Length <= bestLength) continue;
-            if (!model.StartsWith(key, StringComparison.OrdinalIgnoreCase)) continue;
-
-            best = rate;
-            bestLength = key.Length;
+            key = model;
+            rate = exactRate;
+            return true;
         }
 
-        return best;
+        var bestKey = string.Empty;
+        var bestLength = 0;
+
+        foreach (var (candidate, candidateRate) in _rates)
+        {
+            if (candidate.Length <= bestLength ||
+                !model.StartsWith(candidate, StringComparison.OrdinalIgnoreCase)) continue;
+
+            bestKey = candidate;
+            rate = candidateRate;
+            bestLength = candidate.Length;
+        }
+
+        if (bestLength == 0) return false;
+        key = bestKey;
+        return true;
     }
 
     /// <summary>
@@ -158,13 +219,24 @@ public sealed class PricingTable
     public PricingTable MergeMissing(PricingTable fallback, out int added)
     {
         var rates = new Dictionary<string, ModelRate>(_rates, StringComparer.OrdinalIgnoreCase);
+        var sources = new Dictionary<string, string>(_sources, StringComparer.OrdinalIgnoreCase);
         added = 0;
         foreach (var (model, rate) in fallback._rates)
         {
-            if (rates.TryAdd(model, rate)) added++;
+            if (!rates.TryAdd(model, rate)) continue;
+
+            added++;
+            sources[model] = fallback._sources.TryGetValue(model, out var source)
+                ? source
+                : fallback.Source ?? "unknown";
         }
 
-        return new PricingTable(rates, Currency, DownloadedAt);
+        return new PricingTable(
+            rates,
+            Currency,
+            DownloadedAt ?? fallback.DownloadedAt,
+            sources,
+            Source ?? fallback.Source);
     }
 
     /// <summary>
@@ -195,15 +267,20 @@ public sealed class PricingTable
         if (sourceRates.Count == 0) return Empty;
 
         var rates = new Dictionary<string, ModelRate>(sourceRates, StringComparer.OrdinalIgnoreCase);
+        var sources = sourceRates.Keys.ToDictionary(
+            key => key,
+            _ => "litellm",
+            StringComparer.OrdinalIgnoreCase);
         foreach (var (key, rate) in sourceRates)
         {
             foreach (var alias in Aliases(key))
             {
                 rates.TryAdd(alias, rate);
+                sources.TryAdd(alias, "litellm");
             }
         }
 
-        return new PricingTable(rates, "USD", downloadedAt);
+        return new PricingTable(rates, "USD", downloadedAt, sources, "litellm");
     }
 
     /// <summary>
@@ -221,6 +298,7 @@ public sealed class PricingTable
         }
 
         var rates = new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase);
+        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var provider in document.RootElement.EnumerateObject())
         {
             if (provider.Value.ValueKind != JsonValueKind.Object ||
@@ -238,19 +316,19 @@ public sealed class PricingTable
                     continue;
                 }
 
-                AddRateWithAliases(rates, model.Name, rate);
+                AddRateWithAliases(rates, sources, model.Name, rate, "models.dev");
                 if (model.Value.TryGetProperty("id", out var id) &&
                     id.ValueKind == JsonValueKind.String &&
                     !string.IsNullOrWhiteSpace(id.GetString()))
                 {
-                    AddRateWithAliases(rates, id.GetString()!, rate);
+                    AddRateWithAliases(rates, sources, id.GetString()!, rate, "models.dev");
                 }
             }
         }
 
         return rates.Count == 0
             ? Empty
-            : new PricingTable(rates, "USD", downloadedAt);
+            : new PricingTable(rates, "USD", downloadedAt, sources, "models.dev");
     }
 
     internal IReadOnlyDictionary<string, ModelRate> Rates => _rates;
@@ -281,13 +359,19 @@ public sealed class PricingTable
 
     internal string ToCacheJson(string source)
     {
+        var metadata = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["source"] = source,
+            ["downloadedAtUtc"] = (DownloadedAt ?? DateTimeOffset.UtcNow).ToString("O"),
+        };
+        if (_sources.Count > 0)
+        {
+            metadata["modelSources"] = _sources;
+        }
+
         var payload = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            ["_metadata"] = new Dictionary<string, string>
-            {
-                ["source"] = source,
-                ["downloadedAtUtc"] = (DownloadedAt ?? DateTimeOffset.UtcNow).ToString("O"),
-            },
+            ["_metadata"] = metadata,
             ["currency"] = Currency,
         };
 
@@ -398,13 +482,20 @@ public sealed class PricingTable
 
     private static void AddRateWithAliases(
         IDictionary<string, ModelRate> rates,
+        IDictionary<string, string> sources,
         string model,
-        ModelRate rate)
+        ModelRate rate,
+        string source)
     {
         if (string.IsNullOrWhiteSpace(model)) return;
 
         rates.TryAdd(model, rate);
-        foreach (var alias in Aliases(model)) rates.TryAdd(alias, rate);
+        sources.TryAdd(model, source);
+        foreach (var alias in Aliases(model))
+        {
+            rates.TryAdd(alias, rate);
+            sources.TryAdd(alias, source);
+        }
     }
 
     private static decimal ReadLiteLlmDecimal(
@@ -439,6 +530,33 @@ public sealed class PricingTable
         element.TryGetProperty(name, out var value) &&
         value.ValueKind is JsonValueKind.Number or JsonValueKind.String;
 
+    private static string? ReadString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) &&
+        value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static string? NormalizeSource(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source)) return null;
+
+        var parts = source
+            .Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part =>
+                part.Contains("models.dev", StringComparison.OrdinalIgnoreCase)
+                    ? "models.dev"
+                    : part.Contains("litellm", StringComparison.OrdinalIgnoreCase) ||
+                      part.Contains("raw.githubusercontent.com/BerriAI", StringComparison.OrdinalIgnoreCase)
+                        ? "litellm"
+                        : part.Contains("override", StringComparison.OrdinalIgnoreCase)
+                            ? "override"
+                            : part)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return parts.Length == 0 ? null : string.Join("+", parts);
+    }
+
     private static IEnumerable<string> Aliases(string key)
     {
         for (var index = 0; index < key.Length; index++)
@@ -470,12 +588,24 @@ public static class CostEstimator
     /// katılmaz ve <see cref="CostReport.ModelsWithoutPricing"/> ile raporlanır.
     /// </summary>
     public static CostReport Estimate(CostScanResult scan, PricingTable pricing)
+        => Estimate(scan, pricing, freeModels: null);
+
+    public static CostReport Estimate(
+        CostScanResult scan,
+        PricingTable pricing,
+        FreeModelCatalog? freeModels)
     {
         var total = 0m;
         var unpriced = new List<string>();
 
         foreach (var model in scan.Tally.Models)
         {
+            if (freeModels?.IsFree(model.Model) == true)
+            {
+                LogRate(model.Model, model.Model, new ModelRate(0m, 0m, 0m, 0m), "free");
+                continue;
+            }
+
             var rate = pricing.Find(model.Model);
 
             if (rate is null)
@@ -488,6 +618,7 @@ public static class CostEstimator
                 continue;
             }
 
+            LogRate(model.Model, model.Model, rate, pricing.SourceFor(model.Model));
             total +=
                 model.InputTokens / Million * rate.InputPerMillion +
                 model.OutputTokens / Million * rate.OutputPerMillion +
@@ -525,19 +656,33 @@ public static class CostEstimator
     /// çıkarılamaz; bu durumda yalnızca token sayıları korunur.
     /// </summary>
     public static CostReport Estimate(CostReport usage, PricingTable pricing)
-        => Estimate(usage, pricing, aliases: null);
+        => Estimate(usage, pricing, aliases: null, freeModels: null);
 
     public static CostReport Estimate(
         CostReport usage,
         PricingTable pricing,
         ModelAliasTable? aliases)
+        => Estimate(usage, pricing, aliases, freeModels: null);
+
+    public static CostReport Estimate(
+        CostReport usage,
+        PricingTable pricing,
+        ModelAliasTable? aliases,
+        FreeModelCatalog? freeModels)
     {
         var total = 0m;
         var unpriced = new List<string>();
 
         foreach (var model in usage.Models ?? Array.Empty<ModelTokenUsage>())
         {
-            var rate = pricing.Find(aliases?.Resolve(model.Model) ?? model.Model);
+            if (freeModels?.IsFree(model.Model) == true)
+            {
+                LogRate(model.Model, model.Model, new ModelRate(0m, 0m, 0m, 0m), "free");
+                continue;
+            }
+
+            var resolved = aliases?.Resolve(model.Model) ?? model.Model;
+            var rate = pricing.Find(resolved);
             if (rate is null)
             {
                 if (model.Tokens > 0)
@@ -548,6 +693,7 @@ public static class CostEstimator
                 continue;
             }
 
+            LogRate(model.Model, resolved, rate, pricing.SourceFor(resolved));
             total +=
                 model.InputTokens / Million * rate.InputPerMillion +
                 model.OutputTokens / Million * rate.OutputPerMillion +
@@ -561,5 +707,20 @@ public static class CostEstimator
             Currency = pricing.Currency,
             ModelsWithoutPricing = usage.Models is null ? usage.ModelsWithoutPricing : unpriced,
         };
+    }
+
+    private static void LogRate(string model, string resolved, ModelRate rate, string source)
+    {
+        var resolvedText = string.Equals(model, resolved, StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : $" resolved={resolved}";
+        KalanTrace.Info(
+            "pricing",
+            $"model-rate model={model}{resolvedText} " +
+            $"input={rate.InputPerMillion.ToString(CultureInfo.InvariantCulture)} " +
+            $"output={rate.OutputPerMillion.ToString(CultureInfo.InvariantCulture)} " +
+            $"cacheRead={rate.CacheReadPerMillion.ToString(CultureInfo.InvariantCulture)} " +
+            $"cacheWrite={rate.CacheWritePerMillion.ToString(CultureInfo.InvariantCulture)} " +
+            $"source={source}");
     }
 }

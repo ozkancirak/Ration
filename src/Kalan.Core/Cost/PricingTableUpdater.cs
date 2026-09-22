@@ -89,14 +89,14 @@ public static class PricingTableUpdater
                     if (table is null)
                     {
                         table = overrides;
-                        sources.Add("overrides");
-                        Trace.Info("pricing", $"source=overrides models={overrides.Rates.Count}");
+                        sources.Add("override");
+                        Trace.Info("pricing", $"source=override models={overrides.Rates.Count}");
                     }
                     else
                     {
                         table = table.MergeMissing(overrides, out var added);
-                        if (added > 0) sources.Add("overrides");
-                        Trace.Info("pricing", $"source=overrides added={added}");
+                        if (added > 0) sources.Add("override");
+                        Trace.Info("pricing", $"source=override added={added}");
                     }
                 }
 

@@ -47,6 +47,7 @@
         <ScrollViewer x:Name="DetailScrollViewer"
                       Grid.Row="1"
                       Background="Transparent"
+                      Padding="0,0,0,12"
                       VerticalScrollBarVisibility="Auto"
                       VerticalScrollMode="Auto">
             <Grid>

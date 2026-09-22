@@ -144,6 +144,61 @@ internal static class PopoverHelper
         appWindow.Hide();
     }
 
+    /// <summary>
+    /// Pencere boyutu native olarak tek seferde değişir; içerik aynı anda
+    /// Composition Scale.Y ile 150 ms içinde yeni yüksekliğine oturur. Böylece
+    /// sekme geçişi bir sıçrama gibi görünmez ve UI thread'i zamanlayıcıyla
+    /// meşgul edilmez.
+    /// </summary>
+    public static void ResizeWithAnimation(
+        AppWindow appWindow,
+        FrameworkElement root,
+        int width,
+        int currentHeight,
+        int targetHeight)
+    {
+        if (currentHeight <= 0 || currentHeight == targetHeight)
+        {
+            appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+            return;
+        }
+
+        bool animationsEnabled = true;
+        try
+        {
+            animationsEnabled = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+        }
+        catch { }
+
+        var visual = ElementCompositionPreview.GetElementVisual(root);
+        visual.StopAnimation("Scale.Y");
+
+        if (!animationsEnabled)
+        {
+            visual.Scale = new Vector3(1.0f, 1.0f, 1.0f);
+            appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+            return;
+        }
+
+        appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+
+        // Scale from the top edge; the action row remains anchored below the
+        // content while the new client height is revealed.
+        visual.CenterPoint = new Vector3(0.0f, 0.0f, 0.0f);
+        var startScale = Math.Clamp((float)currentHeight / targetHeight, 0.1f, 4.0f);
+        visual.Scale = new Vector3(1.0f, startScale, 1.0f);
+
+        var compositor = visual.Compositor;
+        var easing = compositor.CreateCubicBezierEasingFunction(
+            new Vector2(0.1f, 0.9f),
+            new Vector2(0.2f, 1.0f));
+        var animation = compositor.CreateScalarKeyFrameAnimation();
+        animation.Duration = TimeSpan.FromMilliseconds(150);
+        animation.InsertKeyFrame(0.0f, startScale);
+        animation.InsertKeyFrame(1.0f, 1.0f, easing);
+        visual.StartAnimation("Scale.Y", animation);
+    }
+
     private static void AnimateEntrance(FrameworkElement root, FlyoutEdge edge)
     {
         var visual = ElementCompositionPreview.GetElementVisual(root);
