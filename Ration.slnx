@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ration.App/Ration.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Ration.Cli/Ration.Cli.csproj" />
+    <Project Path="src/Ration.Core/Ration.Core.csproj" />
+    <Project Path="src/Ration.Platform.Windows/Ration.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ration.Tests/Ration.Tests.csproj" />
+  </Folder>
+</Solution>

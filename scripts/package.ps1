@@ -12,11 +12,11 @@ $OutputRoot = if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 } else {
     $OutputRoot
 }
-$project = Join-Path $repoRoot 'src\Kalan.App\Kalan.App.csproj'
+$project = Join-Path $repoRoot 'src\Ration.App\Ration.App.csproj'
 $projectXml = [xml](Get-Content -LiteralPath $project -Raw)
 $version = [string]$projectXml.Project.PropertyGroup.Version
 if ([string]::IsNullOrWhiteSpace($version)) {
-    throw 'Kalan.App.csproj içinde Version bulunamadı.'
+    throw 'Ration.App.csproj içinde Version bulunamadı.'
 }
 
 $outputPath = if ([IO.Path]::IsPathRooted($OutputRoot)) {
@@ -49,7 +49,7 @@ if (Test-Path -LiteralPath $outputRoot) {
 
 $publishDir = Join-Path $outputRoot 'publish'
 $releaseDir = Join-Path $outputRoot 'releases'
-$icon = Join-Path $repoRoot 'src\Kalan.App\Assets\AppIcon.ico'
+$icon = Join-Path $repoRoot 'src\Ration.App\Assets\AppIcon.ico'
 
 foreach ($ownedDir in @($publishDir, $releaseDir)) {
     if (-not (Test-Path -LiteralPath $ownedDir)) { continue }
@@ -67,7 +67,7 @@ New-Item -ItemType Directory -Force -Path $publishDir, $releaseDir | Out-Null
 
 Push-Location $repoRoot
 try {
-    dotnet restore Kalan.slnx
+    dotnet restore Ration.slnx
     dotnet tool restore
     dotnet publish $project `
         -c $Configuration `
@@ -79,17 +79,17 @@ try {
         --no-restore `
         -o $publishDir
 
-    $mainExe = Join-Path $publishDir 'Kalan.App.exe'
+    $mainExe = Join-Path $publishDir 'Ration.exe'
     if (-not (Test-Path -LiteralPath $mainExe)) {
-        throw "Publish çıktısında Kalan.App.exe yok: $publishDir"
+        throw "Publish çıktısında Ration.exe yok: $publishDir"
     }
 
     dotnet tool run vpk pack `
-        --packId Kalan `
+        --packId Ration `
         --packVersion $version `
-        --packTitle Kalan `
+        --packTitle Ration `
         --packDir $publishDir `
-        --mainExe Kalan.App.exe `
+        --mainExe Ration.exe `
         --icon $icon `
         --channel win-x64 `
         --outputDir $releaseDir

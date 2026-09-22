@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Ration.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Ration.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
