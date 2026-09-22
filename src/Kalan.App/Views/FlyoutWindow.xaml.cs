@@ -65,6 +65,8 @@ public sealed partial class FlyoutWindow : Window
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
     private readonly Dictionary<string, string> _modelDiagnosticState = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _modelDiagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
+    private bool _allModelDiagnosticsStarted;
 
     // Flyout genişliği sabit 380 DIP; yükseklik bütün sekmelerin en uzunu olur.
     private const double FlyoutWidthDip = 380;
@@ -576,6 +578,11 @@ public sealed partial class FlyoutWindow : Window
 
     private void ApplySnapshot(UsageSnapshot snapshot)
     {
+        if (snapshot.ProviderId is "claude" or "codex" or "antigravity" or "opencode")
+        {
+            _modelDiagnosticSnapshots.Add(snapshot.ProviderId);
+        }
+
         EnsureTab(snapshot.ProviderId);
         MaybeAutoSelect();
         UpdateWelcomeState();
@@ -584,6 +591,42 @@ public sealed partial class FlyoutWindow : Window
         RefreshCost(force: false);
         EnqueueResize();
         RecalculateTrayIcon();
+        MaybeScheduleAllModelDiagnostics();
+    }
+
+    private void MaybeScheduleAllModelDiagnostics()
+    {
+        if (_allModelDiagnosticsStarted || _modelDiagnosticSnapshots.Count < 4) return;
+
+        _allModelDiagnosticsStarted = true;
+        var antigravity = _scheduler.Current.TryGetValue("antigravity", out var agy)
+            ? agy.Cost
+            : null;
+        var opencode = _scheduler.Current.TryGetValue("opencode", out var open)
+            ? open.Cost
+            : null;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var pricing = PricingTable.LoadOrEmpty();
+                var periodStart = DateTimeOffset.UtcNow.AddDays(-30);
+                var claude = CostEstimator.Estimate(ClaudeCostScanner.Scan(periodStart), pricing);
+                var codex = CostEstimator.Estimate(CodexCostScanner.Scan(periodStart), pricing);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    LogModelSummary("claude", claude);
+                    LogModelSummary("codex", codex);
+                    LogModelSummary("antigravity", antigravity);
+                    LogModelSummary("opencode", opencode);
+                });
+            }
+            catch (Exception ex)
+            {
+                Trace.Error("model", $"all-scan-failed type={ex.GetType().Name}");
+            }
+        });
     }
 
     private void UpdateWelcomeState()
@@ -1017,28 +1060,8 @@ public sealed partial class FlyoutWindow : Window
 
     private void SetMostUsedModel(string providerId, CostReport? report)
     {
-        var models = report?.Models?
-            .Where(model => model.Tokens > 0)
-            .GroupBy(model => model.Model, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new ModelTokenUsage(
-                group.Key,
-                group.Sum(model => model.Tokens),
-                group.Sum(model => model.InputTokens),
-                group.Sum(model => model.OutputTokens),
-                group.Sum(model => model.CacheReadTokens),
-                group.Sum(model => model.CacheCreationTokens)))
-            .OrderByDescending(model => model.Tokens)
-            .ToList() ?? new List<ModelTokenUsage>();
-
-        var diagnostic = models.Count == 0
-            ? "0 farklı model, en çok=yok %0"
-            : $"{models.Count} farklı model, en çok={models[0].Model} %{models[0].Tokens * 100d / Math.Max(1, models.Sum(model => model.Tokens)):F0}";
-        if (!_modelDiagnosticState.TryGetValue(providerId, out var previousDiagnostic) ||
-            !string.Equals(previousDiagnostic, diagnostic, StringComparison.Ordinal))
-        {
-            _modelDiagnosticState[providerId] = diagnostic;
-            Trace.Info("model", $"{providerId}: {diagnostic}");
-        }
+        var models = ModelSummary(report);
+        LogModelSummary(providerId, models);
 
         if (models.Count == 0)
         {
@@ -1059,6 +1082,35 @@ public sealed partial class FlyoutWindow : Window
             ? $"Model: {top.Model}"
             : $"En çok: {top.Model} · %{percent:F0}";
         MostUsedModelText.Visibility = Visibility.Visible;
+    }
+
+    private static List<ModelTokenUsage> ModelSummary(CostReport? report) => report?.Models?
+            .Where(model => model.Tokens > 0)
+            .GroupBy(model => model.Model, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new ModelTokenUsage(
+                group.Key,
+                group.Sum(model => model.Tokens),
+                group.Sum(model => model.InputTokens),
+                group.Sum(model => model.OutputTokens),
+                group.Sum(model => model.CacheReadTokens),
+                group.Sum(model => model.CacheCreationTokens)))
+            .OrderByDescending(model => model.Tokens)
+            .ToList() ?? new List<ModelTokenUsage>();
+
+    private void LogModelSummary(string providerId, CostReport? report) =>
+        LogModelSummary(providerId, ModelSummary(report));
+
+    private void LogModelSummary(string providerId, IReadOnlyList<ModelTokenUsage> models)
+    {
+        var diagnostic = models.Count == 0
+            ? "0 farklı model, en çok=yok %0"
+            : $"{models.Count} farklı model, en çok={models[0].Model} %{models[0].Tokens * 100d / Math.Max(1, models.Sum(model => model.Tokens)):F0}";
+        if (!_modelDiagnosticState.TryGetValue(providerId, out var previousDiagnostic) ||
+            !string.Equals(previousDiagnostic, diagnostic, StringComparison.Ordinal))
+        {
+            _modelDiagnosticState[providerId] = diagnostic;
+            Trace.Info("model", $"{providerId}: {diagnostic}");
+        }
     }
 
     private void ShowStaleNotice(DateTimeOffset fetchedAt, bool sessionRenewalRequired)
