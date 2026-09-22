@@ -694,7 +694,10 @@ public sealed partial class FlyoutWindow : Window
             : QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
         if (stale)
         {
-            ShowStaleNotice(snapshot.FetchedAt);
+            ShowStaleNotice(
+                snapshot.FetchedAt,
+                snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
+                snapshot.StaleReason?.StartsWith("Oturum yenilenmeli", StringComparison.Ordinal) == true);
         }
         else
         {
@@ -947,7 +950,7 @@ public sealed partial class FlyoutWindow : Window
 
         DetailWindows.Children.Add(section);
         RenderFreeUsage(usage);
-        SetMostUsedModel(usage);
+        SetMostUsedModel(_selectedId, usage);
     }
 
     private void RenderFreeUsage(CostReport usage)
@@ -1011,15 +1014,24 @@ public sealed partial class FlyoutWindow : Window
         section.Children.Add(row);
     }
 
-    private void SetMostUsedModel(CostReport? report)
+    private void SetMostUsedModel(string providerId, CostReport? report)
     {
         var models = report?.Models?
             .Where(model => model.Tokens > 0)
+            .GroupBy(model => model.Model, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new ModelTokenUsage(
+                group.Key,
+                group.Sum(model => model.Tokens),
+                group.Sum(model => model.InputTokens),
+                group.Sum(model => model.OutputTokens),
+                group.Sum(model => model.CacheReadTokens),
+                group.Sum(model => model.CacheCreationTokens)))
             .OrderByDescending(model => model.Tokens)
-            .ToList();
+            .ToList() ?? new List<ModelTokenUsage>();
 
-        if (models is not { Count: > 1 })
+        if (models.Count == 0)
         {
+            Trace.Info("model", $"{providerId}: 0 farklı model, en çok=yok %0");
             MostUsedModelText.Visibility = Visibility.Collapsed;
             return;
         }
@@ -1027,19 +1039,25 @@ public sealed partial class FlyoutWindow : Window
         var total = models.Sum(model => model.Tokens);
         if (total <= 0)
         {
+            Trace.Info("model", $"{providerId}: 0 farklı model, en çok=yok %0");
             MostUsedModelText.Visibility = Visibility.Collapsed;
             return;
         }
 
         var top = models[0];
         var percent = top.Tokens * 100d / total;
-        MostUsedModelText.Text = $"En çok: {top.Model} · %{percent:F0}";
+        Trace.Info("model", $"{providerId}: {models.Count} farklı model, en çok={top.Model} %{percent:F0}");
+        MostUsedModelText.Text = models.Count == 1
+            ? $"Model: {top.Model}"
+            : $"En çok: {top.Model} · %{percent:F0}";
         MostUsedModelText.Visibility = Visibility.Visible;
     }
 
-    private void ShowStaleNotice(DateTimeOffset fetchedAt)
+    private void ShowStaleNotice(DateTimeOffset fetchedAt, bool sessionRenewalRequired)
     {
-        DetailErrorTitle.Text = FormatStaleAge(fetchedAt);
+        DetailErrorTitle.Text = sessionRenewalRequired
+            ? "Oturum yenilenmeli"
+            : FormatStaleAge(fetchedAt);
         DetailErrorDetail.Text = string.Empty;
         DetailError.Visibility = Visibility.Visible;
         ToolTipService.SetToolTip(
@@ -1176,7 +1194,7 @@ public sealed partial class FlyoutWindow : Window
         CostAmount.Text = string.Empty;
         CostSummary.Text = string.Empty;
         ToolTipService.SetToolTip(CostInfoIcon, null);
-        MostUsedModelText.Visibility = Visibility.Collapsed;
+        SetMostUsedModel(_selectedId, null);
     }
 
     private void ApplyCost(CostReport? today, CostReport? month, PricingTable pricing)
@@ -1211,7 +1229,7 @@ public sealed partial class FlyoutWindow : Window
         var mostUsed = reports
             .OrderByDescending(report => report.TotalTokens)
             .FirstOrDefault(report => report.TotalTokens > 0);
-        SetMostUsedModel(mostUsed);
+        SetMostUsedModel(_selectedId, mostUsed);
 
         if (lines.Count == 0)
         {
