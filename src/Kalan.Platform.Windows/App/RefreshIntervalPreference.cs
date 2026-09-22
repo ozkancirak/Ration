@@ -6,6 +6,8 @@ namespace Kalan.Platform.Windows.App;
 /// <summary>Arka plan yenileme aralığını Kalan'ın kendi ayar alanında tutar.</summary>
 public static class RefreshIntervalPreference
 {
+    private static readonly TimeSpan Default = TimeSpan.FromMinutes(15);
+
     private static readonly TimeSpan[] Allowed =
     {
         TimeSpan.FromMinutes(5),
@@ -29,7 +31,7 @@ public static class RefreshIntervalPreference
 
     public static void Set(TimeSpan interval)
     {
-        var normalized = Allowed.Contains(interval) ? interval : Allowed[0];
+        var normalized = Allowed.Contains(interval) ? interval : Default;
 
         lock (Gate)
         {
@@ -42,7 +44,7 @@ public static class RefreshIntervalPreference
     }
 
     public static TimeSpan FromMinutes(int minutes) =>
-        Allowed.FirstOrDefault(value => value.TotalMinutes == minutes, Allowed[0]);
+        Allowed.FirstOrDefault(value => value.TotalMinutes == minutes, Default);
 
     public static int ToMinutes(TimeSpan interval) => (int)interval.TotalMinutes;
 
@@ -55,7 +57,7 @@ public static class RefreshIntervalPreference
     {
         try
         {
-            if (!File.Exists(SettingsPath)) return Allowed[0];
+            if (!File.Exists(SettingsPath)) return Default;
 
             using var stream = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var document = JsonDocument.Parse(stream);
@@ -71,7 +73,7 @@ public static class RefreshIntervalPreference
             Trace.Error("settings", $"refresh-read failed type={ex.GetType().Name}");
         }
 
-        return Allowed[0];
+        return Default;
     }
 
     private static void Save(TimeSpan interval)

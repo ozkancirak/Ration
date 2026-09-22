@@ -277,6 +277,25 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task ManuelTurDevreyiAtlar()
+    {
+        var cagriSayisi = 0;
+
+        var provider = new FakeProvider("ornek", () =>
+        {
+            cagriSayisi++;
+            return Snapshot.Empty("ornek", ProviderStatus.Error, "patladı");
+        });
+
+        await using var scheduler = new RefreshScheduler(new[] { provider }, new SnapshotCache(_dir), NoJitter);
+
+        await scheduler.RefreshAllAsync();
+        await scheduler.RefreshAllAsync(bypassCircuitBreaker: true);
+
+        Assert.Equal(2, cagriSayisi);
+    }
+
+    [Fact]
     public async Task KaynakPatlarsaScheduleCokmez()
     {
         var provider = new FakeProvider("ornek", () => throw new InvalidOperationException("beklenmedik"));

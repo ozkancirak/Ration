@@ -39,6 +39,9 @@ public sealed partial class FlyoutWindow : Window
     private readonly RefreshScheduler _scheduler;
     private readonly NativeMethods.SubclassProc _subclassProc;
     private DateTimeOffset _lastDeactivatedTime = DateTimeOffset.MinValue;
+    private static readonly TimeSpan FlyoutRefreshDebounce = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ManualRefreshMinimum = TimeSpan.FromSeconds(60);
+    private DateTimeOffset _lastInteractiveRefresh = DateTimeOffset.MinValue;
     private bool _isVisible;
     private double? _currentGaugePercent;
     private string _currentTooltip = "Kalan: Veri yok";
@@ -159,6 +162,7 @@ public sealed partial class FlyoutWindow : Window
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
         AppThemePreference.Changed += OnAppThemeChanged;
         RefreshIntervalPreference.Changed += OnRefreshIntervalChanged;
+        EfficiencyModeManager.PauseChanged += OnEfficiencyPauseChanged;
         PricingTableUpdater.Updated += OnPricingUpdated;
         WindowsThemeListener.AccentChanged += OnAccentChanged;
         WindowsThemeListener.DisplayChanged += OnDisplayChanged;
@@ -166,6 +170,7 @@ public sealed partial class FlyoutWindow : Window
         _appWindow.Resize(new SizeInt32(1, 1));
 
         // Start in Efficiency Mode
+        _scheduler.Pause();
         EfficiencyModeManager.SetEfficiencyMode(true);
 
         // Start scheduler loop
@@ -232,14 +237,48 @@ public sealed partial class FlyoutWindow : Window
         _settingsWindow.ShowAndFocus();
     }
 
-    private void OnRefreshIntervalChanged(TimeSpan interval) => _scheduler.SetInterval(interval);
+    private void OnRefreshIntervalChanged(TimeSpan interval)
+    {
+        _scheduler.SetInterval(interval);
+        Trace.Info("settings", $"refresh-interval minutes={(int)interval.TotalMinutes}");
+    }
+
+    private void OnEfficiencyPauseChanged(bool shouldPause)
+    {
+        if (shouldPause)
+        {
+            _scheduler.Pause();
+        }
+        else
+        {
+            _scheduler.Resume();
+        }
+
+        Trace.Info("provider.refresh", $"polling={(shouldPause ? "paused" : "resumed")}");
+    }
 
     private async Task RefreshManuallyAsync()
     {
+        if (EfficiencyModeManager.ShouldPause)
+        {
+            Trace.Info("provider.refresh", "manual status=skipped reason=efficiency");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastInteractiveRefresh < ManualRefreshMinimum)
+        {
+            Trace.Info("provider.refresh", "manual status=skipped reason=minimum-interval");
+            return;
+        }
+
+        _lastInteractiveRefresh = now;
         RefreshButton.IsEnabled = false;
         try
         {
-            await _scheduler.RefreshAllAsync();
+            Trace.Info("provider.refresh", "manual status=started");
+            await _scheduler.RefreshAllAsync(bypassCircuitBreaker: true);
+            Trace.Info("provider.refresh", "manual status=completed");
         }
         catch (OperationCanceledException)
         {
@@ -263,6 +302,42 @@ public sealed partial class FlyoutWindow : Window
         }
 
         RefreshCost(force: true);
+    }
+
+    private async Task RefreshOnFlyoutShownAsync()
+    {
+        if (EfficiencyModeManager.ShouldPause)
+        {
+            Trace.Info("provider.refresh", "flyout status=skipped reason=efficiency");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastInteractiveRefresh < FlyoutRefreshDebounce)
+        {
+            Trace.Info("provider.refresh", "flyout status=skipped reason=debounce");
+            return;
+        }
+
+        _lastInteractiveRefresh = now;
+        try
+        {
+            Trace.Info("provider.refresh", "flyout status=started");
+            await _scheduler.RefreshAllAsync();
+            Trace.Info("provider.refresh", "flyout status=completed");
+        }
+        catch (OperationCanceledException)
+        {
+            Trace.Info("provider.refresh", "flyout status=cancelled");
+        }
+        catch (ObjectDisposedException)
+        {
+            Trace.Info("provider.refresh", "flyout status=cancelled");
+        }
+        catch (Exception ex)
+        {
+            Trace.Error("provider.refresh", $"flyout status=exception type={ex.GetType().Name}");
+        }
     }
 
     private void OnTrayProviderChanged(string? providerId)
@@ -320,6 +395,7 @@ public sealed partial class FlyoutWindow : Window
         WindowsThemeListener.DisplayChanged -= OnDisplayChanged;
         AppThemePreference.Changed -= OnAppThemeChanged;
         RefreshIntervalPreference.Changed -= OnRefreshIntervalChanged;
+        EfficiencyModeManager.PauseChanged -= OnEfficiencyPauseChanged;
         PricingTableUpdater.Updated -= OnPricingUpdated;
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
@@ -1463,6 +1539,7 @@ public sealed partial class FlyoutWindow : Window
         _isVisible = true;
         Trace.Info("window", "flyout.show");
 
+        _ = RefreshOnFlyoutShownAsync();
         RefreshCost(force: false);
     }
 

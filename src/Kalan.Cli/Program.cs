@@ -230,9 +230,8 @@ void PrintClaudeDiagnostics(ClaudeOAuthUsageSource source)
     Console.WriteLine($"refreshToken mevcut: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}");
     Console.WriteLine($"HTTP kodu: {source.LastStatusCode?.ToString() ?? "istek yapılmadı"}");
     Console.WriteLine($"Retry-After: {source.LastRetryAfter ?? "yok"}");
-    Console.WriteLine($"endpoint: GET {ClaudeOAuthUsageSource.UsageEndpoint}");
-    Console.WriteLine("header: Authorization: Bearer [gizlendi]");
-    Console.WriteLine($"header: anthropic-beta: {ClaudeOAuthUsageSource.OAuthBetaHeader}");
+    Console.WriteLine($"istek URL: GET {ClaudeOAuthUsageSource.UsageEndpoint}");
+    Console.WriteLine("header adları: Authorization, anthropic-beta");
 
     Console.WriteLine();
 }

@@ -11,7 +11,7 @@ namespace Kalan.Core.Refresh;
 public sealed record RefreshOptions
 {
     /// <summary>Turlar arası bekleme. Manuel mod için TimeSpan.Zero verilmez; Start çağrılmaz.</summary>
-    public TimeSpan Interval { get; init; } = TimeSpan.FromMinutes(5);
+    public TimeSpan Interval { get; init; } = TimeSpan.FromMinutes(15);
 
     /// <summary>Aynı anda kaç sağlayıcı sorgulanabilir.</summary>
     public int MaxConcurrency { get; init; } = 3;
@@ -106,7 +106,10 @@ public sealed class RefreshScheduler : IAsyncDisposable
     {
         try
         {
-            await RefreshAllAsync(ct).ConfigureAwait(false);
+            if (!_paused)
+            {
+                await RefreshAllAsync(ct).ConfigureAwait(false);
+            }
 
             while (true)
             {
@@ -122,22 +125,22 @@ public sealed class RefreshScheduler : IAsyncDisposable
         }
     }
 
-    public async Task RefreshAllAsync(CancellationToken ct = default)
+    public async Task RefreshAllAsync(CancellationToken ct = default, bool bypassCircuitBreaker = false)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _stopping.Token);
 
-        var tasks = _providers.Select(p => RefreshOneAsync(p, linked.Token));
+        var tasks = _providers.Select(p => RefreshOneAsync(p, linked.Token, bypassCircuitBreaker));
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private async Task RefreshOneAsync(IUsageProvider provider, CancellationToken ct)
+    private async Task RefreshOneAsync(IUsageProvider provider, CancellationToken ct, bool bypassCircuitBreaker)
     {
         var breaker = _breakers[provider.Id];
         var now = DateTimeOffset.UtcNow;
         var stopwatch = Stopwatch.StartNew();
         KalanTrace.Info("provider.refresh", $"start provider={provider.Id}");
 
-        if (breaker.IsOpen(now))
+        if (!bypassCircuitBreaker && breaker.IsOpen(now))
         {
             var remaining = (int)Math.Ceiling(breaker.RemainingCooldown(now).TotalSeconds);
             KalanTrace.Info(
@@ -249,5 +252,5 @@ public sealed class RefreshScheduler : IAsyncDisposable
     }
 
     private static TimeSpan NormalizeInterval(TimeSpan interval) =>
-        interval > TimeSpan.Zero ? interval : TimeSpan.FromMinutes(5);
+        interval > TimeSpan.Zero ? interval : TimeSpan.FromMinutes(15);
 }
