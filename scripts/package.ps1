@@ -53,6 +53,7 @@ $icon = Join-Path $repoRoot 'src\Kalan.App\Assets\AppIcon.ico'
 
 foreach ($ownedDir in @($publishDir, $releaseDir)) {
     if (-not (Test-Path -LiteralPath $ownedDir)) { continue }
+    if (-not $ownedDir.StartsWith($artifactsRoot.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Paketleme yalnızca artifacts altını temizleyebilir: $ownedDir" }
 
     $ownedItem = Get-Item -LiteralPath $ownedDir -Force
     if (-not $ownedItem.PSIsContainer -or
