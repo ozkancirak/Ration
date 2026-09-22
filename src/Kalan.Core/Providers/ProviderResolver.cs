@@ -12,7 +12,8 @@ public static class ProviderResolver
     /// </summary>
     public static async Task<UsageSnapshot> ResolveAsync(
         IUsageProvider provider,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<UsageSnapshot>? onProgress = null)
     {
         UsageSnapshot? firstProblem = null;
 
@@ -31,6 +32,12 @@ public static class ProviderResolver
             if (!available) continue;
 
             UsageSnapshot snapshot;
+            var progressive = source as IProgressiveUsageSource;
+            if (progressive is not null && onProgress is not null)
+            {
+                progressive.SnapshotUpdated += onProgress;
+            }
+
             try
             {
                 snapshot = await source.FetchAsync(ct).ConfigureAwait(false);
@@ -43,6 +50,13 @@ public static class ProviderResolver
                     ProviderStatus.Error,
                     $"{source.Kind} beklenmedik hata: {ex.GetType().Name}",
                     source.Kind);
+            }
+            finally
+            {
+                if (progressive is not null && onProgress is not null)
+                {
+                    progressive.SnapshotUpdated -= onProgress;
+                }
             }
 
             if (snapshot.Status == ProviderStatus.Ok) return snapshot;

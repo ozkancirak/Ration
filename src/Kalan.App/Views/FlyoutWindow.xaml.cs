@@ -861,6 +861,7 @@ public sealed partial class FlyoutWindow : Window
             DetailWindows.Children.Clear();
         }
         else if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
+                 snapshot.Windows.Count == 0 &&
                  snapshot.Cost is { } antigravityUsage)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;

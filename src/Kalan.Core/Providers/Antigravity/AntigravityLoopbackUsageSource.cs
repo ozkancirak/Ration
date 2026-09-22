@@ -9,8 +9,11 @@ using KalanTrace = Kalan.Core.Diagnostics.Trace;
 
 namespace Kalan.Core.Providers.Antigravity;
 
-public sealed class AntigravityLoopbackUsageSource : IUsageSource
+public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
 {
+    private const int MaxTrajectoryCount = 100;
+    private static readonly TimeSpan TokenWorkTimeout = TimeSpan.FromSeconds(10);
+
     private const string EndpointPath =
         "/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
     private const string UserStatusEndpointPath =
@@ -29,6 +32,8 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
     private readonly Action<string> _rawResponseSink;
     private CachedEndpoint? _cachedEndpoint;
     private int _rawResponseLogged;
+
+    public event Action<UsageSnapshot>? SnapshotUpdated;
 
     private readonly record struct CachedEndpoint(
         int Port,
@@ -160,34 +165,67 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 
             var windows = parsed.Windows;
             var resolvedCandidate = candidate with { Scheme = probe.Scheme };
-            var tokenUsage = await FetchTokenUsageAsync(resolvedCandidate, ct).ConfigureAwait(false);
 
-            // Plan adı quotaInfo içinde değildir; ayrı çağrı yalnızca başlık
-            // rozetini doldurur ve kota pencerelerine hiç dokunmaz.
-            var planName = await FetchPlanNameAsync(resolvedCandidate, ct).ConfigureAwait(false);
+            // Kota ve token kullanımı iki bağımsız kaynaktır. Kota hazır olur olmaz
+            // yayınla; token taraması bunu geciktiremez ve boş dönerek kotayı silemez.
+            SnapshotUpdated?.Invoke(new UsageSnapshot(
+                ProviderId: "antigravity",
+                Windows: windows,
+                Credits: null,
+                Cost: null,
+                Status: windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
+                ResolvedVia: Kind,
+                FetchedAt: DateTimeOffset.UtcNow,
+                StaleReason: windows.Count == 0 ? "Antigravity kota verisi yok." : null));
+            KalanTrace.Info(
+                "provider.source",
+                $"provider=antigravity source=quota result=published windows={windows.Count}");
 
-            if (windows.Count == 0 && tokenUsage is null)
+            CostReport? tokenUsage;
+            string? planName;
+            using (var tokenBudget = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
-                return Complete(
-                    Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                        "Antigravity kota yanıtında kullanılabilir veri yok.", Kind),
-                    stopwatch,
-                    $"degraded data=empty port={candidate.Port} transport={probe.Scheme}");
+                tokenBudget.CancelAfter(TokenWorkTimeout);
+                var tokenTask = FetchTokenUsageAsync(
+                    resolvedCandidate,
+                    tokenBudget.Token,
+                    ct);
+                var planTask = FetchPlanNameAsync(
+                    resolvedCandidate,
+                    tokenBudget.Token,
+                    ct);
+
+                await Task.WhenAll(tokenTask, planTask).ConfigureAwait(false);
+                tokenUsage = tokenTask.Result;
+                planName = planTask.Result;
+
+                if (tokenBudget.IsCancellationRequested && !ct.IsCancellationRequested)
+                {
+                    KalanTrace.Info(
+                        "provider.source",
+                        $"provider=antigravity source=trajectory result=budget-exceeded limitSeconds={(int)TokenWorkTimeout.TotalSeconds}");
+                }
             }
 
+            var status = windows.Count > 0 || tokenUsage is not null
+                ? ProviderStatus.Ok
+                : ProviderStatus.Degraded;
             return Complete(
                 new UsageSnapshot(
                     ProviderId: "antigravity",
                     Windows: windows,
                     Credits: null,
                     Cost: tokenUsage,
-                    Status: ProviderStatus.Ok,
+                    Status: status,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
-                    StaleReason: windows.Count == 0 ? "Antigravity kota verisi yok." : null,
+                    StaleReason: windows.Count == 0
+                        ? "Antigravity kota verisi yok."
+                        : null,
                     PlanName: planName),
                 stopwatch,
-                $"ok windows={windows.Count} tokenData={(tokenUsage is null ? "none" : "yes")} "
+                $"{(status == ProviderStatus.Ok ? "ok" : "degraded")} windows={windows.Count} "
+                + $"tokenData={(tokenUsage is null ? "none" : "yes")} "
                 + $"port={candidate.Port} transport={probe.Scheme}");
         }
 
@@ -277,7 +315,8 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 
     private async Task<string?> FetchPlanNameAsync(
         PortCandidate candidate,
-        CancellationToken ct)
+        CancellationToken ct,
+        CancellationToken callerCt)
     {
         try
         {
@@ -301,7 +340,7 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
         {
             return null;
         }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (!callerCt.IsCancellationRequested)
         {
             return null;
         }
@@ -309,8 +348,10 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
 
     private async Task<CostReport?> FetchTokenUsageAsync(
         PortCandidate candidate,
-        CancellationToken ct)
+        CancellationToken ct,
+        CancellationToken callerCt)
     {
+        var tally = new TokenTally();
         try
         {
             var summaries = await SendRpcAsync(
@@ -334,8 +375,15 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                 return null;
             }
 
-            var tally = new TokenTally();
             var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            if (cascadeIds.Count > MaxTrajectoryCount)
+            {
+                KalanTrace.Info(
+                    "provider.source",
+                    $"provider=antigravity source=trajectory result=limited total={cascadeIds.Count} limit={MaxTrajectoryCount}");
+                cascadeIds = cascadeIds.Take(MaxTrajectoryCount).ToArray();
+            }
+
             foreach (var cascadeId in cascadeIds)
             {
                 var body = JsonSerializer.Serialize(new
@@ -386,28 +434,7 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                 }
             }
 
-            if (tally.EntryCount == 0) return null;
-
-            var fetchedAt = DateTimeOffset.UtcNow;
-            return new CostReport(
-                TotalCost: 0,
-                Currency: "USD",
-                PeriodStart: fetchedAt.AddDays(-30),
-                PeriodEnd: fetchedAt,
-                InputTokens: tally.TotalInputTokens,
-                OutputTokens: tally.TotalOutputTokens,
-                CacheReadTokens: tally.TotalCacheReadTokens,
-                CacheCreationTokens: tally.TotalCacheCreationTokens,
-                ReasoningTokens: tally.TotalReasoningTokens,
-                Models: tally.Models
-                    .Select(model => new ModelTokenUsage(
-                        model.Model,
-                        model.TotalTokens,
-                        model.InputTokens,
-                        model.OutputTokens,
-                        model.CacheReadTokens,
-                        model.CacheCreationTokens))
-                    .ToArray());
+            return BuildCostReport(tally);
         }
         catch (HttpRequestException)
         {
@@ -416,13 +443,39 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                 "provider=antigravity source=trajectory result=connection-failed");
             return null;
         }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (!callerCt.IsCancellationRequested)
         {
             KalanTrace.Info(
                 "provider.source",
-                "provider=antigravity source=trajectory result=timeout");
-            return null;
+                $"provider=antigravity source=trajectory result=timeout entries={tally.EntryCount}");
+            return BuildCostReport(tally);
         }
+    }
+
+    private static CostReport? BuildCostReport(TokenTally tally)
+    {
+        if (tally.EntryCount == 0) return null;
+
+        var fetchedAt = DateTimeOffset.UtcNow;
+        return new CostReport(
+            TotalCost: 0,
+            Currency: "USD",
+            PeriodStart: fetchedAt.AddDays(-30),
+            PeriodEnd: fetchedAt,
+            InputTokens: tally.TotalInputTokens,
+            OutputTokens: tally.TotalOutputTokens,
+            CacheReadTokens: tally.TotalCacheReadTokens,
+            CacheCreationTokens: tally.TotalCacheCreationTokens,
+            ReasoningTokens: tally.TotalReasoningTokens,
+            Models: tally.Models
+                .Select(model => new ModelTokenUsage(
+                    model.Model,
+                    model.TotalTokens,
+                    model.InputTokens,
+                    model.OutputTokens,
+                    model.CacheReadTokens,
+                    model.CacheCreationTokens))
+                .ToArray());
     }
 
     private IReadOnlyList<PortCandidate> GetCandidates()

@@ -214,6 +214,44 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task Antigravity_KotaSonrakiTurdaBosGelseOncekiPencereleriKorur()
+    {
+        var first = new UsageSnapshot(
+            ProviderId: "antigravity",
+            Windows: new[] { new UsageWindow(WindowKind.Session, 55, 100, 55, null, "5 saatlik") },
+            Credits: null,
+            Cost: null,
+            Status: ProviderStatus.Ok,
+            ResolvedVia: SourceKind.Cli,
+            FetchedAt: DateTimeOffset.UtcNow,
+            StaleReason: null);
+        var second = first with
+        {
+            Windows = Array.Empty<UsageWindow>(),
+            Cost = new CostReport(
+                TotalCost: 0,
+                Currency: "USD",
+                PeriodStart: DateTimeOffset.UtcNow.AddDays(-30),
+                PeriodEnd: DateTimeOffset.UtcNow,
+                InputTokens: 10,
+                Models: new[] { new ModelTokenUsage("gemini-test", 10, 10) }),
+        };
+        var calls = 0;
+        var provider = new FakeProvider(
+            "antigravity",
+            () => ++calls == 1 ? first : second);
+
+        await using var scheduler = new RefreshScheduler(new[] { provider }, new SnapshotCache(_dir), NoJitter);
+
+        await scheduler.RefreshAllAsync();
+        await scheduler.RefreshAllAsync(bypassCircuitBreaker: true);
+
+        var result = scheduler.Current["antigravity"];
+        Assert.Equal(55, Assert.Single(result.Windows).Percent);
+        Assert.Equal(10, result.Cost!.InputTokens);
+    }
+
+    [Fact]
     public async Task HataDurumundaSonIyiVeriBayatNotuylaGosterilir()
     {
         var cache = new SnapshotCache(_dir);

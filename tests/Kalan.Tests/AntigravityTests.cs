@@ -136,6 +136,8 @@ public sealed class AntigravityTests
         Assert.Equal("1", request.Headers.GetValues("Connect-Protocol-Version").Single());
         Assert.False(request.Headers.Contains("host_bridge_token"));
         Assert.Equal("Pro", snapshot.PlanName);
+        Assert.Single(snapshot.Windows);
+        Assert.Null(snapshot.Cost);
         Assert.Contains("\"ideName\":\"antigravity\"", handler.RequestBodies.Single(body =>
             body.Contains("ideName", StringComparison.Ordinal)));
         Assert.Equal("csrf-test", statusRequest.Headers.GetValues("X-Codeium-Csrf-Token").Single());
@@ -215,9 +217,14 @@ public sealed class AntigravityTests
             findProcessEndpoints: () =>
                 new[] { new AntigravityProcessEndpoint(41007, "csrf-test") },
             rawResponseSink: _ => { });
+        var partialSnapshots = new List<UsageSnapshot>();
+        source.SnapshotUpdated += partialSnapshots.Add;
 
         var snapshot = await source.FetchAsync(CancellationToken.None);
 
+        var partial = Assert.Single(partialSnapshots);
+        Assert.Single(partial.Windows);
+        Assert.Null(partial.Cost);
         Assert.NotNull(snapshot.Cost);
         Assert.Equal(107, snapshot.Cost!.InputTokens);
         Assert.Equal(53, snapshot.Cost.OutputTokens);

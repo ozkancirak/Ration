@@ -161,7 +161,11 @@ public sealed class RefreshScheduler : IAsyncDisposable
                 await Task.Delay(jitterMs, ct).ConfigureAwait(false);
             }
 
-            var snapshot = await ProviderResolver.ResolveAsync(provider, ct).ConfigureAwait(false);
+            var snapshot = await ProviderResolver.ResolveAsync(
+                provider,
+                ct,
+                partial => PublishProgress(provider.Id, partial)).ConfigureAwait(false);
+            snapshot = MergeProviderData(snapshot, PreviousSnapshot(provider.Id));
             KalanTrace.Info(
                 "provider.refresh",
                 $"result provider={provider.Id} source={snapshot.ResolvedVia?.ToString() ?? "none"} status={snapshot.Status} durationMs={stopwatch.ElapsedMilliseconds}");
@@ -208,6 +212,44 @@ public sealed class RefreshScheduler : IAsyncDisposable
         Publish(cached is null
             ? Snapshot.Empty(providerId, ProviderStatus.Error, reason)
             : MarkStale(cached, reason));
+    }
+
+    private void PublishProgress(string providerId, UsageSnapshot partial)
+    {
+        if (partial.Status is not (ProviderStatus.Ok or ProviderStatus.Degraded)) return;
+
+        var merged = MergeProviderData(partial, PreviousSnapshot(providerId));
+        _cache.Save(merged);
+        Publish(merged);
+    }
+
+    private UsageSnapshot? PreviousSnapshot(string providerId) =>
+        _current.TryGetValue(providerId, out var current)
+            ? current
+            : _cache.TryLoad(providerId);
+
+    private static UsageSnapshot MergeProviderData(
+        UsageSnapshot incoming,
+        UsageSnapshot? previous)
+    {
+        if (previous is null ||
+            !incoming.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
+        {
+            return incoming;
+        }
+
+        var windows = incoming.Windows.Count > 0 ? incoming.Windows : previous.Windows;
+        var cost = incoming.Cost ?? previous.Cost;
+
+        return incoming with
+        {
+            Windows = windows,
+            Cost = cost,
+            PlanName = incoming.PlanName ?? previous.PlanName,
+            StaleReason = incoming.Windows.Count == 0 && previous.Windows.Count > 0
+                ? previous.StaleReason
+                : incoming.StaleReason,
+        };
     }
 
     private static UsageSnapshot MarkStale(UsageSnapshot cached, string? reason)
