@@ -65,8 +65,8 @@ public sealed partial class FlyoutWindow : Window
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
 
-    // Flyout genişliği sabit 360 DIP; yükseklik bütün sekmelerin en uzunu olur.
-    private const double FlyoutWidthDip = 360;
+    // Flyout genişliği sabit 380 DIP; yükseklik bütün sekmelerin en uzunu olur.
+    private const double FlyoutWidthDip = 380;
     private int _targetWidth;
 
     public double? CurrentClaudePercent => _currentGaugePercent;
@@ -455,7 +455,7 @@ public sealed partial class FlyoutWindow : Window
             Content = content,
             Background = new SolidColorBrush(Colors.Transparent),
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(10, 6, 10, 6),
+            Padding = new Thickness(8, 6, 8, 6),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             CornerRadius = QuotaVisuals.PillCorner(),
         };
@@ -483,10 +483,6 @@ public sealed partial class FlyoutWindow : Window
         UpdateTabs();
         RenderDetail();
         DetailScrollViewer.ChangeView(null, 0, null);
-        if (_tabs.TryGetValue(id, out var tab))
-        {
-            this.DispatcherQueue.TryEnqueue(() => tab.Button.StartBringIntoView());
-        }
         EnqueueResize();
         RefreshCost(force: false);
     }
@@ -671,74 +667,94 @@ public sealed partial class FlyoutWindow : Window
         DetailName.Text = TabDisplayName(snapshot.ProviderId);
         DetailIconHost.Content = CreateProviderIcon(GetProviderTab(snapshot.ProviderId), active: true);
         QuotaVisuals.ApplyPlan(DetailPlanBadge, DetailPlanText, snapshot.PlanName);
+        if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
+            snapshot.Windows.Count == 0)
+        {
+            ToolTipService.SetToolTip(
+                DetailPlanBadge,
+                "OpenCode'un kendi kotası yok, yapılandırdığın sağlayıcıların aboneliğini kullanır.");
+        }
+        else
+        {
+            ToolTipService.SetToolTip(DetailPlanBadge, null);
+        }
+
         QuotaVisuals.SetTextStyle(DetailUnavailableTitle, "CaptionTextBlockStyle");
         DetailUnavailableTitle.Visibility = Visibility.Visible;
-        MostUsedModelText.Visibility = Visibility.Collapsed;
 
-        // Bayat veri gösteriliyorsa sebep üstte tek satır yazar
-        // (örn. hız sınırı + kaç dk önceki veri); taze veride tazelik saati.
-        DetailUpdated.Text = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null }
-            ? snapshot.StaleReason
+        var stale = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null } &&
+            (snapshot.Windows.Count > 0 || snapshot.Cost is not null || snapshot.Credits is not null);
+        DetailUpdated.Text = stale ||
+            snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error
+            ? string.Empty
             : QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
+        if (stale)
+        {
+            ShowStaleNotice(snapshot.FetchedAt);
+        }
+        else
+        {
+            DetailError.Visibility = Visibility.Collapsed;
+            ToolTipService.SetToolTip(DetailError, null);
+        }
 
         if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
             DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Oturum Süresi Doldu" : "Kota Alınamadı";
             DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
-                ? snapshot.StaleReason ?? $"{TabDisplayName(snapshot.ProviderId)} CLI ile tekrar giriş yapın."
-                : snapshot.StaleReason ?? "Sunucudan geçerli veri alınamadı.";
+                ? UserErrorDetail(snapshot)
+                : "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
             DetailError.Visibility = Visibility.Visible;
+            ToolTipService.SetToolTip(DetailError, null);
             DetailWindows.Children.Clear();
         }
         else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
                  snapshot.Cost is { } localUsage &&
                  snapshot.Windows.Count == 0)
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailableTitle.Visibility = Visibility.Collapsed;
-            DetailUnavailableDetail.Text = FormatOpenCodeNoQuota(snapshot);
-            DetailUnavailable.Visibility = Visibility.Visible;
+            var noQuotaDetail = FormatOpenCodeNoQuota(snapshot);
+            DetailUnavailableDetail.Text = noQuotaDetail;
+            DetailUnavailable.Visibility = string.IsNullOrWhiteSpace(noQuotaDetail)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
             RenderOpenCodeLocalUsage(localUsage);
         }
         else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
                  snapshot.Windows.Count == 0 &&
                  !string.IsNullOrWhiteSpace(snapshot.StatusDetail))
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailableTitle.Visibility = Visibility.Collapsed;
-            DetailUnavailableDetail.Text = FormatOpenCodeNoQuota(snapshot);
-            DetailUnavailable.Visibility = Visibility.Visible;
+            var noQuotaDetail = FormatOpenCodeNoQuota(snapshot);
+            DetailUnavailableDetail.Text = noQuotaDetail;
+            DetailUnavailable.Visibility = string.IsNullOrWhiteSpace(noQuotaDetail)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
             DetailWindows.Children.Clear();
         }
         else if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
                  snapshot.Cost is { } antigravityUsage)
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
             RenderTokenUsage(antigravityUsage);
         }
         else if (snapshot.Status == ProviderStatus.NotInstalled)
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailableTitle.Text = "Kurulu değil veya açık değil";
             DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Antigravity açık değil.";
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
-            MostUsedModelText.Visibility = Visibility.Collapsed;
         }
         else if (snapshot.Windows.Count == 0)
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailableTitle.Text = "Veri yok";
-            DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Sağlayıcıdan kullanılabilir kota alınamadı.";
+            DetailUnavailableDetail.Text = "Sağlayıcıdan kullanılabilir kota alınamadı.";
             DetailUnavailable.Visibility = Visibility.Visible;
             DetailWindows.Children.Clear();
-            MostUsedModelText.Visibility = Visibility.Collapsed;
         }
         else
         {
-            DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
             RenderWindows(snapshot);
             if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
@@ -939,18 +955,27 @@ public sealed partial class FlyoutWindow : Window
         QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
         section.Children.Add(heading);
 
+        var countRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+        };
         var count = new TextBlock { Text = $"Bugün {freeUsage.RequestsToday} istek" };
         QuotaVisuals.SetTextStyle(count, "CaptionTextBlockStyle");
-        section.Children.Add(count);
+        countRow.Children.Add(count);
 
-        var explanation = new TextBlock
+        var info = new FontIcon
         {
-            Text = "OpenCode ücretsiz sınırı IP adresine göre uygulanıyor ve yayınlanmıyor; bu sayaç yalnızca bu bilgisayardaki istekleri sayar.",
-            TextWrapping = TextWrapping.Wrap,
+            Glyph = "\uE946",
+            FontSize = 12,
             Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        QuotaVisuals.SetTextStyle(explanation, "CaptionTextBlockStyle");
-        section.Children.Add(explanation);
+        ToolTipService.SetToolTip(
+            info,
+            "Sınır IP adresine göre uygulanır ve yayınlanmaz. Bu sayaç yalnızca bu bilgisayarı sayar.");
+        countRow.Children.Add(info);
+        section.Children.Add(countRow);
 
         DetailWindows.Children.Add(section);
     }
@@ -1008,18 +1033,43 @@ public sealed partial class FlyoutWindow : Window
         MostUsedModelText.Visibility = Visibility.Visible;
     }
 
-    private static string FormatOpenCodeNoQuota(UsageSnapshot snapshot)
+    private void ShowStaleNotice(DateTimeOffset fetchedAt)
     {
-        var lines = new List<string>
+        DetailErrorTitle.Text = FormatStaleAge(fetchedAt);
+        DetailErrorDetail.Text = string.Empty;
+        DetailError.Visibility = Visibility.Visible;
+        ToolTipService.SetToolTip(
+            DetailError,
+            "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.");
+    }
+
+    private static string FormatStaleAge(DateTimeOffset fetchedAt)
+    {
+        var age = DateTimeOffset.UtcNow - fetchedAt;
+        if (age < TimeSpan.FromMinutes(1)) return "Az önceki veri";
+        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} dk önceki veri";
+        if (age.TotalDays < 1) return $"{(int)age.TotalHours} sa önceki veri";
+        return $"{(int)age.TotalDays} gün önceki veri";
+    }
+
+    private string UserErrorDetail(UsageSnapshot snapshot)
+    {
+        if (snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
+            snapshot.StaleReason?.StartsWith("Oturum yenilenmeli", StringComparison.Ordinal) == true)
         {
-            snapshot.StatusDetail ?? "OpenCode'un kendi kotası yok; yapılandırılmış sağlayıcıların aboneliğini kullanıyor.",
-        };
-        if (snapshot.ConfiguredProviders is { Count: > 0 } providers)
-        {
-            lines.Add(string.Join(" · ", providers));
+            return "Oturum yenilenmeli — Claude Code'u bir kez çalıştır";
         }
 
-        return string.Join("\n", lines);
+        return snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase)
+            ? "Claude Code'da tekrar giriş yapın."
+            : "Sağlayıcıda tekrar giriş yapın.";
+    }
+
+    private static string FormatOpenCodeNoQuota(UsageSnapshot snapshot)
+    {
+        return snapshot.ConfiguredProviders is { Count: > 0 } providers
+            ? string.Join(" · ", providers)
+            : string.Empty;
     }
 
     // ---- Maliyet özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
@@ -1119,9 +1169,9 @@ public sealed partial class FlyoutWindow : Window
         _costAt = DateTimeOffset.MinValue;
         _costRun++;
         CostSection.Visibility = Visibility.Collapsed;
+        CostAmount.Text = string.Empty;
         CostSummary.Text = string.Empty;
-        CostUnknownModels.Text = string.Empty;
-        CostUnknownModels.Visibility = Visibility.Collapsed;
+        ToolTipService.SetToolTip(CostInfoIcon, null);
         MostUsedModelText.Visibility = Visibility.Collapsed;
     }
 
@@ -1136,12 +1186,7 @@ public sealed partial class FlyoutWindow : Window
             if (report is null) return string.Empty;
             var total = report.TotalTokens;
             if (total <= 0) return string.Empty;
-            var unpriced = report.ModelsWithoutPricing ?? Array.Empty<string>();
-            var hasPricedModel = report.Models is { Count: > 0 } models &&
-                models.Any(model => !unpriced.Contains(model.Model, StringComparer.OrdinalIgnoreCase));
-            return pricing.IsEmpty || !hasPricedModel
-                ? $"{prefix} {CompactTokens(total)} token"
-                : $"{prefix} {MoneyText(report.TotalCost, pricing.Currency)} · {CompactTokens(total)} token";
+            return $"{prefix} · {CompactTokens(total)} token";
         }
 
         var todayLine = Line("Bugün", today);
@@ -1166,28 +1211,36 @@ public sealed partial class FlyoutWindow : Window
         if (lines.Count == 0)
         {
             CostSection.Visibility = Visibility.Collapsed;
+            CostAmount.Text = string.Empty;
             CostSummary.Text = string.Empty;
-            CostUnknownModels.Text = string.Empty;
-            CostUnknownModels.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var asOf = pricing.DownloadedAt is { } downloadedAt
-            ? $"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla."
-            : "Fiyat tablosu tarihi bilinmiyor.";
-        ToolTipService.SetToolTip(CostTitle, asOf);
-        CostSummary.Text = string.Join("\n", lines);
+        var primary = month is { TotalTokens: > 0 } ? month : today;
+        var primaryUnknown = primary?.ModelsWithoutPricing ?? Array.Empty<string>();
+        var primaryHasPricedModel = primary?.Models is { Count: > 0 } primaryModels &&
+            primaryModels.Any(model => !primaryUnknown.Contains(model.Model, StringComparer.OrdinalIgnoreCase));
+        CostAmount.Text = primary is not null &&
+            !pricing.IsEmpty &&
+            primaryHasPricedModel
+            ? $"{MoneyText(primary.TotalCost, pricing.Currency)}{(primaryUnknown.Count > 0 ? "*" : string.Empty)}"
+            : string.Empty;
+
+        var tooltipLines = new List<string>
+        {
+            "Aboneliğinle ödediğin tutar değil. Aynı kullanım API fiyatlarıyla bu kadar tutardı.",
+        };
         if (unpricedCount > 0)
         {
-            CostUnknownModels.Text =
-                $"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.";
-            CostUnknownModels.Visibility = Visibility.Visible;
+            tooltipLines.Add($"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.");
         }
-        else
+        if (pricing.DownloadedAt is { } downloadedAt)
         {
-            CostUnknownModels.Text = string.Empty;
-            CostUnknownModels.Visibility = Visibility.Collapsed;
+            tooltipLines.Add($"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla.");
         }
+
+        ToolTipService.SetToolTip(CostInfoIcon, string.Join("\n", tooltipLines));
+        CostSummary.Text = string.Join("\n", lines);
         CostSection.Visibility = Visibility.Visible;
         EnqueueResize();
     }
@@ -1373,9 +1426,9 @@ public sealed partial class FlyoutWindow : Window
         var originalCostAt = _costAt;
         var originalCostRun = _costRun;
         var originalCostVisibility = CostSection.Visibility;
+        var originalCostAmount = CostAmount.Text;
         var originalCostSummary = CostSummary.Text;
-        var originalCostUnknownModels = CostUnknownModels.Text;
-        var originalCostUnknownModelsVisibility = CostUnknownModels.Visibility;
+        var originalCostTooltip = ToolTipService.GetToolTip(CostInfoIcon);
         var originalMostUsedModelVisibility = MostUsedModelText.Visibility;
         var originalMostUsedModelText = MostUsedModelText.Text;
         var tallest = 0d;
@@ -1401,9 +1454,9 @@ public sealed partial class FlyoutWindow : Window
         _selectedId = originalId;
         RenderDetail();
         CostSection.Visibility = originalCostVisibility;
+        CostAmount.Text = originalCostAmount;
         CostSummary.Text = originalCostSummary;
-        CostUnknownModels.Text = originalCostUnknownModels;
-        CostUnknownModels.Visibility = originalCostUnknownModelsVisibility;
+        ToolTipService.SetToolTip(CostInfoIcon, originalCostTooltip);
         MostUsedModelText.Visibility = originalMostUsedModelVisibility;
         MostUsedModelText.Text = originalMostUsedModelText;
         _costForId = originalCostForId;

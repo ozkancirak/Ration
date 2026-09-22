@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using KalanTrace = Kalan.Core.Diagnostics.Trace;
 using Kalan.Core.Model;
 using Kalan.Core.Providers;
 
@@ -15,11 +16,12 @@ public sealed record ModelRate(
 /// <summary>
 /// Model fiyat tablosu.
 ///
-/// KASITLI OLARAK BOŞ GELİR. Sağlayıcı fiyatları sık değişir; kodun içine gömülen
-/// bir fiyat listesi zamanla sessizce yanlışlaşır ve kullanıcı yanlış maliyeti
-/// doğru sanır. Bunun yerine fiyatlar kullanıcının kendi dosyasından okunur:
+/// Sağlayıcı fiyatları sık değişir; kodun içine gömülen bir fiyat listesi zamanla
+/// sessizce yanlışlaşır ve kullanıcı yanlış maliyeti doğru sanır. Fiyatlar
+/// haftalık kaynak cache'inden ve kullanıcının override dosyasından okunur:
 ///
 ///   %LOCALAPPDATA%\Kalan\pricing.json
+///   %LOCALAPPDATA%\Kalan\pricing-overrides.json
 ///   {
 ///     "claude-sonnet": { "input": 3.00, "output": 15.00, "cacheRead": 0.30, "cacheWrite": 3.75 },
 ///     "gpt-6":         { "input": 1.25, "output": 10.00 }
@@ -59,8 +61,14 @@ public sealed class PricingTable
     /// <summary>Dosya yoksa ya da bozuksa boş tablo döner — asla exception atmaz.</summary>
     public static PricingTable LoadOrEmpty(string? path = null)
     {
+        var useDefaultChain = path is null;
         path ??= DefaultPath;
-        if (!File.Exists(path)) return Empty;
+        if (!File.Exists(path))
+        {
+            return useDefaultChain
+                ? LoadOrEmpty(KnownPaths.PricingOverridesFile)
+                : Empty;
+        }
 
         try
         {
@@ -104,7 +112,18 @@ public sealed class PricingTable
                 }
             }
 
-            return new PricingTable(rates, currency, downloadedAt);
+            var table = new PricingTable(rates, currency, downloadedAt);
+            if (!useDefaultChain) return table;
+
+            var merged = table.MergeMissing(
+                LoadOrEmpty(KnownPaths.PricingOverridesFile),
+                out var added);
+            if (added > 0)
+            {
+                KalanTrace.Info("pricing", $"source=overrides added={added}");
+            }
+
+            return merged;
         }
         catch (JsonException) { return Empty; }
         catch (IOException) { return Empty; }
@@ -130,6 +149,22 @@ public sealed class PricingTable
         }
 
         return best;
+    }
+
+    /// <summary>
+    /// Bu tablodaki fiyatları koruyup fallback tablosundan yalnızca eksikleri ekler.
+    /// Böylece kaynak zincirinde ilk bulunan kayıt kazanır.
+    /// </summary>
+    public PricingTable MergeMissing(PricingTable fallback, out int added)
+    {
+        var rates = new Dictionary<string, ModelRate>(_rates, StringComparer.OrdinalIgnoreCase);
+        added = 0;
+        foreach (var (model, rate) in fallback._rates)
+        {
+            if (rates.TryAdd(model, rate)) added++;
+        }
+
+        return new PricingTable(rates, Currency, DownloadedAt);
     }
 
     /// <summary>
@@ -169,6 +204,53 @@ public sealed class PricingTable
         }
 
         return new PricingTable(rates, "USD", downloadedAt);
+    }
+
+    /// <summary>
+    /// models.dev /api.json şemasını okur: provider.models[model].cost.
+    /// cost değerleri README'deki sözleşmeye göre milyon token başına USD'dir.
+    /// </summary>
+    public static PricingTable FromModelsDevJson(
+        string json,
+        DateTimeOffset downloadedAt)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return Empty;
+        }
+
+        var rates = new Dictionary<string, ModelRate>(StringComparer.OrdinalIgnoreCase);
+        foreach (var provider in document.RootElement.EnumerateObject())
+        {
+            if (provider.Value.ValueKind != JsonValueKind.Object ||
+                !provider.Value.TryGetProperty("models", out var models) ||
+                models.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            foreach (var model in models.EnumerateObject())
+            {
+                if (model.Value.ValueKind != JsonValueKind.Object ||
+                    !TryReadModelsDevRate(model.Value, out var rate))
+                {
+                    continue;
+                }
+
+                AddRateWithAliases(rates, model.Name, rate);
+                if (model.Value.TryGetProperty("id", out var id) &&
+                    id.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(id.GetString()))
+                {
+                    AddRateWithAliases(rates, id.GetString()!, rate);
+                }
+            }
+        }
+
+        return rates.Count == 0
+            ? Empty
+            : new PricingTable(rates, "USD", downloadedAt);
     }
 
     internal IReadOnlyDictionary<string, ModelRate> Rates => _rates;
@@ -287,6 +369,44 @@ public sealed class PricingTable
         return true;
     }
 
+    private static bool TryReadModelsDevRate(JsonElement element, out ModelRate rate)
+    {
+        if (!element.TryGetProperty("cost", out var cost) ||
+            cost.ValueKind != JsonValueKind.Object)
+        {
+            rate = default!;
+            return false;
+        }
+
+        var input = ReadDecimal(cost, "input");
+        var output = ReadDecimal(cost, "output");
+        var cacheRead = ReadDecimal(cost, "cache_read");
+        var cacheWrite = ReadDecimal(cost, "cache_write");
+        var hasAny = HasProperty(cost, "input") ||
+                     HasProperty(cost, "output") ||
+                     HasProperty(cost, "cache_read") ||
+                     HasProperty(cost, "cache_write");
+        if (!hasAny)
+        {
+            rate = default!;
+            return false;
+        }
+
+        rate = new ModelRate(input, output, cacheRead, cacheWrite);
+        return true;
+    }
+
+    private static void AddRateWithAliases(
+        IDictionary<string, ModelRate> rates,
+        string model,
+        ModelRate rate)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return;
+
+        rates.TryAdd(model, rate);
+        foreach (var alias in Aliases(model)) rates.TryAdd(alias, rate);
+    }
+
     private static decimal ReadLiteLlmDecimal(
         JsonElement element,
         string name,
@@ -360,7 +480,11 @@ public static class CostEstimator
 
             if (rate is null)
             {
-                if (model.TotalTokens > 0) unpriced.Add(model.Model);
+                if (model.TotalTokens > 0)
+                {
+                    unpriced.Add(model.Model);
+                    KalanTrace.Info("pricing", $"model-unpriced model={model.Model}");
+                }
                 continue;
             }
 
@@ -415,7 +539,11 @@ public static class CostEstimator
             var rate = pricing.Find(aliases?.Resolve(model.Model) ?? model.Model);
             if (rate is null)
             {
-                if (model.Tokens > 0) unpriced.Add(model.Model);
+                if (model.Tokens > 0)
+                {
+                    unpriced.Add(model.Model);
+                    KalanTrace.Info("pricing", $"model-unpriced model={model.Model}");
+                }
                 continue;
             }
 

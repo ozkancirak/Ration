@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Model;
+using KalanTrace = Kalan.Core.Diagnostics.Trace;
 
 namespace Kalan.Core.Providers.Codex;
 
@@ -53,6 +54,9 @@ public sealed class CodexOAuthUsageSource : IUsageSource
             using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             LastRawResponse = body;
+            KalanTrace.Info(
+                "provider.http",
+                $"provider=codex endpoint=usage status={(int)response.StatusCode}");
 
             if ((int)response.StatusCode == 429)
             {
@@ -89,11 +93,13 @@ public sealed class CodexOAuthUsageSource : IUsageSource
         }
         catch (JsonException ex)
         {
+            KalanTrace.Error("provider.http", $"provider=codex endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("codex", ProviderStatus.Error,
                 $"JSON ayrıştırılamadı: {ex.Message}", Kind);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            KalanTrace.Error("provider.http", $"provider=codex endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("codex", ProviderStatus.Error,
                 $"Ağ hatası: {ex.GetType().Name}", Kind);
         }

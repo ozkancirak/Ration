@@ -104,6 +104,8 @@ public static class KnownPaths
 
     public static string OpenCodeFreeModelsFile => Path.Combine(CacheDir, "free-models.json");
 
+    public static string PricingOverridesFile => Path.Combine(CacheDir, "pricing-overrides.json");
+
     // --- Kalan'ın kendi alanı (yazılabilir tek yer) ---
 
     public static string CacheDir => Path.Combine(

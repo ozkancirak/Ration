@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Kalan.Core.Abstractions;
 using Kalan.Core.Model;
+using KalanTrace = Kalan.Core.Diagnostics.Trace;
 
 namespace Kalan.Core.Providers.OpenCode;
 
@@ -248,6 +249,9 @@ public sealed class OpenCodeUsageSource : IUsageSource
             using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
             LastStatusCode = (int)response.StatusCode;
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            KalanTrace.Info(
+                "provider.http",
+                $"provider=opencode endpoint=usage status={(int)response.StatusCode}");
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
@@ -273,7 +277,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StaleReason: "OpenCode Go aboneliği yok — kota yok.",
-                    PlanName: "OpenCode Go",
+                    PlanName: "Kota yok",
                     StatusDetail: "OpenCode Go aboneliği yok — sunucu kotası kullanılamıyor.");
             }
 
@@ -306,11 +310,13 @@ public sealed class OpenCodeUsageSource : IUsageSource
         }
         catch (JsonException ex)
         {
+            KalanTrace.Error("provider.http", $"provider=opencode endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("opencode", ProviderStatus.Error,
                 $"OpenCode JSON ayrıştırılamadı: {ex.Message}", Kind);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            KalanTrace.Error("provider.http", $"provider=opencode endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("opencode", ProviderStatus.Error,
                 $"OpenCode ağ hatası: {ex.GetType().Name}", Kind);
         }

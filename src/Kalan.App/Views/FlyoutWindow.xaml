@@ -39,7 +39,7 @@
                       VerticalScrollMode="Disabled">
             <StackPanel x:Name="TabStrip"
                         Orientation="Horizontal"
-                        Spacing="4"
+                        Spacing="0"
                         HorizontalAlignment="Left" />
         </ScrollViewer>
 
@@ -149,7 +149,7 @@
                                    Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap"
-                                   MaxLines="3"
+                                   MaxLines="2"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
@@ -164,22 +164,32 @@
 
                 <!--  Maliyet özeti (yerel JSONL taraması; veri yoksa gizli)  -->
                 <StackPanel x:Name="CostSection" Spacing="4" Visibility="Collapsed">
-                    <TextBlock x:Name="CostTitle"
-                               Text="API karşılığı"
-                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                    <TextBlock Text="Aboneliğinle ödediğin tutar değil; aynı kullanım API fiyatlarıyla bu kadar tutardı."
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               TextWrapping="Wrap" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock x:Name="CostTitle"
+                                       Text="API karşılığı"
+                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <FontIcon x:Name="CostInfoIcon"
+                                      Glyph="&#xE946;"
+                                      FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="CostAmount"
+                                   Grid.Column="1"
+                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
                     <TextBlock x:Name="CostSummary"
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                               TextWrapping="Wrap" />
-                    <TextBlock x:Name="CostUnknownModels"
-                               Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                TextWrapping="Wrap"
-                               Visibility="Collapsed" />
+                               MaxLines="2"
+                               TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 </StackPanel>
             </Grid>

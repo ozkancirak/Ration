@@ -231,6 +231,56 @@ public class PricingTests
     }
 
     [Fact]
+    public void ModelsDevMaliyetSemasiniOkur()
+    {
+        var table = PricingTable.FromModelsDevJson("""
+            {
+              "anthropic": {
+                "models": {
+                  "claude-sonnet-4-6": {
+                    "id": "anthropic/claude-sonnet-4-6",
+                    "cost": {
+                      "input": 3.0,
+                      "output": 15.0,
+                      "cache_read": 0.3,
+                      "cache_write": 3.75
+                    }
+                  }
+                }
+              }
+            }
+            """, DateTimeOffset.UtcNow);
+
+        var rate = table.Find("claude-sonnet-4-6-20260901");
+
+        Assert.NotNull(rate);
+        Assert.Equal(3m, rate!.InputPerMillion);
+        Assert.Equal(15m, rate.OutputPerMillion);
+        Assert.Equal(0.3m, rate.CacheReadPerMillion);
+        Assert.Equal(3.75m, rate.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void FiyatZincirindeIlkKaynakKazanir()
+    {
+        var first = new PricingTable(new Dictionary<string, ModelRate>
+        {
+            ["model"] = new(1m, 2m, 0m, 0m),
+        });
+        var fallback = new PricingTable(new Dictionary<string, ModelRate>
+        {
+            ["model"] = new(9m, 9m, 0m, 0m),
+            ["eksik"] = new(3m, 4m, 0m, 0m),
+        });
+
+        var merged = first.MergeMissing(fallback, out var added);
+
+        Assert.Equal(1, added);
+        Assert.Equal(1m, merged.Find("model")!.InputPerMillion);
+        Assert.Equal(3m, merged.Find("eksik")!.InputPerMillion);
+    }
+
+    [Fact]
     public void ModelBazliTokenlarVeEnCokKullanilanModelTasincir()
     {
         var tally = new TokenTally();
