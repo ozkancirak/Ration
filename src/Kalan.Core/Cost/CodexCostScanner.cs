@@ -13,8 +13,9 @@ namespace Kalan.Core.Cost;
 /// GİZLİLİK: yalnızca sayılar ve model adı okunur, konuşma içeriği hiç açılmaz.
 ///
 /// Çift sayım koruması: bir olay "bu adımda kullanılan" (last_token_usage) ya da
-/// "oturum toplamı" (total_token_usage) bildirebilir. İlki toplanır; yalnızca
-/// ikincisi varsa dosya başına EN BÜYÜĞÜ bir kez eklenir.
+/// "oturum toplamı" (total_token_usage) bildirebilir. total_token_usage varsa
+/// kümülatif ilerleme delta olarak alınır; yalnızca last_token_usage varsa aynı
+/// bildirimin tekrarı tekilleştirilir.
 /// </summary>
 public static class CodexCostScanner
 {
@@ -33,6 +34,7 @@ public static class CodexCostScanner
         }
 
         var filesScanned = 0;
+        var periodKnown = true;
 
         IEnumerable<string> files;
         try
@@ -50,13 +52,11 @@ public static class CodexCostScanner
 
             try
             {
-                if (File.GetLastWriteTimeUtc(file) < since.UtcDateTime) continue;
-
                 using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var reader = new StreamReader(stream);
 
                 filesScanned++;
-                ScanFile(reader, tally);
+                ScanFile(reader, since, tally, ref periodKnown);
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
@@ -66,18 +66,27 @@ public static class CodexCostScanner
             ? "Token verisi bulunamadı. Şema doğrulanmamış — 'kalan cost --schema' ile anahtarları görebilirsiniz."
             : "Şema henüz gerçek veriyle doğrulanmadı; sayıları bir kez teyit edin.";
 
-        return new CostScanResult(tally, since, now, filesScanned, note);
+        return new CostScanResult(tally, since, now, filesScanned, note)
+        {
+            PeriodKnown = periodKnown,
+        };
     }
 
-    private static void ScanFile(StreamReader reader, TokenTally tally)
+    private sealed record TokenEvent(
+        string? Model,
+        long[] Usage,
+        DateTimeOffset? At,
+        bool Cumulative,
+        string? Identity);
+
+    private static void ScanFile(
+        StreamReader reader,
+        DateTimeOffset since,
+        TokenTally tally,
+        ref bool periodKnown)
     {
         string? currentModel = null;
-
-        // Dosya boyunca yalnızca "toplam" bildiren olaylar varsa, en büyüğünü
-        // bir kez ekleriz. Adım bazlı (last) veri geldiyse toplam hiç kullanılmaz.
-        var sawIncremental = false;
-        long[]? bestTotal = null;
-        string? bestTotalModel = null;
+        var events = new List<TokenEvent>();
 
         while (reader.ReadLine() is { } line)
         {
@@ -96,31 +105,126 @@ public static class CodexCostScanner
                 var info = FindTokenCountInfo(root);
                 if (info is null) continue;
 
-                var incremental = ReadUsage(info.Value, "last_token_usage");
-
-                if (incremental is not null)
+                // total_token_usage kümülatiftir. Aynı olayda hem total hem last
+                // varsa yalnızca total kullanılır; iki alanı toplamak yanlıştır.
+                var total = ReadUsage(info.Value, "total_token_usage");
+                if (total is not null)
                 {
-                    sawIncremental = true;
-                    tally.Add(currentModel, incremental[0], incremental[1], incremental[2], incremental[3], incremental[4]);
+                    events.Add(new TokenEvent(
+                        currentModel,
+                        total,
+                        ReadEventTimestamp(root),
+                        Cumulative: true,
+                        ReadEventIdentity(root)));
                     continue;
                 }
 
-                var total = ReadUsage(info.Value, "total_token_usage") ?? ReadUsageDirect(info.Value);
-
-                if (total is not null && (bestTotal is null || Sum(total) > Sum(bestTotal)))
+                var incremental = ReadUsage(info.Value, "last_token_usage") ?? ReadUsageDirect(info.Value);
+                if (incremental is not null)
                 {
-                    bestTotal = total;
-                    bestTotalModel = currentModel;
+                    events.Add(new TokenEvent(
+                        currentModel,
+                        incremental,
+                        ReadEventTimestamp(root),
+                        Cumulative: false,
+                        ReadEventIdentity(root)));
                 }
             }
             catch (JsonException) { }
         }
 
-        if (!sawIncremental && bestTotal is not null)
+        if (events.Any(item => item.Cumulative))
         {
-            tally.Add(bestTotalModel, bestTotal[0], bestTotal[1], bestTotal[2], bestTotal[3], bestTotal[4]);
+            AddCumulative(events.Where(item => item.Cumulative), since, tally, ref periodKnown);
+        }
+        else
+        {
+            AddIncremental(events, since, tally, ref periodKnown);
         }
     }
+
+    private static void AddCumulative(
+        IEnumerable<TokenEvent> events,
+        DateTimeOffset since,
+        TokenTally tally,
+        ref bool periodKnown)
+    {
+        long[]? previous = null;
+
+        // Normal Codex logları kronolojiktir; sıralama, dosyanın kısmi yeniden
+        // yazıldığı durumda sayaç delta'sının ters dönmesini de engeller.
+        foreach (var item in events.OrderBy(item => item.At ?? DateTimeOffset.MaxValue))
+        {
+            if (!IncludeInPeriod(item.At, since, ref periodKnown))
+            {
+                previous = (long[])item.Usage.Clone();
+                continue;
+            }
+
+            var delta = previous is null || HasDecreased(item.Usage, previous)
+                ? item.Usage
+                : Subtract(item.Usage, previous);
+
+            previous = (long[])item.Usage.Clone();
+            if (Sum(delta) == 0) continue;
+
+            tally.Add(item.Model, delta[0], delta[1], delta[2], delta[3], delta[4]);
+        }
+    }
+
+    private static void AddIncremental(
+        IEnumerable<TokenEvent> events,
+        DateTimeOffset since,
+        TokenTally tally,
+        ref bool periodKnown)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var item in events)
+        {
+            if (!IncludeInPeriod(item.At, since, ref periodKnown)) continue;
+
+            // Aynı JSON satırı/olay iki kez yazılmışsa kullanım artırılmaz. Olay
+            // kimliği varsa onu, yoksa sağlayıcı kullanım vektörünü kullan.
+            var fingerprint = item.Identity is { Length: > 0 }
+                ? $"id\0{item.Identity}"
+                : $"usage\0{item.Model}\0{string.Join(',', item.Usage)}";
+            if (!seen.Add(fingerprint)) continue;
+
+            tally.Add(item.Model, item.Usage[0], item.Usage[1], item.Usage[2], item.Usage[3], item.Usage[4]);
+        }
+    }
+
+    private static bool IncludeInPeriod(
+        DateTimeOffset? at,
+        DateTimeOffset since,
+        ref bool periodKnown)
+    {
+        if (at is null)
+        {
+            periodKnown = false;
+            return true;
+        }
+
+        return at >= since;
+    }
+
+    private static bool HasDecreased(long[] current, long[] previous) =>
+        current[0] < previous[0] ||
+        current[1] < previous[1] ||
+        current[2] < previous[2] ||
+        current[3] < previous[3] ||
+        current[4] < previous[4];
+
+    private static long[] Subtract(long[] current, long[] previous) =>
+        new[]
+        {
+            Math.Max(0, current[0] - previous[0]),
+            Math.Max(0, current[1] - previous[1]),
+            Math.Max(0, current[2] - previous[2]),
+            Math.Max(0, current[3] - previous[3]),
+            Math.Max(0, current[4] - previous[4]),
+        };
 
     // Reasoning alt küme olduğu için büyüklük karşılaştırmasına dahil edilmez.
     private static long Sum(long[] usage) => usage[0] + usage[1] + usage[2] + usage[3];
@@ -163,14 +267,21 @@ public static class CodexCostScanner
     {
         if (element.ValueKind != JsonValueKind.Object) return null;
 
-        var input = ReadLong(element, "input_tokens");
+        var rawInput = ReadLong(element, "input_tokens");
         var output = ReadLong(element, "output_tokens");
-        var cacheRead = ReadLong(element, "cached_input_tokens") + ReadLong(element, "cache_read_input_tokens");
+        var cacheRead = Math.Max(
+            ReadLong(element, "cached_input_tokens"),
+            ReadLong(element, "cache_read_input_tokens"));
 
-        // Codex "cache_write_input_tokens" der, Claude "cache_creation_input_tokens".
-        // İkisini de kabul et — ilki eksikti ve önbellek yazma hep 0 görünüyordu.
-        var cacheWrite = ReadLong(element, "cache_write_input_tokens")
-                       + ReadLong(element, "cache_creation_input_tokens");
+        // Codex input_tokens cache dahil toplam girdidir. Cache'i ikinci kez
+        // saymamak için sağlayıcı sınırında normal girdiye ayır.
+        var input = Math.Max(0, rawInput - cacheRead);
+
+        // Codex "cache_write_input_tokens" der. İkinci ad yalnızca toleranslı
+        // okuma içindir; iki isim aynı değeri taşıyorsa iki kez toplama.
+        var cacheWrite = Math.Max(
+            ReadLong(element, "cache_write_input_tokens"),
+            ReadLong(element, "cache_creation_input_tokens"));
 
         // reasoning_output_tokens, output_tokens'ın ALT KÜMESİdır; ayrı tutulur,
         // toplama eklenmez (eklenirse çıktı iki kez sayılır).
@@ -180,6 +291,71 @@ public static class CodexCostScanner
         if (input == 0 && output == 0 && cacheRead == 0 && cacheWrite == 0 && reasoning == 0) return null;
 
         return new[] { input, output, cacheRead, cacheWrite, reasoning };
+    }
+
+    private static DateTimeOffset? ReadEventTimestamp(JsonElement root)
+    {
+        if (root.TryGetProperty("timestamp", out var timestamp) &&
+            ReadTimestamp(timestamp) is { } at)
+        {
+            return at;
+        }
+
+        if (root.TryGetProperty("payload", out var payload) &&
+            payload.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("timestamp", out var payloadTimestamp))
+        {
+            return ReadTimestamp(payloadTimestamp);
+        }
+
+        return null;
+    }
+
+    private static string? ReadEventIdentity(JsonElement root)
+    {
+        foreach (var name in new[] { "id", "event_id", "message_id", "response_id" })
+        {
+            if (root.TryGetProperty(name, out var value) &&
+                value.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(value.GetString()))
+            {
+                return value.GetString();
+            }
+        }
+
+        if (root.TryGetProperty("payload", out var payload) &&
+            payload.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var name in new[] { "id", "event_id", "message_id", "response_id" })
+            {
+                if (payload.TryGetProperty(name, out var value) &&
+                    value.ValueKind == JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(value.GetString()))
+                {
+                    return value.GetString();
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? ReadTimestamp(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(element.GetString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var epoch))
+        {
+            return epoch > 100_000_000_000L
+                ? DateTimeOffset.FromUnixTimeMilliseconds(epoch)
+                : DateTimeOffset.FromUnixTimeSeconds(epoch);
+        }
+
+        return null;
     }
 
     private static string? FindModel(JsonElement root)

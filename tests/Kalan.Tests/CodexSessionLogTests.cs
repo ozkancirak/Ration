@@ -56,6 +56,7 @@ public class CodexSessionLogTests : IDisposable
         Assert.Equal(TimeSpan.FromDays(7), weekly.WindowLength);
 
         Assert.Equal("plus", snapshot.PlanName);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-20T10:00:00Z"), snapshot.FetchedAt);
         Assert.Contains("oturum kaydından", snapshot.StaleReason);
     }
 

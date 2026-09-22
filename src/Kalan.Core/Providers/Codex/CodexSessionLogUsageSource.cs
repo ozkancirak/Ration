@@ -80,7 +80,9 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
                     Cost: null,
                     Status: hit.Data.Windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
                     ResolvedVia: Kind,
-                    FetchedAt: DateTimeOffset.UtcNow,
+                    // Bu kaynak ağ yanıtı değil; ölçümün zamanını koru. Okuma
+                    // anını FetchedAt yapmak eski kotayı yeni alınmış gösterir.
+                    FetchedAt: hit.At,
                     StaleReason: hit.Data.Windows.Count > 0
                         ? $"oturum kaydından · {age}"
                         : "Oturum loglarında rate_limits bulunamadı.",

@@ -20,6 +20,10 @@ public static class UpdateService
 {
     private const string SettingsKeyPath = @"Software\Kalan";
     private const string LastCheckValueName = "UpdatesLastCheckedUtc";
+    private const string LastSucceededValueName = "UpdatesLastSucceeded";
+    private const string UpdateAvailableValueName = "UpdatesUpdateAvailable";
+    private const string AvailableVersionValueName = "UpdatesAvailableVersion";
+    private const string IsInstalledValueName = "UpdatesIsInstalled";
     private const string DefaultRepository = "https://github.com/ozkancirak/CodexBar";
 
     public static string RepositoryUrl =>
@@ -36,7 +40,7 @@ public static class UpdateService
         }
     }
 
-    public static DateTimeOffset? LastCheckedAt
+    public static UpdateCheckResult? LastResult
     {
         get
         {
@@ -44,15 +48,25 @@ public static class UpdateService
             {
                 using var key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, writable: false);
                 var value = key?.GetValue(LastCheckValueName) as string;
-                return DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
+                if (!DateTimeOffset.TryParse(value, out var checkedAt)) return null;
+
+                var succeeded = key?.GetValue(LastSucceededValueName) is int success && success != 0;
+                var updateAvailable = key?.GetValue(UpdateAvailableValueName) is int available && available != 0;
+                var installed = key?.GetValue(IsInstalledValueName) is int isInstalled && isInstalled != 0;
+                var version = key?.GetValue(AvailableVersionValueName) as string;
+
+                return new UpdateCheckResult(installed, updateAvailable, version, succeeded, checkedAt);
             }
             catch { return null; }
         }
     }
 
+    public static DateTimeOffset? LastCheckedAt => LastResult?.CheckedAt;
+
     public static async Task<UpdateCheckResult> CheckAsync()
     {
         var checkedAt = DateTimeOffset.UtcNow;
+        UpdateCheckResult result;
         try
         {
             var manager = new UpdateManager(
@@ -60,39 +74,48 @@ public static class UpdateService
 
             if (!manager.IsInstalled)
             {
-                SaveLastCheckedAt(checkedAt);
-                return new(false, false, null, false, checkedAt);
+                result = new(false, false, null, false, checkedAt);
+                SaveResult(result);
+                return result;
             }
 
             var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
-            SaveLastCheckedAt(checkedAt);
 
             if (update is null)
             {
-                return new(true, false, null, true, checkedAt);
+                result = new(true, false, null, true, checkedAt);
+                SaveResult(result);
+                return result;
             }
 
-            return new(
+            result = new(
                 true,
                 true,
                 update.TargetFullRelease.Version.ToString(),
                 true,
                 checkedAt);
+            SaveResult(result);
+            return result;
         }
         catch (Exception ex)
         {
-            SaveLastCheckedAt(checkedAt);
             Trace.Error("updates", $"check failed type={ex.GetType().Name}");
-            return new(true, false, null, false, checkedAt);
+            result = new(true, false, null, false, checkedAt);
+            SaveResult(result);
+            return result;
         }
     }
 
-    private static void SaveLastCheckedAt(DateTimeOffset timestamp)
+    private static void SaveResult(UpdateCheckResult result)
     {
         try
         {
             using var key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath, writable: true);
-            key?.SetValue(LastCheckValueName, timestamp.ToString("O"));
+            key?.SetValue(LastCheckValueName, result.CheckedAt.ToString("O"));
+            key?.SetValue(LastSucceededValueName, result.Succeeded ? 1 : 0, RegistryValueKind.DWord);
+            key?.SetValue(UpdateAvailableValueName, result.UpdateAvailable ? 1 : 0, RegistryValueKind.DWord);
+            key?.SetValue(IsInstalledValueName, result.IsInstalled ? 1 : 0, RegistryValueKind.DWord);
+            key?.SetValue(AvailableVersionValueName, result.AvailableVersion ?? string.Empty);
         }
         catch (Exception ex)
         {

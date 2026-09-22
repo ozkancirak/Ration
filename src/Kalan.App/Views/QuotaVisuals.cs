@@ -49,7 +49,9 @@ public static class QuotaVisuals
 
         if (remaining <= TimeSpan.Zero)
         {
-            return stale ? "sıfırlanmış olabilir" : "sıfırlandı";
+            return stale
+                ? "sıfırlanmış olabilir"
+                : "Sıfırlanma zamanı geldi — doğrulanıyor";
         }
         if (remaining.TotalMinutes < 60) return $"{(int)remaining.TotalMinutes} dk";
         if (remaining.TotalHours < 24) return $"{(int)remaining.TotalHours} sa {remaining.Minutes} dk";

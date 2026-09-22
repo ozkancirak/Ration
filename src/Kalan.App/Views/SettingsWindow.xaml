@@ -47,15 +47,17 @@
                                        Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
                                        IsExpanded="true">
                 <controls:SettingsExpander.Items>
-                        <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
                                                Description="~/.claude/.credentials.json oturumu">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <InfoBadge Style="{StaticResource SuccessDotInfoBadgeStyle}" VerticalAlignment="Center" />
-                                <TextBlock Text="Bağlı"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           FontWeight="SemiBold"
+                                <InfoBadge x:Name="ClaudeProviderBadge"
+                                           Style="{StaticResource SuccessDotInfoBadgeStyle}"
                                            VerticalAlignment="Center" />
+                                <TextBlock x:Name="ClaudeProviderStatus"
+                                            Text="Denetleniyor…"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            FontWeight="SemiBold"
+                                            VerticalAlignment="Center" />
                             </StackPanel>
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Maliyet Taraması"
@@ -88,15 +90,17 @@
                                        Description="Yerel kimlik bilgileri ve kullanım kotası takibi"
                                        IsExpanded="true">
                 <controls:SettingsExpander.Items>
-                        <!-- 6a: Devre dışı toggle yerine InfoBadge ve "Bağlı" durumu -->
                         <controls:SettingsCard Header="Sağlayıcı Durumu"
                                                Description="~/.codex/auth.json oturumu">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <InfoBadge Style="{StaticResource SuccessDotInfoBadgeStyle}" VerticalAlignment="Center" />
-                                <TextBlock Text="Bağlı"
-                                           Style="{StaticResource CaptionTextBlockStyle}"
-                                           FontWeight="SemiBold"
+                                <InfoBadge x:Name="CodexProviderBadge"
+                                           Style="{StaticResource SuccessDotInfoBadgeStyle}"
                                            VerticalAlignment="Center" />
+                                <TextBlock x:Name="CodexProviderStatus"
+                                            Text="Denetleniyor…"
+                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                            FontWeight="SemiBold"
+                                            VerticalAlignment="Center" />
                             </StackPanel>
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Maliyet Taraması"
@@ -128,15 +132,15 @@
                        Margin="0,16,0,0" />
 
                 <controls:SettingsCard Header="Yenileme Sıklığı"
-                                       Description="Kotaların arka planda otomatik sorgulanma aralığı">
+                                        Description="Kotaların arka planda otomatik sorgulanma aralığı">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE72C;" />
                     </controls:SettingsCard.HeaderIcon>
-                    <ComboBox SelectedIndex="0" MinWidth="140">
-                        <ComboBoxItem Content="5 dakika" />
-                        <ComboBoxItem Content="15 dakika" />
-                        <ComboBoxItem Content="30 dakika" />
-                        <ComboBoxItem Content="1 saat" />
+                    <ComboBox x:Name="RefreshIntervalSelection" MinWidth="140">
+                        <ComboBoxItem Content="5 dakika" Tag="5" />
+                        <ComboBoxItem Content="15 dakika" Tag="15" />
+                        <ComboBoxItem Content="30 dakika" Tag="30" />
+                        <ComboBoxItem Content="1 saat" Tag="60" />
                     </ComboBox>
                 </controls:SettingsCard>
 

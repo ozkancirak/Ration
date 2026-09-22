@@ -124,6 +124,14 @@ public class PaceCalculatorTests
     }
 
     [Fact]
+    public void CokYeniPencerede_GecmisOraniYetersizse_SatirGosterilmez()
+    {
+        Assert.Null(PaceCalculator.Calculate(
+            Window(90, TimeSpan.FromHours(5), TimeSpan.FromHours(4) + TimeSpan.FromMinutes(52)),
+            DateTimeOffset.UtcNow));
+    }
+
+    [Fact]
     public void Sure_Bicimlendirme_KisaYazar()
     {
         Assert.Equal("5 dk", PaceCalculator.FormatDuration(TimeSpan.FromMinutes(5)));

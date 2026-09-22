@@ -88,4 +88,11 @@ public sealed record CostScanResult(
     DateTimeOffset PeriodStart,
     DateTimeOffset PeriodEnd,
     int FilesScanned,
-    string? Note = null);
+    string? Note = null)
+{
+    /// <summary>
+    /// false when one or more counted events had no usable event timestamp.
+    /// Such a result must not be presented as an exact calendar period.
+    /// </summary>
+    public bool PeriodKnown { get; init; } = true;
+}

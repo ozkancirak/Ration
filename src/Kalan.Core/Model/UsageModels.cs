@@ -77,7 +77,10 @@ public sealed record CostReport(
     long ReasoningTokens = 0,
     IReadOnlyList<string>? ModelsWithoutPricing = null,
     IReadOnlyList<ModelTokenUsage>? Models = null,
-    FreeModelUsage? FreeUsage = null)
+    FreeModelUsage? FreeUsage = null,
+    // false means the local scan included an event without a usable timestamp;
+    // the UI must not label that total as an exact "last 30 days" period.
+    bool PeriodKnown = true)
 {
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
 }

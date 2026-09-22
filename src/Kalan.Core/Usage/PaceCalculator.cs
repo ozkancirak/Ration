@@ -15,6 +15,7 @@ public sealed record PaceResult(double Tempo, TimeSpan DepletesIn);
 public static class PaceCalculator
 {
     private static readonly TimeSpan SoonThreshold = TimeSpan.FromMinutes(5);
+    private const double MinimumHistoricalRatio = 0.03;
 
     public static PaceResult? Calculate(UsageWindow window, DateTimeOffset now)
     {
@@ -26,7 +27,7 @@ public static class PaceCalculator
 
         var remaining = window.ResetsAt.Value - now;
         var elapsedRatio = Math.Clamp((length - remaining) / length, 0, 1);
-        if (elapsedRatio <= 0) return null; // pencere yeni sıfırlandı, anlamlı oran yok
+        if (elapsedRatio < MinimumHistoricalRatio) return null; // çok yeni pencere, güvenilir tempo yok
 
         var used = window.Percent / 100.0;
         var tempo = used - elapsedRatio;
@@ -60,7 +61,7 @@ public static class PaceCalculator
     {
         if (window.ResetsAt is not { } reset) return "Tükendi";
         var remaining = reset - now;
-        if (remaining <= TimeSpan.Zero) return "Tükendi · sıfırlandı";
+        if (remaining <= TimeSpan.Zero) return "Tükendi · sıfırlanma zamanı geldi — doğrulanıyor";
         return $"Tükendi · {FormatDuration(remaining)} sonra sıfırlanır";
     }
 

@@ -19,13 +19,48 @@ if ([string]::IsNullOrWhiteSpace($version)) {
     throw 'Kalan.App.csproj içinde Version bulunamadı.'
 }
 
-$outputRoot = [IO.Path]::GetFullPath($OutputRoot)
+$outputPath = if ([IO.Path]::IsPathRooted($OutputRoot)) {
+    $OutputRoot
+} else {
+    Join-Path $repoRoot $OutputRoot
+}
+$outputRoot = [IO.Path]::GetFullPath($outputPath)
+$artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
+
+# OutputRoot is user input. Keep packaging inside the repository's explicit
+# artifacts area and never recursively remove the root itself.
+$artifactsUri = [Uri]::new($artifactsRoot.TrimEnd('\') + '\')
+$outputUri = [Uri]::new($outputRoot.TrimEnd('\') + '\')
+$relativeUri = $artifactsUri.MakeRelativeUri($outputUri)
+$relativeOutput = [Uri]::UnescapeDataString($relativeUri.ToString())
+if ($relativeUri.IsAbsoluteUri -or
+    $relativeOutput.StartsWith('../', [StringComparison]::Ordinal) -or
+    $relativeOutput.StartsWith('..\', [StringComparison]::Ordinal)) {
+    throw "-OutputRoot yalnızca repo\artifacts altında olabilir: $outputRoot"
+}
+
+if (Test-Path -LiteralPath $outputRoot) {
+    $outputItem = Get-Item -LiteralPath $outputRoot -Force
+    if ($outputItem.PSIsContainer -and
+        ($outputItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "-OutputRoot reparse/junction olamaz: $outputRoot"
+    }
+}
+
 $publishDir = Join-Path $outputRoot 'publish'
 $releaseDir = Join-Path $outputRoot 'releases'
 $icon = Join-Path $repoRoot 'src\Kalan.App\Assets\AppIcon.ico'
 
-if (Test-Path -LiteralPath $outputRoot) {
-    Remove-Item -LiteralPath $outputRoot -Recurse -Force
+foreach ($ownedDir in @($publishDir, $releaseDir)) {
+    if (-not (Test-Path -LiteralPath $ownedDir)) { continue }
+
+    $ownedItem = Get-Item -LiteralPath $ownedDir -Force
+    if (-not $ownedItem.PSIsContainer -or
+        ($ownedItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw "Paketleme çıktı klasörü normal bir klasör değil: $ownedDir"
+    }
+
+    Remove-Item -LiteralPath $ownedDir -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $publishDir, $releaseDir | Out-Null
 

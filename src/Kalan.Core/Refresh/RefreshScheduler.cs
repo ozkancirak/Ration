@@ -44,6 +44,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
     private readonly Dictionary<string, CircuitBreaker> _breakers;
     private readonly ConcurrentDictionary<string, UsageSnapshot> _current = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _stopping = new();
+    private long _intervalTicks;
 
     private Task? _loop;
     private volatile bool _paused;
@@ -58,6 +59,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
         _providers = providers.ToList();
         _cache = cache ?? new SnapshotCache();
         _options = options ?? new RefreshOptions();
+        _intervalTicks = NormalizeInterval(_options.Interval).Ticks;
         _gate = new SemaphoreSlim(Math.Max(1, _options.MaxConcurrency));
 
         _breakers = _providers.ToDictionary(
@@ -68,6 +70,12 @@ public sealed class RefreshScheduler : IAsyncDisposable
 
     /// <summary>Bilinen son snapshot'lar. UI ilk çizimini buradan yapabilir.</summary>
     public IReadOnlyDictionary<string, UsageSnapshot> Current => _current;
+
+    public TimeSpan Interval => TimeSpan.FromTicks(Volatile.Read(ref _intervalTicks));
+
+    /// <summary>Canlı ayar değişikliğini sonraki arka plan turuna uygular.</summary>
+    public void SetInterval(TimeSpan interval) =>
+        Volatile.Write(ref _intervalTicks, NormalizeInterval(interval).Ticks);
 
     /// <summary>Ekran kilitli ya da pil tasarrufundayken çağrılır.</summary>
     public void Pause() => _paused = true;
@@ -100,10 +108,9 @@ public sealed class RefreshScheduler : IAsyncDisposable
         {
             await RefreshAllAsync(ct).ConfigureAwait(false);
 
-            using var timer = new PeriodicTimer(_options.Interval);
-
-            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+            while (true)
             {
+                await Task.Delay(Interval, ct).ConfigureAwait(false);
                 if (_paused) continue;
 
                 await RefreshAllAsync(ct).ConfigureAwait(false);
@@ -240,4 +247,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
         _stopping.Dispose();
         _gate.Dispose();
     }
+
+    private static TimeSpan NormalizeInterval(TimeSpan interval) =>
+        interval > TimeSpan.Zero ? interval : TimeSpan.FromMinutes(5);
 }

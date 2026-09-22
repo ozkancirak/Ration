@@ -1,5 +1,6 @@
 using Kalan.Core.Cost;
 using Kalan.Core.Model;
+using System.Text.Json;
 
 namespace Kalan.Tests;
 
@@ -82,6 +83,36 @@ public sealed class ClaudeCostScannerTests : IDisposable
         Assert.Equal(110, model.OutputTokens);
         Assert.Equal(10, model.CacheReadTokens);
         Assert.Equal(5, model.CacheCreationTokens);
+        Assert.Equal(425, model.TotalTokens);
+    }
+
+    [Fact]
+    public void ClaudeCacheOkumaNormalGirdidenAyridir()
+    {
+        WriteJsonl("a.jsonl",
+            AssistantLine("msg_1", "req_1", "ornek-model", 100, 10, cacheRead: 80));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+        var model = Assert.Single(result.Tally.Models);
+
+        Assert.Equal(100, model.InputTokens);
+        Assert.Equal(80, model.CacheReadTokens);
+        Assert.Equal(190, model.TotalTokens);
+    }
+
+    [Fact]
+    public void ClaudeOlayZamaniDosyaMtimeindanOnceliklidir()
+    {
+        var now = DateTimeOffset.UtcNow.AddMinutes(-1);
+        WriteJsonl("a.jsonl", TimestampedLine(now, "msg_1", "req_1", 7));
+        File.SetLastWriteTimeUtc(
+            Path.Combine(_dir, "proje-a", "a.jsonl"),
+            DateTime.UtcNow.AddDays(-40));
+
+        var result = ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.Equal(7, Assert.Single(result.Tally.Models).InputTokens);
+        Assert.True(result.PeriodKnown);
     }
 
     [Fact]
@@ -150,6 +181,123 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 }
 
+public sealed class CodexCostScannerTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), $"kalan-codex-cost-{Guid.NewGuid():N}");
+
+    public CodexCostScannerTests() => Directory.CreateDirectory(_dir);
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+
+    private void WriteJsonl(params string[] lines) =>
+        File.WriteAllLines(Path.Combine(_dir, "session.jsonl"), lines);
+
+    private static string TokenLine(
+        DateTimeOffset? at,
+        int input,
+        int cacheRead,
+        int output,
+        bool cumulative = false,
+        string model = "codex-model")
+    {
+        var usage = new
+        {
+            input_tokens = input,
+            cached_input_tokens = cacheRead,
+            output_tokens = output,
+            reasoning_output_tokens = 0,
+        };
+        var info = new Dictionary<string, object?>
+        {
+            [cumulative ? "total_token_usage" : "last_token_usage"] = usage,
+        };
+        var payload = new
+        {
+            type = "token_count",
+            model,
+            info,
+        };
+        var line = new Dictionary<string, object?>
+        {
+            ["type"] = "event_msg",
+            ["payload"] = payload,
+        };
+        if (at is { } timestamp) line["timestamp"] = timestamp;
+        return JsonSerializer.Serialize(line);
+    }
+
+    [Fact]
+    public void CodexCacheGirdisiniNormalGirdidenAyrir()
+    {
+        WriteJsonl(TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 100, 80, 10));
+
+        var result = CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+        var model = Assert.Single(result.Tally.Models);
+
+        Assert.Equal(20, model.InputTokens);
+        Assert.Equal(80, model.CacheReadTokens);
+        Assert.Equal(10, model.OutputTokens);
+        Assert.Equal(110, model.TotalTokens);
+    }
+
+    [Fact]
+    public void TekrarlananLastUsageIkiKezSayilmaz()
+    {
+        var line = TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 100, 80, 10);
+        WriteJsonl(line, line);
+
+        var result = CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.Equal(110, Assert.Single(result.Tally.Models).TotalTokens);
+    }
+
+    [Fact]
+    public void KumulatifToplamYalnizcaDonemIlerlemesiniSayar()
+    {
+        var since = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+        WriteJsonl(
+            TokenLine(since.AddHours(-1), 100, 80, 10, cumulative: true),
+            TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 120, 90, 15, cumulative: true),
+            TokenLine(DateTimeOffset.UtcNow.AddSeconds(-30), 120, 90, 15, cumulative: true));
+
+        var result = CodexCostScanner.Scan(since, _dir);
+
+        // (120-100) - (90-80) normal girdidir: 10 + 10 cache + 5 çıktı.
+        Assert.Equal(25, Assert.Single(result.Tally.Models).TotalTokens);
+        Assert.True(result.PeriodKnown);
+    }
+
+    [Fact]
+    public void OlayZamaniDosyaMtimeindanOnceliklidir()
+    {
+        var current = DateTimeOffset.UtcNow.AddMinutes(-1);
+        WriteJsonl(
+            TokenLine(current.AddDays(-40), 500, 0, 0),
+            TokenLine(current, 7, 0, 0));
+        File.SetLastWriteTimeUtc(
+            Path.Combine(_dir, "session.jsonl"),
+            DateTime.UtcNow.AddDays(-40));
+
+        var result = CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.Equal(7, Assert.Single(result.Tally.Models).InputTokens);
+        Assert.True(result.PeriodKnown);
+    }
+
+    [Fact]
+    public void ZamanDamgasiYoksaDonemBelirsizIsaretlenir()
+    {
+        WriteJsonl(TokenLine(null, 7, 0, 0));
+
+        var result = CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), _dir);
+
+        Assert.False(result.PeriodKnown);
+    }
+}
+
 public class PricingTests
 {
     [Fact]
@@ -202,6 +350,25 @@ public class PricingTests
         Assert.Equal(1_000, report.InputTokens);
         Assert.Equal(2_000, report.OutputTokens);
         Assert.Single(report.ModelsWithoutPricing!);
+    }
+
+    [Fact]
+    public void BilinmeyenOlayZamaniRaporeTasiniyor()
+    {
+        var tally = new TokenTally();
+        tally.Add("model", 10, 0, 0, 0);
+        var scan = new CostScanResult(
+            tally,
+            DateTimeOffset.UtcNow.AddDays(-30),
+            DateTimeOffset.UtcNow,
+            1)
+        {
+            PeriodKnown = false,
+        };
+
+        var report = CostEstimator.Estimate(scan, PricingTable.Empty);
+
+        Assert.False(report.PeriodKnown);
     }
 
     [Fact]

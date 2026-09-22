@@ -11,6 +11,8 @@ using CommunityToolkit.WinUI.Controls;
 using Kalan.Core.Cost;
 using Kalan.Core.Diagnostics;
 using Kalan.Core.Providers;
+using Kalan.Core.Providers.Claude;
+using Kalan.Core.Providers.Codex;
 using Kalan.Platform.Windows.Interop;
 using Kalan.Platform.Windows.App;
 using Kalan.Platform.Windows.Theme;
@@ -36,6 +38,21 @@ public sealed partial class SettingsWindow : Window
             {
                 TrayProviderChanged?.Invoke(
                     providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId);
+            }
+        };
+
+        RefreshIntervalSelection.SelectedItem = RefreshIntervalSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item =>
+                int.TryParse(item.Tag as string, out var minutes) &&
+                minutes == RefreshIntervalPreference.ToMinutes(RefreshIntervalPreference.Current));
+        RefreshIntervalSelection.SelectionChanged += (_, _) =>
+        {
+            if (RefreshIntervalSelection.SelectedItem is ComboBoxItem { Tag: string value } &&
+                int.TryParse(value, out var minutes))
+            {
+                var interval = RefreshIntervalPreference.FromMinutes(minutes);
+                RefreshIntervalPreference.Set(interval);
             }
         };
 
@@ -68,7 +85,7 @@ public sealed partial class SettingsWindow : Window
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         VersionText.Text = $"Sürüm {UpdateService.CurrentVersion}";
-        UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastCheckedAt);
+        UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastResult);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -117,6 +134,7 @@ public sealed partial class SettingsWindow : Window
         WindowsThemeListener.ThemeChanged += OnThemeChanged;
 
         RefreshCostStatus();
+        RefreshProviderStatus();
 
         _appWindow.Closing += (s, e) =>
         {
@@ -172,6 +190,7 @@ public sealed partial class SettingsWindow : Window
     {
         AppTheme.Apply(SettingsScrollViewer);
         RefreshCostStatus();
+        RefreshProviderStatus();
         _appWindow.Show();
         this.Activate();
         NativeMethods.SetForegroundWindow(_hwnd);
@@ -199,6 +218,25 @@ public sealed partial class SettingsWindow : Window
             Directory.Exists(KnownPaths.CodexSessionsDir), priced);
     }
 
+    private void RefreshProviderStatus()
+    {
+        var claude = ClaudeCredentialStore.TryRead();
+        SetProviderStatus(
+            ClaudeProviderBadge,
+            ClaudeProviderStatus,
+            claude is not null,
+            claude?.IsExpired == true ? "Oturum süresi geçmiş" : "Kimlik bulundu",
+            "Kimlik bulunamadı");
+
+        var codex = CodexCredentialStore.TryRead();
+        SetProviderStatus(
+            CodexProviderBadge,
+            CodexProviderStatus,
+            codex is not null,
+            "Kimlik bulundu",
+            "Kimlik bulunamadı");
+    }
+
     private async Task CheckForUpdatesAsync()
     {
         CheckUpdatesButton.IsEnabled = false;
@@ -214,13 +252,9 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
-    private static string UpdateStatusTextFor(DateTimeOffset? value) =>
-        value is { } checkedAt
-            ? $"Güncel · {checkedAt.ToLocalTime():HH:mm}'de denetlendi"
-            : "Henüz denetlenmedi";
-
-    private static string UpdateStatusTextFor(UpdateCheckResult result)
+    private static string UpdateStatusTextFor(UpdateCheckResult? result)
     {
+        if (result is null) return "Henüz denetlenmedi";
         if (result.UpdateAvailable && !string.IsNullOrWhiteSpace(result.AvailableVersion))
         {
             return $"Sürüm {result.AvailableVersion} hazır";
@@ -274,5 +308,21 @@ public sealed partial class SettingsWindow : Window
 
         reason.Text = "pricing.json bulunamadı — para tutarı yerine yalnızca token gösteriliyor.";
         reason.Visibility = Visibility.Visible;
+    }
+
+    private static void SetProviderStatus(
+        InfoBadge badge,
+        TextBlock status,
+        bool available,
+        string availableText,
+        string unavailableText)
+    {
+        status.Text = available ? availableText : unavailableText;
+        var styleKey = available ? "SuccessDotInfoBadgeStyle" : "AttentionDotInfoBadgeStyle";
+        if (Application.Current.Resources.TryGetValue(styleKey, out var style) &&
+            style is Style providerStyle)
+        {
+            badge.Style = providerStyle;
+        }
     }
 }

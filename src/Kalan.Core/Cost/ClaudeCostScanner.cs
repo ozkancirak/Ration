@@ -31,6 +31,7 @@ public static class ClaudeCostScanner
         // Aynı yanıt birden fazla satırda görünebilir (yeniden yazım, devam kaydı).
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var filesScanned = 0;
+        var periodKnown = true;
 
         IEnumerable<string> files;
         try
@@ -48,9 +49,6 @@ public static class ClaudeCostScanner
 
             try
             {
-                // Hızlı eleme: dosyaya son yazma tarihimizden önceyse hiç açma.
-                if (File.GetLastWriteTimeUtc(file) < since.UtcDateTime) continue;
-
                 using var stream = new FileStream(
                     file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 using var reader = new StreamReader(stream);
@@ -61,17 +59,25 @@ public static class ClaudeCostScanner
                 {
                     if (line.Length == 0) continue;
 
-                    ReadLine(line, since, seen, tally);
+                    ReadLine(line, since, seen, tally, ref periodKnown);
                 }
             }
             catch (IOException) { /* dosya kilitli ya da silinmiş: atla */ }
             catch (UnauthorizedAccessException) { /* atla */ }
         }
 
-        return new CostScanResult(tally, since, now, filesScanned);
+        return new CostScanResult(tally, since, now, filesScanned)
+        {
+            PeriodKnown = periodKnown,
+        };
     }
 
-    private static void ReadLine(string line, DateTimeOffset since, HashSet<string> seen, TokenTally tally)
+    private static void ReadLine(
+        string line,
+        DateTimeOffset since,
+        HashSet<string> seen,
+        TokenTally tally,
+        ref bool periodKnown)
     {
         try
         {
@@ -99,12 +105,16 @@ public static class ClaudeCostScanner
                 return;
             }
 
-            // Zaman filtresi: satırda timestamp varsa kullan, yoksa dahil et.
+            // Dönem filtresi olay zamanına göre yapılır. Zaman damgası yoksa
+            // sayıyı kaybetme; fakat sonucu kesin bir takvim dönemi diye sunma.
+            DateTimeOffset? timestamp = null;
             if (root.TryGetProperty("timestamp", out var timestampElement))
             {
-                var timestamp = ReadTimestamp(timestampElement);
-                if (timestamp is not null && timestamp < since) return;
+                timestamp = ReadTimestamp(timestampElement);
             }
+
+            if (timestamp is null) periodKnown = false;
+            else if (timestamp < since) return;
 
             // Tekilleştirme: message.id + requestId
             var messageId = ReadString(message, "id");

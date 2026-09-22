@@ -107,7 +107,7 @@ public sealed partial class FlyoutWindow : Window
 
         _scheduler = new RefreshScheduler(_providers, options: new RefreshOptions
         {
-            Interval = TimeSpan.FromMinutes(5),
+            Interval = RefreshIntervalPreference.Current,
             MaxJitter = TimeSpan.FromSeconds(5),
             EmitCachedOnStart = true,
         });
@@ -155,6 +155,7 @@ public sealed partial class FlyoutWindow : Window
         // Theme listeners
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
         AppThemePreference.Changed += OnAppThemeChanged;
+        RefreshIntervalPreference.Changed += OnRefreshIntervalChanged;
         PricingTableUpdater.Updated += OnPricingUpdated;
         WindowsThemeListener.AccentChanged += OnAccentChanged;
         WindowsThemeListener.DisplayChanged += OnDisplayChanged;
@@ -227,6 +228,8 @@ public sealed partial class FlyoutWindow : Window
         }
         _settingsWindow.ShowAndFocus();
     }
+
+    private void OnRefreshIntervalChanged(TimeSpan interval) => _scheduler.SetInterval(interval);
 
     private async Task RefreshManuallyAsync()
     {
@@ -313,6 +316,7 @@ public sealed partial class FlyoutWindow : Window
         WindowsThemeListener.AccentChanged -= OnAccentChanged;
         WindowsThemeListener.DisplayChanged -= OnDisplayChanged;
         AppThemePreference.Changed -= OnAppThemeChanged;
+        RefreshIntervalPreference.Changed -= OnRefreshIntervalChanged;
         PricingTableUpdater.Updated -= OnPricingUpdated;
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
@@ -858,7 +862,7 @@ public sealed partial class FlyoutWindow : Window
                     Text = reset switch
                     {
                         "" => string.Empty,
-                        "sıfırlandı" or "sıfırlanmış olabilir" => reset,
+                        "sıfırlandı" or "sıfırlanmış olabilir" or "Sıfırlanma zamanı geldi — doğrulanıyor" => reset,
                         _ => $"{reset} sonra",
                     },
                     Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
@@ -1186,7 +1190,8 @@ public sealed partial class FlyoutWindow : Window
             if (report is null) return string.Empty;
             var total = report.TotalTokens;
             if (total <= 0) return string.Empty;
-            return $"{prefix} · {CompactTokens(total)} token";
+            var period = report.PeriodKnown ? prefix : "Dönemi bilinmiyor";
+            return $"{period} · {CompactTokens(total)} token";
         }
 
         var todayLine = Line("Bugün", today);
