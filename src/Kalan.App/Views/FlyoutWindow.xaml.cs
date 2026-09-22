@@ -64,6 +64,7 @@ public sealed partial class FlyoutWindow : Window
     private long _costRun;
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
+    private readonly Dictionary<string, string> _modelDiagnosticState = new(StringComparer.OrdinalIgnoreCase);
 
     // Flyout genişliği sabit 380 DIP; yükseklik bütün sekmelerin en uzunu olur.
     private const double FlyoutWidthDip = 380;
@@ -1029,9 +1030,18 @@ public sealed partial class FlyoutWindow : Window
             .OrderByDescending(model => model.Tokens)
             .ToList() ?? new List<ModelTokenUsage>();
 
+        var diagnostic = models.Count == 0
+            ? "0 farklı model, en çok=yok %0"
+            : $"{models.Count} farklı model, en çok={models[0].Model} %{models[0].Tokens * 100d / Math.Max(1, models.Sum(model => model.Tokens)):F0}";
+        if (!_modelDiagnosticState.TryGetValue(providerId, out var previousDiagnostic) ||
+            !string.Equals(previousDiagnostic, diagnostic, StringComparison.Ordinal))
+        {
+            _modelDiagnosticState[providerId] = diagnostic;
+            Trace.Info("model", $"{providerId}: {diagnostic}");
+        }
+
         if (models.Count == 0)
         {
-            Trace.Info("model", $"{providerId}: 0 farklı model, en çok=yok %0");
             MostUsedModelText.Visibility = Visibility.Collapsed;
             return;
         }
@@ -1039,14 +1049,12 @@ public sealed partial class FlyoutWindow : Window
         var total = models.Sum(model => model.Tokens);
         if (total <= 0)
         {
-            Trace.Info("model", $"{providerId}: 0 farklı model, en çok=yok %0");
             MostUsedModelText.Visibility = Visibility.Collapsed;
             return;
         }
 
         var top = models[0];
         var percent = top.Tokens * 100d / total;
-        Trace.Info("model", $"{providerId}: {models.Count} farklı model, en çok={top.Model} %{percent:F0}");
         MostUsedModelText.Text = models.Count == 1
             ? $"Model: {top.Model}"
             : $"En çok: {top.Model} · %{percent:F0}";
