@@ -1202,7 +1202,7 @@ public sealed partial class FlyoutWindow : Window
         CostAmount.Text = string.Empty;
         CostSummary.Text = string.Empty;
         ToolTipService.SetToolTip(CostInfoIcon, null);
-        SetMostUsedModel(_selectedId, null);
+        MostUsedModelText.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyCost(CostReport? today, CostReport? month, PricingTable pricing)
