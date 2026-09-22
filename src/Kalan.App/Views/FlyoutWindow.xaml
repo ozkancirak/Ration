@@ -156,11 +156,6 @@
 
                 <!--  Kota pencereleri: koddan üretilir (etiket + 3px ölçer + yüzde/süre + tempo)  -->
                 <StackPanel x:Name="DetailWindows" Spacing="14" />
-                <TextBlock x:Name="MostUsedModelText"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           TextWrapping="Wrap"
-                           Visibility="Collapsed" />
 
                 <!--  Maliyet özeti (yerel JSONL taraması; veri yoksa gizli)  -->
                 <StackPanel x:Name="CostSection" Spacing="4" Visibility="Collapsed">
@@ -191,6 +186,16 @@
                                MaxLines="2"
                                TextTrimming="CharacterEllipsis" />
                 </StackPanel>
+                <TextBlock x:Name="ModelScopeLabel"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+                <TextBlock x:Name="ModelLine"
+                           Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
                 </StackPanel>
             </Grid>
         </ScrollViewer>

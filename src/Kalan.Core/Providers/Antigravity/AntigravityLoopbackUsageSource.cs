@@ -362,7 +362,15 @@ public sealed class AntigravityLoopbackUsageSource : IUsageSource
                     metadata.Body,
                     tally,
                     seenIds,
-                    out var skipped);
+                    out var skipped,
+                    out var missingRequired);
+                if (missingRequired > 0)
+                {
+                    KalanTrace.Info(
+                        "provider.source",
+                        $"provider=antigravity source=trajectory result=records-skipped-missing-required count={missingRequired}");
+                }
+
                 if (skipped > 0)
                 {
                     KalanTrace.Info(

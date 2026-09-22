@@ -591,6 +591,11 @@ void RenderIconPreview(string outputPath)
 async Task<int> RunDiscoverAsync(string which, bool asJson)
 {
     var normalized = which.ToLowerInvariant();
+    if (normalized == "claude-scope")
+    {
+        return RunClaudeScopeDiscover();
+    }
+
     if (normalized == "antigravity")
     {
         return await RunAntigravityDiscoverAsync();
@@ -641,6 +646,55 @@ async Task<int> RunDiscoverAsync(string which, bool asJson)
         Console.WriteLine();
     }
 
+    return 0;
+}
+
+int RunClaudeScopeDiscover()
+{
+    Console.WriteLine("Claude kapsamı keşfi — yalnızca yollar, sayılar ve anahtar yolları yazılır; DEĞER yazılmaz.");
+    Console.WriteLine();
+
+    foreach (var root in KnownPaths.ClaudeDesktopSessionRoots)
+    {
+        IReadOnlyList<string> files;
+        try
+        {
+            files = Directory.Exists(root)
+                ? Directory.EnumerateFiles(root, "*.jsonl", SearchOption.AllDirectories)
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .ToArray()
+                : Array.Empty<string>();
+        }
+        catch (IOException)
+        {
+            files = Array.Empty<string>();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            files = Array.Empty<string>();
+        }
+
+        Console.WriteLine($"{root}  dizin={(Directory.Exists(root) ? "var" : "yok")}  dosya={files.Count}");
+        if (files.Count == 0) continue;
+
+        var first = files[0];
+        var schema = JsonlSchemaProbe.DescribeKeyPaths(root, maxFiles: 1);
+        var usagePaths = schema
+            .Where(path => path.StartsWith("message.usage.", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var modelPaths = schema
+            .Where(path => path.Contains("model", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Console.WriteLine($"  ilk-dosya={first}");
+        Console.WriteLine($"  message.usage.*={(usagePaths.Length > 0 ? "var" : "yok")}");
+        Console.WriteLine($"  model alanları={(modelPaths.Length > 0 ? string.Join(", ", modelPaths) : "yok")}");
+        Console.WriteLine("  anahtar-yolları:");
+        foreach (var path in schema) Console.WriteLine($"    {path}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("Desktop günlüklerinde doğrulanmış şema yoksa Claude kapsamı yalnızca Claude Code olarak kalır.");
     return 0;
 }
 
@@ -940,7 +994,7 @@ void PrintHelp()
     Console.WriteLine("Kullanım:");
     Console.WriteLine("  kalan usage [-p claude|codex|antigravity|opencode|all] [--json] [--raw]");
     Console.WriteLine("  kalan cost  [-p claude|codex|all] [--days N] [--json]");
-    Console.WriteLine("  kalan --discover [gemini|copilot|antigravity|all] [--json]  # keşif/şema; değer yazmaz");
+    Console.WriteLine("  kalan --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  # keşif/şema; değer yazmaz");
     Console.WriteLine("  kalan icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");
     Console.WriteLine("  kalan diagnose [--raw]");
     Console.WriteLine("  kalan --log                         # kalan.log son 100 satır");

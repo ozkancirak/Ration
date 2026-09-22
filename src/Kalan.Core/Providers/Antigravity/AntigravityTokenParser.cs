@@ -39,8 +39,17 @@ public static class AntigravityTokenParser
         TokenTally tally,
         ISet<string> seenIds,
         out int skipped)
+        => AddGeneratorMetadataToTally(json, tally, seenIds, out skipped, out _);
+
+    public static int AddGeneratorMetadataToTally(
+        string json,
+        TokenTally tally,
+        ISet<string> seenIds,
+        out int skipped,
+        out int missingRequired)
     {
         skipped = 0;
+        missingRequired = 0;
         try
         {
             using var document = JsonDocument.Parse(json);
@@ -56,32 +65,50 @@ public static class AntigravityTokenParser
             {
                 if (item.ValueKind != JsonValueKind.Object ||
                     !item.TryGetProperty("chatModel", out var chatModel) ||
-                    chatModel.ValueKind != JsonValueKind.Object ||
-                    !TryReadString(chatModel, "responseModel", out var model) ||
-                    !chatModel.TryGetProperty("usage", out var usage) ||
-                    usage.ValueKind != JsonValueKind.Object ||
-                    !TryReadLong(usage, "inputTokens", out var input) ||
-                    !TryReadLong(usage, "outputTokens", out var output) ||
-                    !TryReadLong(usage, "thinkingOutputTokens", out var thinking) ||
-                    !TryReadLong(usage, "cacheReadTokens", out var cacheRead) ||
-                    !TryReadLong(usage, "cacheWriteTokens", out var cacheWrite))
+                    chatModel.ValueKind != JsonValueKind.Object)
                 {
                     skipped++;
                     continue;
                 }
+
+                if (!TryReadString(chatModel, "responseModel", out var model) ||
+                    !chatModel.TryGetProperty("usage", out var usage) ||
+                    usage.ValueKind != JsonValueKind.Object ||
+                    !TryReadLong(usage, "inputTokens", out var input))
+                {
+                    skipped++;
+                    missingRequired++;
+                    continue;
+                }
+
+                // Antigravity does not report cache fields for every model/version.
+                // Missing optional fields mean zero; they do not invalidate the record.
+                var hasOutput = TryReadLong(usage, "outputTokens", out var outputTokens);
+                var hasThinking = TryReadLong(usage, "thinkingOutputTokens", out var thinkingTokens);
+                var hasResponse = TryReadLong(usage, "responseOutputTokens", out var responseTokens);
+                var output = hasOutput
+                    ? outputTokens
+                    : SaturatingAdd(
+                        hasThinking ? Math.Max(0, thinkingTokens) : 0,
+                        hasResponse ? Math.Max(0, responseTokens) : 0);
+                var thinking = hasThinking ? Math.Max(0, thinkingTokens) : 0;
+                var cacheRead = TryReadLong(usage, "cacheReadTokens", out var cacheReadTokens)
+                    ? Math.Max(0, cacheReadTokens)
+                    : 0;
+                var cacheWrite = TryReadLong(usage, "cacheWriteTokens", out var cacheWriteTokens)
+                    ? Math.Max(0, cacheWriteTokens)
+                    : 0;
+
+                input = Math.Max(0, input);
+                output = Math.Max(0, output);
+                thinking = Math.Min(thinking, output);
 
                 var responseId = TryReadString(usage, "responseId", out var id)
                     ? id
                     : TryReadString(usage, "messageId", out var fallbackId)
                         ? fallbackId
                         : null;
-                if (string.IsNullOrWhiteSpace(responseId) || !seenIds.Add(responseId))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                if (input < 0 || output < 0 || thinking < 0 || cacheRead < 0 || cacheWrite < 0)
+                if (!string.IsNullOrWhiteSpace(responseId) && !seenIds.Add(responseId))
                 {
                     skipped++;
                     continue;
@@ -93,7 +120,7 @@ public static class AntigravityTokenParser
                     output,
                     cacheRead,
                     cacheWrite,
-                    Math.Min(thinking, output));
+                    thinking);
                 accepted++;
             }
 
@@ -148,4 +175,7 @@ public static class AntigravityTokenParser
                    CultureInfo.InvariantCulture,
                    out value);
     }
+
+    private static long SaturatingAdd(long left, long right) =>
+        left > long.MaxValue - right ? long.MaxValue : left + right;
 }

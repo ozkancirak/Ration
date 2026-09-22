@@ -1,4 +1,5 @@
 using Kalan.Core.Model;
+using Kalan.Core.Cost;
 using Kalan.Core.Providers.Antigravity;
 
 namespace Kalan.Tests;
@@ -231,6 +232,79 @@ public sealed class AntigravityTests
             Assert.Equal("csrf-test", request.Headers.GetValues("X-Codeium-Csrf-Token").Single());
             Assert.False(request.Headers.Contains("host_bridge_token"));
         });
+    }
+
+    [Fact]
+    public void Parser_DefaultsMissingOptionalTokenFields_AndFallsBackToOutputParts()
+    {
+        const string json = """
+            {
+              "generatorMetadata": [
+                {
+                  "chatModel": {
+                    "responseModel": "gemini-test",
+                    "usage": {
+                      "inputTokens": 100,
+                      "thinkingOutputTokens": 20,
+                      "responseOutputTokens": 30,
+                      "responseId": "r1"
+                    }
+                  }
+                },
+                {
+                  "chatModel": {
+                    "responseModel": "gemini-test",
+                    "usage": {
+                      "inputTokens": 7,
+                      "outputTokens": 3
+                    }
+                  }
+                }
+              ]
+            }
+            """;
+
+        var tally = new TokenTally();
+        var accepted = AntigravityTokenParser.AddGeneratorMetadataToTally(
+            json,
+            tally,
+            new HashSet<string>(StringComparer.Ordinal),
+            out var skipped);
+
+        Assert.Equal(2, accepted);
+        Assert.Equal(0, skipped);
+        var model = Assert.Single(tally.Models);
+        Assert.Equal(107, model.InputTokens);
+        Assert.Equal(53, model.OutputTokens);
+        Assert.Equal(20, model.ReasoningTokens);
+        Assert.Equal(0, model.CacheReadTokens);
+        Assert.Equal(0, model.CacheCreationTokens);
+    }
+
+    [Fact]
+    public void Parser_SkipsOnlyRecordsMissingInputOrResponseModel()
+    {
+        const string json = """
+            {
+              "generatorMetadata": [
+                { "chatModel": { "responseModel": "model", "usage": { "outputTokens": 1 } } },
+                { "chatModel": { "usage": { "inputTokens": 1, "outputTokens": 1 } } },
+                { "chatModel": { "responseModel": "model", "usage": { "inputTokens": 2, "outputTokens": 3 } } }
+              ]
+            }
+            """;
+
+        var tally = new TokenTally();
+        var accepted = AntigravityTokenParser.AddGeneratorMetadataToTally(
+            json,
+            tally,
+            new HashSet<string>(StringComparer.Ordinal),
+            out var skipped,
+            out var missingRequired);
+
+        Assert.Equal(1, accepted);
+        Assert.Equal(2, skipped);
+        Assert.Equal(2, missingRequired);
     }
 
     private static HttpResponseMessage JsonResponse(

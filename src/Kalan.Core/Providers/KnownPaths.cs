@@ -30,6 +30,35 @@ public static class KnownPaths
 
     public static string ClaudeProjectsDir => Path.Combine(ClaudeHome, "projects");
 
+    /// <summary>
+    /// Claude Desktop'ın olası yerel oturum günlükleri. Salt okunur keşif içindir;
+    /// ClaudeCostScanner bunları şema doğrulanmadan taramaz.
+    /// </summary>
+    public static IReadOnlyList<string> ClaudeDesktopSessionRoots
+    {
+        get
+        {
+            var roots = new List<string>
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "local-agent-mode-sessions"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude-code-sessions"),
+            };
+
+            var packages = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Packages");
+            try
+            {
+                roots.AddRange(Directory.EnumerateDirectories(packages, "Claude_*")
+                    .Select(path => Path.Combine(path, "LocalCache", "Roaming", "Claude")));
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+
+            return roots;
+        }
+    }
+
     // --- Codex (salt okunur) ---
 
     public static string CodexHome

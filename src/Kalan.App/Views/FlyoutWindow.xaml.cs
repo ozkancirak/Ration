@@ -1136,45 +1136,20 @@ public sealed partial class FlyoutWindow : Window
 
     private void SetMostUsedModel(string providerId, CostReport? report)
     {
-        var models = ModelSummary(report);
+        var models = ProviderModelLine.Summarize(report);
         LogModelSummary(providerId, models);
-
-        if (models.Count == 0)
-        {
-            MostUsedModelText.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var total = models.Sum(model => model.Tokens);
-        if (total <= 0)
-        {
-            MostUsedModelText.Visibility = Visibility.Collapsed;
-            return;
-        }
-
-        var top = models[0];
-        var percent = top.Tokens * 100d / total;
-        MostUsedModelText.Text = models.Count == 1
-            ? $"Model: {top.Model}"
-            : $"En çok: {top.Model} · %{percent:F0}";
-        MostUsedModelText.Visibility = Visibility.Visible;
+        ProviderModelLine.SetReport(ModelLine, report);
+        ModelScopeLabel.Text = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase)
+            ? "Claude Code kullanımı"
+            : string.Empty;
+        ModelScopeLabel.Visibility = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
+            ModelLine.Visibility == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
-    private static List<ModelTokenUsage> ModelSummary(CostReport? report) => report?.Models?
-            .Where(model => model.Tokens > 0)
-            .GroupBy(model => model.Model, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new ModelTokenUsage(
-                group.Key,
-                group.Sum(model => model.Tokens),
-                group.Sum(model => model.InputTokens),
-                group.Sum(model => model.OutputTokens),
-                group.Sum(model => model.CacheReadTokens),
-                group.Sum(model => model.CacheCreationTokens)))
-            .OrderByDescending(model => model.Tokens)
-            .ToList() ?? new List<ModelTokenUsage>();
-
     private void LogModelSummary(string providerId, CostReport? report) =>
-        LogModelSummary(providerId, ModelSummary(report));
+        LogModelSummary(providerId, ProviderModelLine.Summarize(report));
 
     private void LogModelSummary(string providerId, IReadOnlyList<ModelTokenUsage> models)
     {
@@ -1330,7 +1305,8 @@ public sealed partial class FlyoutWindow : Window
         CostAmount.Text = string.Empty;
         CostSummary.Text = string.Empty;
         ToolTipService.SetToolTip(CostInfoIcon, null);
-        MostUsedModelText.Visibility = Visibility.Collapsed;
+        ModelLine.Visibility = Visibility.Collapsed;
+        ModelScopeLabel.Visibility = Visibility.Collapsed;
     }
 
     private void ApplyCost(CostReport? today, CostReport? month, PricingTable pricing)
@@ -1589,8 +1565,10 @@ public sealed partial class FlyoutWindow : Window
         var originalCostAmount = CostAmount.Text;
         var originalCostSummary = CostSummary.Text;
         var originalCostTooltip = ToolTipService.GetToolTip(CostInfoIcon);
-        var originalMostUsedModelVisibility = MostUsedModelText.Visibility;
-        var originalMostUsedModelText = MostUsedModelText.Text;
+        var originalModelLineVisibility = ModelLine.Visibility;
+        var originalModelLineText = ModelLine.Text;
+        var originalModelScopeVisibility = ModelScopeLabel.Visibility;
+        var originalModelScopeText = ModelScopeLabel.Text;
         var tallest = 0d;
 
         foreach (var provider in _providers)
@@ -1617,8 +1595,10 @@ public sealed partial class FlyoutWindow : Window
         CostAmount.Text = originalCostAmount;
         CostSummary.Text = originalCostSummary;
         ToolTipService.SetToolTip(CostInfoIcon, originalCostTooltip);
-        MostUsedModelText.Visibility = originalMostUsedModelVisibility;
-        MostUsedModelText.Text = originalMostUsedModelText;
+        ModelLine.Visibility = originalModelLineVisibility;
+        ModelLine.Text = originalModelLineText;
+        ModelScopeLabel.Visibility = originalModelScopeVisibility;
+        ModelScopeLabel.Text = originalModelScopeText;
         _costForId = originalCostForId;
         _costAt = originalCostAt;
         _costRun = originalCostRun;
