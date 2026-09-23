@@ -1,4 +1,10 @@
-# Ration — AI quota in your Windows tray
+<p align="center">
+  <img src="docs/brand/icon.svg" width="112" alt="Ration ikonu">
+</p>
+
+<h1 align="center">Ration</h1>
+
+<p align="center">AI quota in your Windows tray</p>
 
 Ration, Windows 11 görev çubuğunda AI kodlama sağlayıcılarının kota kullanımını, sıfırlanma zamanlarını ve yerel token/maliyet özetlerini gösteren native bir tepsi uygulamasıdır.
 
