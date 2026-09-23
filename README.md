@@ -4,58 +4,45 @@
 
 <h1 align="center">Ration</h1>
 
-<p align="center">AI quota in your Windows tray</p>
+<p align="center">AI coding quotas in your Windows tray.</p>
 
 <p align="center"><b>English</b> · <a href="README.tr.md">Türkçe</a></p>
 
-Ration is a native Windows 11 tray app that shows the quota usage, reset times and local token/cost summaries of your AI coding providers.
+<p align="center">
+  <img src="docs/screenshots/flyout-en.png" width="380" alt="Ration flyout">
+</p>
 
-![Ration flyout](docs/screenshots/flyout.png)
+## Features
 
-The tray icon fills with your remaining quota: [icon matrix](docs/screenshots/tray-contact-sheet.png).
+- Session and weekly quota left, with reset times and a pace hint
+- Tray icon that fills with your remaining quota
+- Token and cost totals for the last 30 days from local logs
+- Notifications when a quota drops below 20% and when it runs out
+- Light and dark theme, English and Turkish
 
-## Supported providers
+## Providers
 
-- Claude Code
-- Codex CLI
-- Antigravity
-- OpenCode
+Claude Code · Codex · Antigravity · OpenCode
 
-Ration opens these providers' local credential files read-only. It never refreshes tokens or writes to the source files.
+## Install
 
-## Language
-
-The app is available in English and Turkish. It follows the Windows display language by default; you can change it under **Settings → Language**.
-
-## Installation
-
-Run `Ration-win-x64-Setup.exe` from the release. For portable use, extract `Ration-win-x64-Portable.zip` and run `Ration.exe`.
-
-The package bundles a self-contained Windows App SDK, so a clean machine does not need a separate Windows App SDK runtime. If the release is unsigned, Windows SmartScreen may warn you; this does not mean a runtime or certificate needs to be installed.
+Download `Ration-win-x64-Setup.exe` or the portable zip from [Releases](https://github.com/ozkancirak/Ration/releases). Requires Windows 10 1809 or later; designed for Windows 11. Unsigned builds may trigger a SmartScreen warning.
 
 ## Privacy
 
-Ration sends no telemetry and no user credentials anywhere; credential files are read-only. Requests needed for the quota display go directly to each provider's official endpoint. Raw responses are redacted before they are written to the diagnostic log.
-
-## Updates
-
-The **Check for updates** button in Settings checks the GitHub Releases feed. Ration never downloads automatically; you decide when a new version is found.
-
-The default feed is `https://github.com/ozkancirak/Ration`. If releases live elsewhere, override it with the `RATION_UPDATE_REPOSITORY` environment variable.
+Credential files are read-only. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged.
 
 ## Development
 
 ```powershell
-dotnet build Ration.slnx -c Debug
-dotnet test tests\Ration.Tests\Ration.Tests.csproj
-dotnet run --project src\Ration.Cli -- --selftest --screenshot-dir artifacts\selftest
-powershell -ExecutionPolicy Bypass -File scripts\package.ps1 -Configuration Release
+dotnet build Ration.slnx
+dotnet test tests\Ration.Tests
+dotnet run --project src\Ration.Cli -- usage -p all
+powershell -ExecutionPolicy Bypass -File scripts\package.ps1
 ```
 
-Packaging produces the Setup.exe and portable zip under `artifacts\release\releases`. The diagnostic log is at `%LOCALAPPDATA%\Ration\ration.log`; the **Open log** button in Settings opens it.
+Log file: `%LOCALAPPDATA%\Ration\ration.log`.
 
-Provider marks are based on Simple Icons (CC0); thank you.
+## License
 
-On first launch, the previous product's settings files (`theme.json`, `refresh.json`, and `settings.json` if present) are migrated only if the new data directory does not exist yet. Quota snapshots and the pricing cache are rebuilt. The old startup entry is removed; if enabled, it is moved to the fixed `%LOCALAPPDATA%\Ration\Ration.exe` path.
-
-The CLI build output is at `src\Ration.Cli\bin\Debug\net10.0-windows10.0.19041.0\ration.exe`. Examples: `ration usage -p claude --json` and `ration --log`. The app and CLI use separate output directories.
+MIT. Provider marks from [Simple Icons](https://simpleicons.org) (CC0), [lobe-icons](https://github.com/lobehub/lobe-icons) (MIT) and the official OpenAI logo.
