@@ -230,6 +230,8 @@ public sealed partial class FlyoutWindow : Window
         Trace.Info("window", "flyout.hide");
     }
 
+    public void OpenSettings() => OpenSettingsWindow();
+
     private void OpenSettingsWindow()
     {
         if (_settingsWindow is null)
@@ -435,10 +437,9 @@ public sealed partial class FlyoutWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
-            AppTheme.Apply(RootLayout);
-            UpdateWindowFrameTheme();
+            if (RestartIfAppThemeChanged()) return;
+            // Görev çubuğu teması uygulama temasından bağımsız değişebilir: yalnızca ikon.
             UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
-            RefreshAllMeters();
         });
     }
 
@@ -446,11 +447,40 @@ public sealed partial class FlyoutWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
-            AppTheme.Apply(RootLayout);
-            UpdateWindowFrameTheme();
+            if (RestartIfAppThemeChanged()) return;
             UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
-            RefreshAllMeters();
         });
+    }
+
+    /// <summary>
+    /// Uygulama teması yalnızca açılışta ayarlanabildiği için (App.RequestedTheme) etkin
+    /// tema değişince süreç kendini yeniden başlatır; Ayarlar açıksa yeniden açılır.
+    /// Çalışırken yamalamak sekme yazıları gibi koddan verilen renkleri eski temada bırakıyordu.
+    /// </summary>
+    private bool RestartIfAppThemeChanged()
+    {
+        if (AppThemePreference.IsAppLightTheme() == App.AppliedLightTheme) return false;
+
+        var reopenSettings = _settingsWindow?.IsShown == true;
+        Trace.Info("app", $"restart reason=theme settings={(reopenSettings ? "open" : "closed")}");
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                Environment.ProcessPath!,
+                SingleInstanceLease.RestartedFlag + (reopenSettings ? " --open-settings" : string.Empty))
+            {
+                UseShellExecute = false,
+            });
+        }
+        catch (Exception ex)
+        {
+            // Yeniden başlatılamazsa çıkma; kullanıcı elle yeniden başlatana kadar mevcut tema kalır.
+            Trace.Error("app", $"restart-failed type={ex.GetType().Name}");
+            return false;
+        }
+
+        ExitApplicationCore();
+        return true;
     }
 
     private void OnPricingUpdated()
@@ -930,13 +960,6 @@ public sealed partial class FlyoutWindow : Window
         var models = ProviderModelLine.Summarize(report);
         LogModelSummary(providerId, models);
         ProviderModelLine.SetReport(ModelLine, report);
-        ModelScopeLabel.Text = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase)
-            ? "Claude Code kullanımı"
-            : string.Empty;
-        ModelScopeLabel.Visibility = providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
-            ModelLine.Visibility == Visibility.Visible
-            ? Visibility.Visible
-            : Visibility.Collapsed;
     }
 
     private void LogModelSummary(string providerId, CostReport? report) =>
@@ -1099,7 +1122,6 @@ public sealed partial class FlyoutWindow : Window
         DailyChart.ItemsSource = null;
         ToolTipService.SetToolTip(CostInfoIcon, null);
         ModelLine.Visibility = Visibility.Collapsed;
-        ModelScopeLabel.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>

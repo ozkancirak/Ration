@@ -113,7 +113,6 @@
                         </Border>
                     </Grid>
 
-                    <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
                     <!--  Hata / bayat veri bildirimi. Metin sütunu '*': yoksa sarmalanmaz.  -->
                     <Grid x:Name="DetailError"
@@ -232,7 +231,6 @@
 
                     <!--  Kullanım ve API karşılığı (yerel log taraması; veri yoksa gizli)  -->
                     <StackPanel x:Name="CostSection" Spacing="10" Visibility="Collapsed">
-                        <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock x:Name="CostTitle"
@@ -299,11 +297,6 @@
                             <TextBlock x:Name="ModelLine"
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Visibility="Collapsed" />
-                            <TextBlock x:Name="ModelScopeLabel"
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        Visibility="Collapsed" />
                         </StackPanel>

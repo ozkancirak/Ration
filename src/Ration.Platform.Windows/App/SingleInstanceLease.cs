@@ -24,6 +24,9 @@ public sealed class SingleInstanceLease : IDisposable
 
     public static uint WakeWindowMessageId => WakeMessageId;
 
+    /// <summary>Uygulamanın kendini yeniden başlattığını bildiren komut satırı bayrağı.</summary>
+    public const string RestartedFlag = "--restarted";
+
     public static string MutexNameForCurrentUser()
     {
         using var identity = WindowsIdentity.GetCurrent();
@@ -53,6 +56,22 @@ public sealed class SingleInstanceLease : IDisposable
                 lease = new SingleInstanceLease(mutex);
                 Trace.Info("single-instance", "acquired");
                 return true;
+            }
+
+            // Kendini yeniden başlatan örnek (tema değişimi): eski süreç kapanıp kilidi
+            // bırakana kadar bekle; yoksa yeni süreç eskisini uyandırıp kendini kapatır.
+            if (args.Any(a => a.Equals(RestartedFlag, StringComparison.OrdinalIgnoreCase)))
+            {
+                bool acquired;
+                try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(10)); }
+                catch (AbandonedMutexException) { acquired = true; }
+
+                if (acquired)
+                {
+                    lease = new SingleInstanceLease(mutex);
+                    Trace.Info("single-instance", "acquired after-restart");
+                    return true;
+                }
             }
 
             mutex.Dispose();

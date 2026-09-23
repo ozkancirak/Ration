@@ -126,6 +126,48 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
+            <controls:SettingsExpander x:Name="AntigravityProviderExpander"
+                                       Header="Antigravity"
+                                       Description="Kota ve token kullanımı uygulamanın yerel dil sunucusundan okunur"
+                                       IsExpanded="true">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Sağlayıcı Durumu"
+                                           Description="Veri yalnızca Antigravity açıkken güncellenir">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <InfoBadge x:Name="AntigravityProviderBadge"
+                                       Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="AntigravityProviderStatus"
+                                       Text="Denetleniyor…"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
+            <controls:SettingsExpander x:Name="OpenCodeProviderExpander"
+                                       Header="OpenCode"
+                                       Description="Kendi kotası yok; yerel kullanım ve ücretsiz model sayacı"
+                                       IsExpanded="true">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="Sağlayıcı Durumu"
+                                           Description="~/.local/share/opencode/opencode.db yerel veritabanı">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <InfoBadge x:Name="OpenCodeProviderBadge"
+                                       Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="OpenCodeProviderStatus"
+                                       Text="Denetleniyor…"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
             <!-- Bölüm: Genel Tercihler -->
             <TextBlock Text="Genel Tercihler"
                        Style="{StaticResource SubtitleTextBlockStyle}"
@@ -145,7 +187,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="Tema"
-                                       Description="Ration'ın renk teması. Değişiklik yeniden başlatınca tam uygulanır.">
+                                       Description="Ration'ın renk teması. Değişince Ration kendini yeniden başlatır.">
                     <ComboBox x:Name="ThemeSelection"
                               MinWidth="140"
                               AutomationProperties.Name="Tema">

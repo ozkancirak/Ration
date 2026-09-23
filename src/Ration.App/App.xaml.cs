@@ -4,6 +4,7 @@ using Ration.Core.Cost;
 using Ration.Core.Diagnostics;
 using Ration.App.Views;
 using Ration.Platform.Windows.App;
+using Ration.Platform.Windows.Theme;
 
 namespace Ration.App;
 
@@ -13,19 +14,19 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private SingleInstanceLease? _singleInstance;
 
+    /// <summary>Açılışta uygulanan tema; değişirse yeniden başlatma gerekir.</summary>
+    public static bool AppliedLightTheme { get; private set; }
+
     public App()
     {
         InitializeComponent();
 
-        // Zorlanan tema uygulama düzeyinde de geçerli olmalı: koddan alınan fırçalar ve
-        // şablon içi ThemeResource'lar Application temasından çözülür. Yalnızca kök
-        // öğeye RequestedTheme vermek koyu panelde açık tema renkleri bırakıyordu.
-        // WinUI bunu yalnızca pencere oluşmadan önce kabul eder.
-        switch (Ration.Platform.Windows.Theme.AppThemePreference.Current)
-        {
-            case Ration.Platform.Windows.Theme.AppThemeMode.Light: RequestedTheme = ApplicationTheme.Light; break;
-            case Ration.Platform.Windows.Theme.AppThemeMode.Dark: RequestedTheme = ApplicationTheme.Dark; break;
-        }
+        // Tema uygulama düzeyinde belirlenmeli: koddan alınan fırçalar ve şablon içi
+        // ThemeResource'lar Application temasından çözülür; yalnızca kök öğeye
+        // RequestedTheme vermek karışık renkler bırakıyordu. WinUI bunu yalnızca açılışta
+        // kabul eder; tema değişince FlyoutWindow uygulamayı yeniden başlatır.
+        RequestedTheme = AppThemePreference.IsAppLightTheme() ? ApplicationTheme.Light : ApplicationTheme.Dark;
+        AppliedLightTheme = AppThemePreference.IsAppLightTheme();
 
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
@@ -132,6 +133,10 @@ public partial class App : Application
                 _flyoutWindow = new FlyoutWindow();
                 _flyoutWindow.InitializeHidden();
                 Trace.Info("window", "flyout.hidden tray-ready");
+                if (HasFlag(cmdArgs, "--open-settings"))
+                {
+                    _flyoutWindow.OpenSettings();
+                }
             }
 
             _ = PricingTableUpdater.RefreshIfDueAsync();

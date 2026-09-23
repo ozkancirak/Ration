@@ -173,6 +173,8 @@ public sealed partial class SettingsWindow : Window
     {
         ClaudeProviderExpander.Header = ProviderIcons.CreateHeader("claude", "Claude Code");
         CodexProviderExpander.Header = ProviderIcons.CreateHeader("codex", "Codex");
+        AntigravityProviderExpander.Header = ProviderIcons.CreateHeader("antigravity", "Antigravity");
+        OpenCodeProviderExpander.Header = ProviderIcons.CreateHeader("opencode", "OpenCode");
     }
 
     private void UpdateWindowFrameTheme()
@@ -184,7 +186,13 @@ public sealed partial class SettingsWindow : Window
             NativeMethods.DWMWA_USE_IMMERSIVE_DARK_MODE,
             ref darkMode,
             sizeof(int));
+
+        // İçerik başlık çubuğuna uzatıldığı için kapat/büyüt düğmeleri sistem temasını
+        // izliyordu: koyu tema zorlanınca koyu zeminde siyah kalıyorlardı.
+        _appWindow.TitleBar.PreferredTheme = isDark ? TitleBarTheme.Dark : TitleBarTheme.Light;
     }
+
+    public bool IsShown => _appWindow.IsVisible;
 
     public void ShowAndFocus()
     {
@@ -235,6 +243,23 @@ public sealed partial class SettingsWindow : Window
             codex is not null,
             "Kimlik bulundu",
             "Kimlik bulunamadı");
+
+        // Antigravity verisi yerel dil sunucusundan gelir; uygulama kapalıyken güncellenmez.
+        var antigravityRunning = System.Diagnostics.Process.GetProcessesByName("Antigravity").Length > 0 ||
+            System.Diagnostics.Process.GetProcessesByName("language_server").Length > 0;
+        SetProviderStatus(
+            AntigravityProviderBadge,
+            AntigravityProviderStatus,
+            antigravityRunning,
+            "Açık",
+            "Kapalı — açınca veri gelir");
+
+        SetProviderStatus(
+            OpenCodeProviderBadge,
+            OpenCodeProviderStatus,
+            File.Exists(KnownPaths.OpenCodeDatabaseFile),
+            "Veri bulundu",
+            "Veritabanı bulunamadı");
     }
 
     private async Task CheckForUpdatesAsync()
