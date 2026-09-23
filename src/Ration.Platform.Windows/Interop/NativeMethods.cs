@@ -6,6 +6,8 @@ public static class NativeMethods
 {
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    public const int DWMWA_BORDER_COLOR = 34;
+    public const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
 
     public enum DWM_WINDOW_CORNER_PREFERENCE
     {
@@ -249,6 +251,10 @@ public static class NativeMethods
     public static extern bool DestroyIcon(IntPtr hIcon);
 
     public const int GWL_EXSTYLE = -20;
+    public const int GWL_STYLE = -16;
+    public const long WS_BORDER = 0x00800000;
+    public const long WS_DLGFRAME = 0x00400000;
+    public const long WS_THICKFRAME = 0x00040000;
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WS_EX_APPWINDOW = 0x00040000;
 
@@ -262,6 +268,7 @@ public static class NativeMethods
     public const uint SWP_NOMOVE = 0x0002;
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
+    public const uint SWP_FRAMECHANGED = 0x0020;
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

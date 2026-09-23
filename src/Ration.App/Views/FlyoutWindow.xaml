@@ -21,6 +21,9 @@
 
     <Grid x:Name="RootLayout"
           Background="Transparent"
+          BorderBrush="{ThemeResource SurfaceStrokeColorFlyoutBrush}"
+          BorderThickness="1"
+          CornerRadius="{ThemeResource OverlayCornerRadius}"
           Padding="16"
           RowSpacing="12">
 

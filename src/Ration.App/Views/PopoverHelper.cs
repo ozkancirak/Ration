@@ -56,6 +56,17 @@ internal static class PopoverHelper
         presenter.IsMinimizable = false;
         presenter.IsMaximizable = false;
 
+        // SetBorderAndTitleBar(false, false) WS_DLGFRAME'i bırakıyor: her kenarda 3px
+        // non-client çerçeve kalır ve Windows onu acrylic yerine düz açık renkle boyar
+        // (iki temada da görünen beyaz çerçeve). Çerçeve bitleri kaldırılıp yeniden
+        // hesaplatılır; istemci alanı pencerenin tamamı olur.
+        long style = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_STYLE).ToInt64();
+        style &= ~(NativeMethods.WS_BORDER | NativeMethods.WS_DLGFRAME | NativeMethods.WS_THICKFRAME);
+        NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_STYLE, new IntPtr(style));
+        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+            NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER |
+            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
+
         try
         {
             appWindow.IsShownInSwitchers = false;
@@ -77,6 +88,19 @@ internal static class PopoverHelper
             NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE,
             ref cornerPreference,
             sizeof(int));
+
+        // DWM her pencereye sistem renginde 1px çerçeve çizer; koyu panelde beyaz,
+        // açık panelde kontrastsız bir hat olarak kalıyordu. Kapatılır; yerine WinUI
+        // flyout'larının kullandığı temalı kenarlık XAML kökünde çizilir
+        // (SurfaceStrokeColorFlyoutBrush, OverlayCornerRadius).
+        RemoveDwmBorder(hwnd);
+    }
+
+    private static void RemoveDwmBorder(IntPtr hwnd)
+    {
+        int noBorder = NativeMethods.DWMWA_COLOR_NONE;
+        int hr = NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_BORDER_COLOR, ref noBorder, sizeof(int));
+        if (hr != 0) Trace.Error("window", $"dwm-border hr=0x{hr:X8}");
     }
 
     /// <summary>
@@ -128,6 +152,7 @@ internal static class PopoverHelper
     {
         appWindow.Show();
         window.Activate();
+        RemoveDwmBorder(hwnd); // gösterimde yeniden uygulanır; WinUI etkinleşmede çerçeveyi geri çizebiliyor
         bool foreground = NativeMethods.SetForegroundWindow(hwnd);
         Trace.Info("window", $"popover.show foreground={(foreground ? "ok" : "rejected")}");
         AnimateEntrance(root, edge);
