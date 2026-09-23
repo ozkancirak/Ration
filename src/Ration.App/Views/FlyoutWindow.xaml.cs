@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using Microsoft.UI;
@@ -48,7 +47,6 @@ public sealed partial class FlyoutWindow : Window
     private string? _trayProviderId;
     private SettingsWindow? _settingsWindow;
     private IntPtr _currentIconHandle = IntPtr.Zero;
-    private Icon? _currentIcon;
     private bool _selfTestExitInProgress;
 
     /// <summary>
@@ -136,7 +134,7 @@ public sealed partial class FlyoutWindow : Window
         _menu.SettingsRequested += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
         _menu.ExitRequested += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
 
-        // Tray: WinForms NotifyIcon (saglam yol). Ikon HICON olarak uretilir,
+        // Tray: ham Shell_NotifyIcon (SystemTrayHost). Ikon HICON olarak uretilir,
         // sahiplik SystemTrayHost'a gecer: once yeni ikon kabuga verilir,
         // sonra onceki handle yok edilir (bkz. UpdateTrayIcon).
         _tray = new SystemTrayHost();
@@ -402,7 +400,6 @@ public sealed partial class FlyoutWindow : Window
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
 
         _tray.Dispose();
-        _currentIcon?.Dispose();
         if (_currentIconHandle != IntPtr.Zero)
         {
             NativeMethods.DestroyIcon(_currentIconHandle);
@@ -1468,16 +1465,13 @@ public sealed partial class FlyoutWindow : Window
 
         IntPtr iconHandle = TrayIconRenderer.CreateGaugeIconHandle(percent, isLightTheme, iconSize);
         IntPtr previousHandle = _currentIconHandle;
-        Icon? previousIcon = _currentIcon;
 
         _currentIconHandle = iconHandle;
-        _currentIcon = iconHandle == IntPtr.Zero ? null : Icon.FromHandle(iconHandle);
 
         // Once yeni ikon kabuga verilir, sonra onceki handle yok edilir.
         _tray.UpdateIcon(iconHandle);
         _tray.UpdateTooltip(tooltip);
 
-        previousIcon?.Dispose();
         if (previousHandle != IntPtr.Zero && previousHandle != iconHandle)
         {
             NativeMethods.DestroyIcon(previousHandle);
