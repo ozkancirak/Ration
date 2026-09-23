@@ -23,7 +23,8 @@ public sealed class ClaudeUsageSourceTests
                 "sentetik-eski-token",
                 DateTimeOffset.UtcNow.AddMinutes(-1),
                 "max",
-                "sentetik-refresh"));
+                "sentetik-refresh"),
+            Path.Combine(Path.GetTempPath(), $"ration-retry-{Guid.NewGuid():N}.txt"));
 
         var snapshot = await source.FetchAsync();
 
@@ -48,15 +49,35 @@ public sealed class ClaudeUsageSourceTests
             return response;
         });
 
-        var source = new ClaudeOAuthUsageSource(
-            new HttpClient(handler),
-            () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"));
+        var retryFile = Path.Combine(Path.GetTempPath(), $"ration-retry-{Guid.NewGuid():N}.txt");
+        try
+        {
+            var source = new ClaudeOAuthUsageSource(
+                new HttpClient(handler),
+                () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
+                retryFile);
 
-        var snapshot = await source.FetchAsync();
+            var snapshot = await source.FetchAsync();
 
-        Assert.Equal(ProviderStatus.Error, snapshot.Status);
-        Assert.Equal(429, source.LastStatusCode);
-        Assert.Equal("17", source.LastRetryAfter);
+            Assert.Equal(ProviderStatus.Error, snapshot.Status);
+            Assert.Equal(429, source.LastStatusCode);
+            Assert.Equal("17", source.LastRetryAfter);
+            Assert.StartsWith("Claude hız sınırına takıldı", snapshot.StaleReason);
+
+            // Süre dolmadan yeni örnek (yeniden başlatma) ağa çıkmaz; diskteki süreye uyar.
+            var restarted = new ClaudeOAuthUsageSource(
+                new HttpClient(handler),
+                () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
+                retryFile);
+            var second = await restarted.FetchAsync();
+
+            Assert.Single(handler.Calls);
+            Assert.Equal(ProviderStatus.Error, second.Status);
+        }
+        finally
+        {
+            File.Delete(retryFile);
+        }
     }
 
     private static HttpResponseMessage JsonResponse(HttpStatusCode status, string json) =>

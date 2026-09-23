@@ -832,7 +832,7 @@ public sealed partial class FlyoutWindow : Window
             DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Oturum Süresi Doldu" : "Kota Alınamadı";
             DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
                 ? UserErrorDetail(snapshot)
-                : "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
+                : snapshot.StaleReason ?? "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
             DetailError.Visibility = Visibility.Visible;
             ToolTipService.SetToolTip(DetailError, null);
             DetailWindows.Children.Clear();

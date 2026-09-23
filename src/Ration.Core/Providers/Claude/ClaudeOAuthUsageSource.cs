@@ -19,6 +19,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 
     private readonly HttpClient _http;
     private readonly Func<ClaudeCredentials?> _credentials;
+    private readonly string _retryAfterFile;
 
     public SourceKind Kind => SourceKind.LocalFile;
 
@@ -42,10 +43,12 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 
     public ClaudeOAuthUsageSource(
         HttpClient http,
-        Func<ClaudeCredentials?>? credentials = null)
+        Func<ClaudeCredentials?>? credentials = null,
+        string? retryAfterFile = null)
     {
         _http = http;
         _credentials = credentials ?? (() => ClaudeCredentialStore.TryRead());
+        _retryAfterFile = retryAfterFile ?? Path.Combine(KnownPaths.CacheDir, "claude-retry-after.txt");
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
@@ -64,8 +67,50 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
                 "~/.claude/.credentials.json bulunamadı ya da claudeAiOauth içermiyor.", Kind);
         }
 
+        // 429 sonrası sunucunun istediği süre dolmadan tekrar sorma; bekleme zamanı diskte
+        // tutulur ki uygulama yeniden başlatılınca da uyulsun.
+        if (ReadRetryAfter() is { } until && until > DateTimeOffset.UtcNow)
+        {
+            RationTrace.Info("provider.http", $"provider=claude skipped=retry-after until={until:O}");
+            return RateLimited(until);
+        }
+
         return await FetchUsageAsync(credentials, ct).ConfigureAwait(false);
     }
+
+    private UsageSnapshot RateLimited(DateTimeOffset? until) =>
+        Snapshot.Empty("claude", ProviderStatus.Error,
+            until is { } u
+                ? $"Claude hız sınırına takıldı — {u.ToLocalTime():HH:mm} sonrasında tekrar denenecek"
+                : "Claude hız sınırına takıldı — biraz sonra tekrar denenecek",
+            Kind);
+
+    private DateTimeOffset? ReadRetryAfter()
+    {
+        try
+        {
+            return File.Exists(_retryAfterFile) &&
+                   DateTimeOffset.TryParse(File.ReadAllText(_retryAfterFile), out var until)
+                ? until
+                : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    private void WriteRetryAfter(DateTimeOffset until)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_retryAfterFile)!);
+            File.WriteAllText(_retryAfterFile, until.ToString("O"));
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static DateTimeOffset? RetryAfterUntil(RetryConditionHeaderValue? header) =>
+        header?.Delta is { } delta ? DateTimeOffset.UtcNow + delta : header?.Date;
 
     private async Task<UsageSnapshot> FetchUsageAsync(ClaudeCredentials credentials, CancellationToken ct)
     {
@@ -105,8 +150,9 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
             if ((int)response.StatusCode == 429)
             {
                 RationTrace.Info("provider.http", "provider=claude mapped-status=Error");
-                return Snapshot.Empty("claude", ProviderStatus.Error,
-                    "Hız sınırı (HTTP 429): Çok fazla istek yapıldı, biraz sonra tekrar denenecek.", Kind);
+                var until = RetryAfterUntil(response.Headers.RetryAfter);
+                if (until is not null) WriteRetryAfter(until.Value);
+                return RateLimited(until);
             }
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
