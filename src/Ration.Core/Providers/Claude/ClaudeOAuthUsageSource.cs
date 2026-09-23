@@ -64,7 +64,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
         if (credentials is null)
         {
             return Snapshot.Empty("claude", ProviderStatus.AuthRequired,
-                "~/.claude/.credentials.json bulunamadı ya da claudeAiOauth içermiyor.", Kind);
+                L.T("~/.claude/.credentials.json not found or has no claudeAiOauth.", "~/.claude/.credentials.json bulunamadı ya da claudeAiOauth içermiyor."), Kind);
         }
 
         // 429 sonrası sunucunun istediği süre dolmadan tekrar sorma; bekleme zamanı diskte
@@ -81,8 +81,8 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
     private UsageSnapshot RateLimited(DateTimeOffset? until) =>
         Snapshot.Empty("claude", ProviderStatus.Error,
             until is { } u
-                ? $"Claude hız sınırına takıldı — {u.ToLocalTime():HH:mm} sonrasında tekrar denenecek"
-                : "Claude hız sınırına takıldı — biraz sonra tekrar denenecek",
+                ? L.T($"Claude rate limit hit — will retry after {u.ToLocalTime():t}", $"Claude hız sınırına takıldı — {u.ToLocalTime():HH:mm} sonrasında tekrar denenecek")
+                : L.T("Claude rate limit hit — will retry shortly", "Claude hız sınırına takıldı — biraz sonra tekrar denenecek"),
             Kind);
 
     private DateTimeOffset? ReadRetryAfter()
@@ -158,8 +158,8 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
                 var reason = response.StatusCode == HttpStatusCode.Unauthorized && credentials.IsExpired
-                    ? "Oturum yenilenmeli — Claude Code'u bir kez çalıştır"
-                    : $"Token reddedildi (HTTP {(int)response.StatusCode}). Claude Code CLI ile tekrar giriş yapın.";
+                    ? L.T("Session needs renewal — run Claude Code once", "Oturum yenilenmeli — Claude Code'u bir kez çalıştır")
+                    : L.T($"Token rejected (HTTP {(int)response.StatusCode}). Sign in again with the Claude Code CLI.", $"Token reddedildi (HTTP {(int)response.StatusCode}). Claude Code CLI ile tekrar giriş yapın.");
 
                 RationTrace.Info("provider.http", "provider=claude mapped-status=AuthRequired");
                 return Snapshot.Empty("claude", ProviderStatus.AuthRequired, reason, Kind);
@@ -169,7 +169,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
             {
                 RationTrace.Info("provider.http", "provider=claude mapped-status=Error");
                 return Snapshot.Empty("claude", ProviderStatus.Error,
-                    $"Beklenmedik yanıt: HTTP {(int)response.StatusCode}", Kind);
+                    L.T($"Unexpected response: HTTP {(int)response.StatusCode}", $"Beklenmedik yanıt: HTTP {(int)response.StatusCode}"), Kind);
             }
 
             var windows = ClaudeUsageParser.ParseWindows(body);
@@ -186,7 +186,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
                 FetchedAt: DateTimeOffset.UtcNow,
                 StaleReason: windows.Count > 0
                     ? null
-                    : "Yanıt alındı ama tanınan pencere yok. 'ration usage -p claude --raw' ile şemayı kontrol edin.",
+                    : L.T("Response received but no known window. Check the schema with 'ration usage -p claude --raw'.", "Yanıt alındı ama tanınan pencere yok. 'ration usage -p claude --raw' ile şemayı kontrol edin."),
                 PlanName: credentials.SubscriptionType);
         }
         catch (JsonException ex)
@@ -194,14 +194,14 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
             RationTrace.Error("provider.http", $"provider=claude endpoint=usage error={ex.GetType().Name}");
             RationTrace.Info("provider.http", "provider=claude mapped-status=Error");
             return Snapshot.Empty("claude", ProviderStatus.Error,
-                $"JSON ayrıştırılamadı: {ex.Message}", Kind);
+                L.T($"JSON could not be parsed: {ex.Message}", $"JSON ayrıştırılamadı: {ex.Message}"), Kind);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             RationTrace.Error("provider.http", $"provider=claude endpoint=usage error={ex.GetType().Name}");
             RationTrace.Info("provider.http", "provider=claude mapped-status=Error");
             return Snapshot.Empty("claude", ProviderStatus.Error,
-                $"Ağ hatası: {ex.GetType().Name}", Kind);
+                L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}"), Kind);
         }
     }
 
@@ -245,10 +245,10 @@ public static class ClaudeUsageParser
     // seven_day* → 7 gün. Yanıt uzunluğu taşımaz, anahtar taşır.
     private static readonly (string Key, WindowKind Kind, string Label, TimeSpan Length)[] KnownWindows =
     {
-        ("five_hour",        WindowKind.Session, "5 saatlik",       TimeSpan.FromHours(5)),
-        ("seven_day",        WindowKind.Weekly,  "Haftalık",        TimeSpan.FromDays(7)),
-        ("seven_day_opus",   WindowKind.Weekly,  "Haftalık · Opus", TimeSpan.FromDays(7)),
-        ("seven_day_sonnet", WindowKind.Weekly,  "Haftalık · Sonnet", TimeSpan.FromDays(7)),
+        ("five_hour",        WindowKind.Session, L.T("5-hour", "5 saatlik"),       TimeSpan.FromHours(5)),
+        ("seven_day",        WindowKind.Weekly,  L.T("Weekly", "Haftalık"),        TimeSpan.FromDays(7)),
+        ("seven_day_opus",   WindowKind.Weekly,  L.T("Weekly · Opus", "Haftalık · Opus"), TimeSpan.FromDays(7)),
+        ("seven_day_sonnet", WindowKind.Weekly,  L.T("Weekly · Sonnet", "Haftalık · Sonnet"), TimeSpan.FromDays(7)),
     };
 
     private static readonly string[] PercentNames = { "utilization", "used_percent", "percent", "usage" };

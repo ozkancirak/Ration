@@ -101,8 +101,8 @@ public static class ClaudeStatusLine
 
     public static IReadOnlyList<UsageWindow> ToWindows(Limits limits) => new[]
     {
-        new UsageWindow(WindowKind.Session, limits.FiveHour, 100, limits.FiveHour, limits.FiveHourResetsAt, "5 saatlik", TimeSpan.FromHours(5)),
-        new UsageWindow(WindowKind.Weekly, limits.SevenDay, 100, limits.SevenDay, limits.SevenDayResetsAt, "Haftalık", TimeSpan.FromDays(7)),
+        new UsageWindow(WindowKind.Session, limits.FiveHour, 100, limits.FiveHour, limits.FiveHourResetsAt, L.T("5-hour", "5 saatlik"), TimeSpan.FromHours(5)),
+        new UsageWindow(WindowKind.Weekly, limits.SevenDay, 100, limits.SevenDay, limits.SevenDayResetsAt, L.T("Weekly", "Haftalık"), TimeSpan.FromDays(7)),
     };
 
     private static (double Percent, DateTimeOffset? ResetsAt)? ReadWindow(JsonElement parent, string name)
@@ -143,7 +143,7 @@ public sealed class ClaudeStatusLineUsageSource : IUsageSource
         if (ClaudeStatusLine.Read(_path) is not { } record)
         {
             return Task.FromResult(Snapshot.Empty("claude", ProviderStatus.Error,
-                "Claude Code statusLine kaydı okunamadı.", Kind));
+                L.T("Could not read the Claude Code statusLine record.", "Claude Code statusLine kaydı okunamadı."), Kind));
         }
 
         var fresh = DateTimeOffset.UtcNow - record.CapturedAt < FreshFor;

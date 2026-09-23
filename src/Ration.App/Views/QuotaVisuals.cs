@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ration.Core.Model;
 using Ration.Platform.Windows.Theme;
 using Microsoft.UI.Xaml;
@@ -50,13 +51,13 @@ public static class QuotaVisuals
         if (remaining <= TimeSpan.Zero)
         {
             return stale
-                ? "sıfırlanmış olabilir"
-                : "Sıfırlanma zamanı geldi — doğrulanıyor";
+                ? L.T("may have reset", "sıfırlanmış olabilir")
+                : L.T("Reset time reached — verifying", "Sıfırlanma zamanı geldi — doğrulanıyor");
         }
-        if (remaining.TotalMinutes < 60) return $"{(int)remaining.TotalMinutes} dk";
-        if (remaining.TotalHours < 24) return $"{(int)remaining.TotalHours} sa {remaining.Minutes} dk";
+        if (remaining.TotalMinutes < 60) return L.T($"{(int)remaining.TotalMinutes}m", $"{(int)remaining.TotalMinutes} dk");
+        if (remaining.TotalHours < 24) return L.T($"{(int)remaining.TotalHours}h {remaining.Minutes}m", $"{(int)remaining.TotalHours} sa {remaining.Minutes} dk");
 
-        return $"{(int)remaining.TotalDays} gün";
+        return L.T($"{(int)remaining.TotalDays}d", $"{(int)remaining.TotalDays} gün");
     }
 
     /// <summary>
@@ -101,20 +102,25 @@ public static class QuotaVisuals
 
         if (!string.IsNullOrWhiteSpace(automationPrefix))
         {
-            AutomationProperties.SetName(bar, $"{automationPrefix}, yüzde {window.Percent:F0}");
+            AutomationProperties.SetName(bar, L.T($"{automationPrefix}, {window.Percent:F0} percent", $"{automationPrefix}, yüzde {window.Percent:F0}"));
         }
     }
 
     /// <summary>"Az önce güncellendi", "12 dk önce güncellendi" — veri tazeliği tek satır.</summary>
     public static string FormatUpdated(DateTimeOffset fetchedAt)
     {
-        var age = DateTimeOffset.UtcNow - fetchedAt;
+        var age = FormatAge(fetchedAt);
+        return L.T($"Updated {age}", char.ToUpper(age[0], CultureInfo.CurrentCulture) + age[1..] + " güncellendi");
+    }
 
-        if (age < TimeSpan.FromMinutes(1)) return "Az önce güncellendi";
-        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} dk önce güncellendi";
-        if (age.TotalDays < 1) return $"{(int)age.TotalHours} sa önce güncellendi";
-
-        return $"{(int)age.TotalDays} gün önce güncellendi";
+    /// <summary>"az önce", "12 dk önce" / "just now", "12 min ago".</summary>
+    public static string FormatAge(DateTimeOffset at)
+    {
+        var age = DateTimeOffset.UtcNow - at;
+        if (age < TimeSpan.FromMinutes(1)) return L.T("just now", "az önce");
+        if (age.TotalHours < 1) return L.T($"{(int)age.TotalMinutes} min ago", $"{(int)age.TotalMinutes} dk önce");
+        if (age.TotalDays < 1) return L.T($"{(int)age.TotalHours} h ago", $"{(int)age.TotalHours} sa önce");
+        return L.T($"{(int)age.TotalDays} d ago", $"{(int)age.TotalDays} gün önce");
     }
 
     /// <summary>Tema fırçası; sözlükte yoksa gri. Kodda sabit renk kullanılmaz.</summary>

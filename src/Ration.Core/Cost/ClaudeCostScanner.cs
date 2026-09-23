@@ -25,7 +25,7 @@ public static class ClaudeCostScanner
 
         if (!Directory.Exists(directory))
         {
-            return new CostScanResult(tally, since, now, 0, $"Dizin bulunamadı: {directory}");
+            return new CostScanResult(tally, since, now, 0, L.T($"Directory not found: {directory}", $"Dizin bulunamadı: {directory}"));
         }
 
         // Aynı yanıt birden fazla satırda görünebilir (yeniden yazım, devam kaydı).
@@ -40,7 +40,7 @@ public static class ClaudeCostScanner
         }
         catch (UnauthorizedAccessException)
         {
-            return new CostScanResult(tally, since, now, 0, "Dizin okunamadı (yetki).");
+            return new CostScanResult(tally, since, now, 0, L.T("Directory could not be read (permission).", "Dizin okunamadı (yetki)."));
         }
 
         foreach (var file in files)

@@ -38,7 +38,7 @@ public sealed class CodexOAuthUsageSource : IUsageSource
         if (credentials is null)
         {
             return Snapshot.Empty("codex", ProviderStatus.AuthRequired,
-                "~/.codex/auth.json bulunamadı ya da tokens.access_token içermiyor.", Kind);
+                L.T("~/.codex/auth.json not found or has no tokens.access_token.", "~/.codex/auth.json bulunamadı ya da tokens.access_token içermiyor."), Kind);
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
@@ -61,19 +61,19 @@ public sealed class CodexOAuthUsageSource : IUsageSource
             if ((int)response.StatusCode == 429)
             {
                 return Snapshot.Empty("codex", ProviderStatus.Error,
-                    "Hız sınırı (HTTP 429): Çok fazla istek yapıldı, biraz sonra tekrar denenecek.", Kind);
+                    L.T("Rate limited (HTTP 429): too many requests, will retry shortly.", "Hız sınırı (HTTP 429): Çok fazla istek yapıldı, biraz sonra tekrar denenecek."), Kind);
             }
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
                 return Snapshot.Empty("codex", ProviderStatus.AuthRequired,
-                    $"Token reddedildi (HTTP {(int)response.StatusCode}). Codex CLI ile tekrar giriş yapın.", Kind);
+                    L.T($"Token rejected (HTTP {(int)response.StatusCode}). Sign in again with the Codex CLI.", $"Token reddedildi (HTTP {(int)response.StatusCode}). Codex CLI ile tekrar giriş yapın."), Kind);
             }
 
             if (!response.IsSuccessStatusCode)
             {
                 return Snapshot.Empty("codex", ProviderStatus.Error,
-                    $"Beklenmedik yanıt: HTTP {(int)response.StatusCode}", Kind);
+                    L.T($"Unexpected response: HTTP {(int)response.StatusCode}", $"Beklenmedik yanıt: HTTP {(int)response.StatusCode}"), Kind);
             }
 
             var usage = CodexUsageParser.Parse(body);
@@ -88,20 +88,20 @@ public sealed class CodexOAuthUsageSource : IUsageSource
                 FetchedAt: DateTimeOffset.UtcNow,
                 StaleReason: usage.Windows.Count > 0
                     ? null
-                    : "Yanıt alındı ama tanınan pencere yok. 'ration usage -p codex --raw' ile şemayı kontrol edin.",
+                    : L.T("Response received but no known window. Check the schema with 'ration usage -p codex --raw'.", "Yanıt alındı ama tanınan pencere yok. 'ration usage -p codex --raw' ile şemayı kontrol edin."),
                 PlanName: usage.PlanName);
         }
         catch (JsonException ex)
         {
             RationTrace.Error("provider.http", $"provider=codex endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("codex", ProviderStatus.Error,
-                $"JSON ayrıştırılamadı: {ex.Message}", Kind);
+                L.T($"JSON could not be parsed: {ex.Message}", $"JSON ayrıştırılamadı: {ex.Message}"), Kind);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             RationTrace.Error("provider.http", $"provider=codex endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("codex", ProviderStatus.Error,
-                $"Ağ hatası: {ex.GetType().Name}", Kind);
+                L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}"), Kind);
         }
     }
 }
@@ -254,10 +254,10 @@ public static class CodexUsageParser
         {
             return fallbackKind switch
             {
-                WindowKind.Session => "Oturum",
-                WindowKind.Daily => "Günlük",
-                WindowKind.Weekly => "Haftalık",
-                WindowKind.Monthly => "Aylık",
+                WindowKind.Session => L.T("Session", "Oturum"),
+                WindowKind.Daily => L.T("Daily", "Günlük"),
+                WindowKind.Weekly => L.T("Weekly", "Haftalık"),
+                WindowKind.Monthly => L.T("Monthly", "Aylık"),
                 _ => fallbackKind.ToString(),
             };
         }
@@ -269,15 +269,15 @@ public static class CodexUsageParser
             var days = (int)Math.Round(span.TotalDays);
             return days switch
             {
-                1 => "Günlük",
-                7 => "Haftalık",
-                30 or 31 => "Aylık",
-                _ => $"{days} günlük",
+                1 => L.T("Daily", "Günlük"),
+                7 => L.T("Weekly", "Haftalık"),
+                30 or 31 => L.T("Monthly", "Aylık"),
+                _ => L.T($"{days}-day", $"{days} günlük"),
             };
         }
 
         var hours = (int)Math.Round(span.TotalHours);
-        return hours <= 1 ? "Saatlik" : $"{hours} saatlik";
+        return hours <= 1 ? L.T("Hourly", "Saatlik") : L.T($"{hours}-hour", $"{hours} saatlik");
     }
 
     public static WindowKind KindFromSeconds(double? windowSeconds, WindowKind fallback)

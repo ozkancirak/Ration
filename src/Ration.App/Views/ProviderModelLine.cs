@@ -20,7 +20,7 @@ public static class ProviderModelLine
         }
 
         var top = models[0];
-        line.Text = $"En çok: {top.Model} · %{top.Tokens * 100d / total:F0}";
+        line.Text = L.T($"Top: {top.Model} · {top.Tokens * 100d / total:F0}%", $"En çok: {top.Model} · %{top.Tokens * 100d / total:F0}");
         line.Visibility = Visibility.Visible;
     }
 

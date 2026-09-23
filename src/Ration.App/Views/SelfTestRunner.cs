@@ -41,7 +41,7 @@ internal static class SelfTestRunner
 
         var menu = flyout.MenuWindow;
         var buttons = menu.ButtonsForSelfTest;
-        var labels = new[] { "Yenile", "Ayarlar", "Çıkış" };
+        var labels = new[] { L.T("Refresh", "Yenile"), L.T("Settings", "Ayarlar"), L.T("Exit", "Çıkış") };
 
         NativeMethods.POINT originalCursor = default;
         bool cursorCaptured = NativeMethods.GetCursorPos(out originalCursor);
@@ -450,9 +450,9 @@ internal static class SelfTestRunner
 
     private static string FilePart(string value) => value switch
     {
-        "Yenile" => "yenile",
-        "Ayarlar" => "ayarlar",
-        "Çıkış" => "cikis",
+        "Yenile" or "Refresh" => "yenile",
+        "Ayarlar" or "Settings" => "ayarlar",
+        "Çıkış" or "Exit" => "cikis",
         _ => "menu",
     };
 

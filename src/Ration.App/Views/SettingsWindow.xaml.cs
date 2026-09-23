@@ -26,9 +26,13 @@ public sealed partial class SettingsWindow : Window
 
     public event Action<string?>? TrayProviderChanged;
 
+    /// <summary>Etkin dil değişti; uygulama yeniden başlamalı (FlyoutWindow yapar).</summary>
+    public event Action? LanguageChanged;
+
     public SettingsWindow()
     {
         InitializeComponent();
+        Title = L.T("Settings — Ration", "Ayarlar — Ration");
         AppTheme.Apply(SettingsScrollViewer);
         RefreshProviderIcons();
 
@@ -78,6 +82,19 @@ public sealed partial class SettingsWindow : Window
         };
         AppThemePreference.Changed += OnAppThemeChanged;
 
+        var language = L.Preference;
+        LanguageSelection.SelectedItem = LanguageSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, L.ToTag(language), StringComparison.OrdinalIgnoreCase));
+        LanguageSelection.SelectionChanged += (_, _) =>
+        {
+            if (LanguageSelection.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
+            var selected = L.FromTag(tag);
+            L.Preference = selected;
+            // "Sistem" seçimi etkin dili değiştirmiyorsa yeniden başlatmaya gerek yok.
+            if (L.Resolve(selected) != L.Turkish) LanguageChanged?.Invoke();
+        };
+
         StartupToggle.IsOn = StartupRegistration.IsEnabled();
         StartupToggle.Toggled += (_, _) =>
         {
@@ -94,7 +111,7 @@ public sealed partial class SettingsWindow : Window
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
-        VersionText.Text = $"Sürüm {UpdateService.CurrentVersion}";
+        VersionText.Text = L.T($"Version {UpdateService.CurrentVersion}", $"Sürüm {UpdateService.CurrentVersion}");
         UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastResult);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -270,9 +287,9 @@ public sealed partial class SettingsWindow : Window
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
         Trace.Info("settings", "statusline snippet copied");
 
-        CopyStatusLineButton.Content = "Kopyalandı";
+        CopyStatusLineButton.Content = L.T("Copied", "Kopyalandı");
         await Task.Delay(TimeSpan.FromSeconds(2));
-        CopyStatusLineButton.Content = "Satırı kopyala";
+        CopyStatusLineButton.Content = L.T("Copy line", "Satırı kopyala");
     }
 
     private void RefreshProviderStatus()
@@ -282,8 +299,8 @@ public sealed partial class SettingsWindow : Window
             ClaudeStatusLineBadge,
             ClaudeStatusLineStatus,
             statusLine is not null,
-            statusLine is { } record ? $"Bağlı · {QuotaVisuals.FormatUpdated(record.CapturedAt).Replace(" güncellendi", string.Empty)}" : string.Empty,
-            "Bağlı değil",
+            statusLine is { } record ? L.T("Connected", "Bağlı") + $" · {QuotaVisuals.FormatAge(record.CapturedAt)}" : string.Empty,
+            L.T("Not connected", "Bağlı değil"),
             unavailableIsProblem: false);
 
         var claude = ClaudeCredentialStore.TryRead();
@@ -291,17 +308,17 @@ public sealed partial class SettingsWindow : Window
             ClaudeProviderBadge,
             ClaudeProviderStatus,
             claude is { IsExpired: false },
-            "Kimlik bulundu",
+            L.T("Credentials found", "Kimlik bulundu"),
             // Süresi geçmiş oturum da bir sorundur: uyarı rozetiyle gösterilir (yeşil yanıltıyordu).
-            claude is null ? "Kimlik bulunamadı" : "Oturum süresi geçmiş — Claude Code'u çalıştırın");
+            claude is null ? L.T("No credentials found", "Kimlik bulunamadı") : L.T("Session expired — run Claude Code", "Oturum süresi geçmiş — Claude Code'u çalıştırın"));
 
         var codex = CodexCredentialStore.TryRead();
         SetProviderStatus(
             CodexProviderBadge,
             CodexProviderStatus,
             codex is not null,
-            "Kimlik bulundu",
-            "Kimlik bulunamadı");
+            L.T("Credentials found", "Kimlik bulundu"),
+            L.T("No credentials found", "Kimlik bulunamadı"));
 
         // Antigravity verisi yerel dil sunucusundan gelir; uygulama kapalıyken güncellenmez.
         var antigravityRunning = System.Diagnostics.Process.GetProcessesByName("Antigravity").Length > 0 ||
@@ -310,22 +327,22 @@ public sealed partial class SettingsWindow : Window
             AntigravityProviderBadge,
             AntigravityProviderStatus,
             antigravityRunning,
-            "Açık",
-            "Kapalı — açınca veri gelir",
+            L.T("Running", "Açık"),
+            L.T("Not running — data arrives when opened", "Kapalı — açınca veri gelir"),
             unavailableIsProblem: false);
 
         SetProviderStatus(
             OpenCodeProviderBadge,
             OpenCodeProviderStatus,
             File.Exists(KnownPaths.OpenCodeDatabaseFile),
-            "Veri bulundu",
-            "Veritabanı bulunamadı");
+            L.T("Data found", "Veri bulundu"),
+            L.T("Database not found", "Veritabanı bulunamadı"));
     }
 
     private async Task CheckForUpdatesAsync()
     {
         CheckUpdatesButton.IsEnabled = false;
-        UpdateStatusText.Text = "Denetleniyor…";
+        UpdateStatusText.Text = L.T("Checking…", "Denetleniyor…");
         try
         {
             var result = await UpdateService.CheckAsync();
@@ -339,16 +356,16 @@ public sealed partial class SettingsWindow : Window
 
     private static string UpdateStatusTextFor(UpdateCheckResult? result)
     {
-        if (result is null) return "Henüz denetlenmedi";
+        if (result is null) return L.T("Not checked yet", "Henüz denetlenmedi");
         if (result.UpdateAvailable && !string.IsNullOrWhiteSpace(result.AvailableVersion))
         {
-            return $"Sürüm {result.AvailableVersion} hazır";
+            return L.T($"Version {result.AvailableVersion} available", $"Sürüm {result.AvailableVersion} hazır");
         }
 
         var checkedAt = result.CheckedAt.ToLocalTime();
         return result.Succeeded
-            ? $"Güncel · {checkedAt:HH:mm}'de denetlendi"
-            : $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi";
+            ? L.T($"Up to date · checked at {checkedAt:t}", $"Güncel · {checkedAt:HH:mm}'de denetlendi")
+            : L.T($"Check failed · at {checkedAt:t}", $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi");
     }
 
     private static void OpenLog()
@@ -372,8 +389,8 @@ public sealed partial class SettingsWindow : Window
     {
         if (!dirExists)
         {
-            status.Text = "Kapalı";
-            reason.Text = "Oturum log dizini bulunamadı — taranacak veri yok.";
+            status.Text = L.T("Off", "Kapalı");
+            reason.Text = L.T("Session log directory not found — nothing to scan.", "Oturum log dizini bulunamadı — taranacak veri yok.");
             reason.Visibility = Visibility.Visible;
             // Dikkat rengi nokta; anahtar bu sürümde yoksa mevcut nokta kalır
             // (etiket zaten doğru, çökme yok).
@@ -384,14 +401,14 @@ public sealed partial class SettingsWindow : Window
             return;
         }
 
-        status.Text = "Açık";
+        status.Text = L.T("On", "Açık");
         if (priced)
         {
             reason.Visibility = Visibility.Collapsed;
             return;
         }
 
-        reason.Text = "pricing.json bulunamadı — para tutarı yerine yalnızca token gösteriliyor.";
+        reason.Text = L.T("pricing.json not found — showing tokens only instead of amounts.", "pricing.json bulunamadı — para tutarı yerine yalnızca token gösteriliyor.");
         reason.Visibility = Visibility.Visible;
     }
 

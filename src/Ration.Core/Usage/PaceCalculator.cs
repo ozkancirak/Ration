@@ -46,23 +46,23 @@ public static class PaceCalculator
         {
             // Önden gitme matematiksel olarak her zaman pencere bitmeden tükenir;
             // bu dal çelişkiye karşı güvenlik ağıdır (kayan nokta tozu).
-            if (pace.DepletesIn >= remaining) return "Rahat · pencere sonuna yeter";
-            if (pace.DepletesIn < SoonThreshold) return "Hızlı gidiyorsun · bu tempoda birazdan biter";
-            return $"Hızlı gidiyorsun · bu tempoda {FormatDuration(pace.DepletesIn)} sonra biter";
+            if (pace.DepletesIn >= remaining) return L.T("Comfortable · lasts until reset", "Rahat · pencere sonuna yeter");
+            if (pace.DepletesIn < SoonThreshold) return L.T("Running hot · runs out soon at this pace", "Hızlı gidiyorsun · bu tempoda birazdan biter");
+            return L.T($"Running hot · runs out in {FormatDuration(pace.DepletesIn)} at this pace", $"Hızlı gidiyorsun · bu tempoda {FormatDuration(pace.DepletesIn)} sonra biter");
         }
 
-        if (pace.Tempo < -0.05) return "Rahat · pencere sonuna yeter";
+        if (pace.Tempo < -0.05) return L.T("Comfortable · lasts until reset", "Rahat · pencere sonuna yeter");
 
-        return "Dengeli tempo";
+        return L.T("On pace", "Dengeli tempo");
     }
 
     /// <summary>%100 pencerede tempo yerine gösterilen rozet yazısı.</summary>
     public static string FormatConsumedBadge(UsageWindow window, DateTimeOffset now)
     {
-        if (window.ResetsAt is not { } reset) return "Tükendi";
+        if (window.ResetsAt is not { } reset) return L.T("Used up", "Tükendi");
         var remaining = reset - now;
-        if (remaining <= TimeSpan.Zero) return "Tükendi · sıfırlanma zamanı geldi — doğrulanıyor";
-        return $"Tükendi · {FormatDuration(remaining)} sonra sıfırlanır";
+        if (remaining <= TimeSpan.Zero) return L.T("Used up · reset time reached — verifying", "Tükendi · sıfırlanma zamanı geldi — doğrulanıyor");
+        return L.T($"Used up · resets in {FormatDuration(remaining)}", $"Tükendi · {FormatDuration(remaining)} sonra sıfırlanır");
     }
 
     /// <summary>"53 dk", "2 sa 10 dk", "2 gün 1 sa" — süreleri kısa yazar.</summary>
@@ -70,15 +70,15 @@ public static class PaceCalculator
     {
         if (span < TimeSpan.Zero) span = TimeSpan.Zero;
 
-        if (span.TotalHours < 1) return $"{(int)span.TotalMinutes} dk";
+        if (span.TotalHours < 1) return L.T($"{(int)span.TotalMinutes}m", $"{(int)span.TotalMinutes} dk");
 
         if (span.TotalDays < 1)
         {
             var hours = (int)span.TotalHours;
-            return span.Minutes > 0 ? $"{hours} sa {span.Minutes} dk" : $"{hours} sa";
+            return span.Minutes > 0 ? L.T($"{hours}h {span.Minutes}m", $"{hours} sa {span.Minutes} dk") : L.T($"{hours}h", $"{hours} sa");
         }
 
         var days = (int)span.TotalDays;
-        return span.Hours > 0 ? $"{days} gün {span.Hours} sa" : $"{days} gün";
+        return span.Hours > 0 ? L.T($"{days}d {span.Hours}h", $"{days} gün {span.Hours} sa") : L.T($"{days}d", $"{days} gün");
     }
 }

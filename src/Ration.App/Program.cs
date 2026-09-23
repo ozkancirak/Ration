@@ -10,6 +10,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        Ration.Core.L.ApplyCulture();
+
         // Claude Code statusLine köprüsü: durum satırı her yenilendiğinde çağrılır, bu yüzden
         // WinUI/Velopack başlatılmadan en kısa yoldan çalışır ve hemen çıkar.
         if (args.Length > 0 && args[0].Equals("--statusline", StringComparison.OrdinalIgnoreCase))
@@ -53,7 +55,9 @@ internal static class Program
             using var output = new StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false));
             output.Write(limits is null
                 ? "Ration"
-                : $"Claude · oturum %{100 - limits.FiveHour:F0} kaldı · haftalık %{100 - limits.SevenDay:F0} kaldı");
+                : Ration.Core.L.T(
+                    $"Claude · session {100 - limits.FiveHour:F0}% left · weekly {100 - limits.SevenDay:F0}% left",
+                    $"Claude · oturum %{100 - limits.FiveHour:F0} kaldı · haftalık %{100 - limits.SevenDay:F0} kaldı"));
         }
         catch (Exception ex)
         {

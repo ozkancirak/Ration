@@ -76,6 +76,6 @@ public static class ProviderResolver
         return staleWithData ?? firstProblem ?? Snapshot.Empty(
             provider.Id,
             ProviderStatus.AuthRequired,
-            "Kullanılabilir kaynak yok. İlgili CLI ile giriş yapıldığından emin olun.");
+            L.T("No usable source. Make sure you are signed in with the provider's CLI.", "Kullanılabilir kaynak yok. İlgili CLI ile giriş yapıldığından emin olun."));
     }
 }

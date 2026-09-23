@@ -30,7 +30,7 @@ public static class CodexCostScanner
 
         if (!Directory.Exists(directory))
         {
-            return new CostScanResult(tally, since, now, 0, $"Dizin bulunamadı: {directory}");
+            return new CostScanResult(tally, since, now, 0, L.T($"Directory not found: {directory}", $"Dizin bulunamadı: {directory}"));
         }
 
         var filesScanned = 0;
@@ -43,7 +43,7 @@ public static class CodexCostScanner
         }
         catch (UnauthorizedAccessException)
         {
-            return new CostScanResult(tally, since, now, 0, "Dizin okunamadı (yetki).");
+            return new CostScanResult(tally, since, now, 0, L.T("Directory could not be read (permission).", "Dizin okunamadı (yetki)."));
         }
 
         // Bazı oturumlarda (ör. codex-auto-review) olaylar model adı taşımaz; Codex modeli kendi
@@ -67,8 +67,8 @@ public static class CodexCostScanner
         }
 
         var note = tally.IsEmpty
-            ? "Token verisi bulunamadı. Şema doğrulanmamış — 'ration cost --schema' ile anahtarları görebilirsiniz."
-            : "Şema henüz gerçek veriyle doğrulanmadı; sayıları bir kez teyit edin.";
+            ? L.T("No token data found. Schema not verified — run 'ration cost --schema' to see the keys.", "Token verisi bulunamadı. Şema doğrulanmamış — 'ration cost --schema' ile anahtarları görebilirsiniz.")
+            : L.T("Schema not yet verified against real data; double-check the numbers once.", "Şema henüz gerçek veriyle doğrulanmadı; sayıları bir kez teyit edin.");
 
         return new CostScanResult(tally, since, now, filesScanned, note)
         {

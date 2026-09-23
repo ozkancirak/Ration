@@ -44,7 +44,7 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return Task.FromResult(Snapshot.Empty("codex", ProviderStatus.Error,
-                $"Oturum logu okunamadı: {ex.GetType().Name}", Kind));
+                L.T($"Session log could not be read: {ex.GetType().Name}", $"Oturum logu okunamadı: {ex.GetType().Name}"), Kind));
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
         catch (UnauthorizedAccessException)
         {
             return Snapshot.Empty("codex", ProviderStatus.Error,
-                "Oturum dizini okunamadı (yetki).", Kind);
+                L.T("Session directory could not be read (permission).", "Oturum dizini okunamadı (yetki)."), Kind);
         }
 
         foreach (var file in files)
@@ -84,14 +84,14 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
                     // anını FetchedAt yapmak eski kotayı yeni alınmış gösterir.
                     FetchedAt: hit.At,
                     StaleReason: hit.Data.Windows.Count > 0
-                        ? $"oturum kaydından · {age}"
-                        : "Oturum loglarında rate_limits bulunamadı.",
+                        ? L.T($"from session log · {age}", $"oturum kaydından · {age}")
+                        : L.T("No rate_limits found in session logs.", "Oturum loglarında rate_limits bulunamadı."),
                     PlanName: hit.Data.PlanName);
             }
         }
 
         return Snapshot.Empty("codex", ProviderStatus.Degraded,
-            "Oturum loglarında rate_limits bulunamadı.", Kind);
+            L.T("No rate_limits found in session logs.", "Oturum loglarında rate_limits bulunamadı."), Kind);
     }
 
     private sealed record Hit(CodexUsageData Data, DateTimeOffset At);
@@ -146,10 +146,10 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
     private static string FormatAge(TimeSpan age)
     {
         if (age < TimeSpan.Zero) age = TimeSpan.Zero;
-        if (age.TotalMinutes < 1) return "az önce";
-        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} dk önce";
-        if (age.TotalDays < 1) return $"{(int)age.TotalHours} sa önce";
-        return $"{(int)age.TotalDays} gün önce";
+        if (age.TotalMinutes < 1) return L.T("just now", "az önce");
+        if (age.TotalHours < 1) return L.T($"{(int)age.TotalMinutes} min ago", $"{(int)age.TotalMinutes} dk önce");
+        if (age.TotalDays < 1) return L.T($"{(int)age.TotalHours} h ago", $"{(int)age.TotalHours} sa önce");
+        return L.T($"{(int)age.TotalDays} d ago", $"{(int)age.TotalDays} gün önce");
     }
 }
 

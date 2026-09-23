@@ -103,7 +103,7 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
         {
             return Complete(
                 Snapshot.Empty("antigravity", ProviderStatus.NotInstalled,
-                    "Antigravity açık değil.", Kind),
+                    L.T("Antigravity is not running.", "Antigravity açık değil."), Kind),
                 stopwatch,
                 "not-installed candidates=0");
         }
@@ -176,7 +176,7 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
                 Status: windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
                 ResolvedVia: Kind,
                 FetchedAt: DateTimeOffset.UtcNow,
-                StaleReason: windows.Count == 0 ? "Antigravity kota verisi yok." : null));
+                StaleReason: windows.Count == 0 ? L.T("No Antigravity quota data.", "Antigravity kota verisi yok.") : null));
             RationTrace.Info(
                 "provider.source",
                 $"provider=antigravity source=quota result=published windows={windows.Count}");
@@ -220,7 +220,7 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
                     StaleReason: windows.Count == 0
-                        ? "Antigravity kota verisi yok."
+                        ? L.T("No Antigravity quota data.", "Antigravity kota verisi yok.")
                         : null,
                     PlanName: planName),
                 stopwatch,
@@ -233,14 +233,14 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
         {
             return Complete(
                 Snapshot.Empty("antigravity", ProviderStatus.NotInstalled,
-                    "Antigravity dil sunucusuna ulaşılamadı.", Kind),
+                    L.T("Could not reach the Antigravity language server.", "Antigravity dil sunucusuna ulaşılamadı."), Kind),
                 stopwatch,
                 $"not-installed connection-failed candidates={candidates.Count}");
         }
 
         return Complete(
             Snapshot.Empty("antigravity", ProviderStatus.Degraded,
-                "Antigravity dil sunucusu kota endpoint'ine geçerli yanıt vermedi.", Kind),
+                L.T("The Antigravity language server returned no valid quota response.", "Antigravity dil sunucusu kota endpoint'ine geçerli yanıt vermedi."), Kind),
             stopwatch,
             $"degraded no-200 candidates={candidates.Count}");
     }

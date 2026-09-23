@@ -98,7 +98,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
             var cached = _cache.TryLoad(provider.Id);
             if (cached is null) continue;
 
-            Publish(MarkStale(cached, "Önceki oturumdan"));
+            Publish(MarkStale(cached, L.T("From previous session", "Önceki oturumdan")));
         }
     }
 
@@ -146,7 +146,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
             RationTrace.Info(
                 "provider.refresh",
                 $"result provider={provider.Id} source=none status=skipped durationMs={stopwatch.ElapsedMilliseconds}");
-            PublishFallback(provider.Id, $"Sağlayıcı geçici olarak atlanıyor ({remaining} sn sonra tekrar denenecek)");
+            PublishFallback(provider.Id, L.T($"Provider temporarily skipped (retrying in {remaining} s)", $"Sağlayıcı geçici olarak atlanıyor ({remaining} sn sonra tekrar denenecek)"));
             return;
         }
 
@@ -258,18 +258,18 @@ public sealed class RefreshScheduler : IAsyncDisposable
 
         var ageText = age.TotalMinutes switch
         {
-            < 1 => "az önce",
-            < 60 => $"{(int)age.TotalMinutes} dk önce",
-            < 1440 => $"{(int)age.TotalHours} sa önce",
-            _ => $"{(int)age.TotalDays} gün önce",
+            < 1 => L.T("just now", "az önce"),
+            < 60 => L.T($"{(int)age.TotalMinutes} min ago", $"{(int)age.TotalMinutes} dk önce"),
+            < 1440 => L.T($"{(int)age.TotalHours} h ago", $"{(int)age.TotalHours} sa önce"),
+            _ => L.T($"{(int)age.TotalDays} d ago", $"{(int)age.TotalDays} gün önce"),
         };
 
-        var prefix = string.IsNullOrWhiteSpace(reason) ? "Yenilenemedi" : reason;
+        var prefix = string.IsNullOrWhiteSpace(reason) ? L.T("Could not refresh", "Yenilenemedi") : reason;
 
         return cached with
         {
             Status = ProviderStatus.Degraded,
-            StaleReason = $"{prefix} — gösterilen veri {ageText} alındı",
+            StaleReason = L.T($"{prefix} — data shown is from {ageText}", $"{prefix} — gösterilen veri {ageText} alındı"),
         };
     }
 

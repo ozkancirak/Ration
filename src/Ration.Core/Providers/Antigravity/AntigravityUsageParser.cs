@@ -126,8 +126,8 @@ public static class AntigravityUsageParser
 
     private static string WindowLabel(WindowKind kind) => kind switch
     {
-        WindowKind.Session => "5 saatlik",
-        WindowKind.Weekly => "Haftalık",
+        WindowKind.Session => L.T("5-hour", "5 saatlik"),
+        WindowKind.Weekly => L.T("Weekly", "Haftalık"),
         _ => kind.ToString(),
     };
 

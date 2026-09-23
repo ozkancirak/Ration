@@ -135,8 +135,8 @@ public sealed class OpenCodeUsageSource : IUsageSource
     private readonly string _databaseCacheDirectory;
     private readonly string? _freeModelPath;
 
-    private const string NoQuotaDetail =
-        "OpenCode'un kendi kotası yok; yapılandırılmış sağlayıcıların aboneliğini kullanıyor.";
+    private static string NoQuotaDetail =>
+        L.T("OpenCode has no quota of its own; it uses your configured providers' subscriptions.", "OpenCode'un kendi kotası yok; yapılandırılmış sağlayıcıların aboneliğini kullanıyor.");
 
     public SourceKind Kind => SourceKind.LocalFile;
 
@@ -177,7 +177,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
         {
             return LocalStatusSnapshot(
                 ProviderStatus.NotInstalled,
-                "OpenCode kurulu değil veya opencode.db bulunamadı.",
+                L.T("OpenCode is not installed or opencode.db was not found.", "OpenCode kurulu değil veya opencode.db bulunamadı."),
                 configuredProviders);
         }
 
@@ -193,7 +193,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
             {
                 return LocalStatusSnapshot(
                     ProviderStatus.Degraded,
-                    "OpenCode yerel veritabanı okunamadı.",
+                    L.T("Could not read the local OpenCode database.", "OpenCode yerel veritabanı okunamadı."),
                     configuredProviders);
             }
 
@@ -205,8 +205,8 @@ public sealed class OpenCodeUsageSource : IUsageSource
                 Status: ProviderStatus.Ok,
                 ResolvedVia: Kind,
                 FetchedAt: DateTimeOffset.UtcNow,
-                StaleReason: "Yerel OpenCode token sayımı · son 30 gün",
-                PlanName: "Kota yok",
+                StaleReason: L.T("Local OpenCode token count · last 30 days", "Yerel OpenCode token sayımı · son 30 gün"),
+                PlanName: L.T("No quota", "Kota yok"),
                 StatusDetail: NoQuotaDetail,
                 ConfiguredProviders: configuredProviders);
         }
@@ -214,7 +214,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
         {
             return LocalStatusSnapshot(
                 ProviderStatus.Degraded,
-                $"OpenCode yerel veritabanı okunamadı: {ex.GetType().Name}",
+                L.T($"Could not read the local OpenCode database: {ex.GetType().Name}", $"OpenCode yerel veritabanı okunamadı: {ex.GetType().Name}"),
                 configuredProviders);
         }
     }
@@ -232,7 +232,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
             ResolvedVia: SourceKind.LocalFile,
             FetchedAt: DateTimeOffset.UtcNow,
             StaleReason: reason,
-            PlanName: "Kota yok",
+            PlanName: L.T("No quota", "Kota yok"),
             StatusDetail: NoQuotaDetail,
             ConfiguredProviders: configuredProviders);
 
@@ -263,7 +263,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     Status: ProviderStatus.AuthRequired,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
-                    StaleReason: "OpenCode anahtarı geçersiz.");
+                    StaleReason: L.T("OpenCode key is invalid.", "OpenCode anahtarı geçersiz."));
             }
 
             if (response.StatusCode == HttpStatusCode.Forbidden)
@@ -276,9 +276,9 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     Status: ProviderStatus.Ok,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
-                    StaleReason: "OpenCode Go aboneliği yok — kota yok.",
-                    PlanName: "Kota yok",
-                    StatusDetail: "OpenCode Go aboneliği yok — sunucu kotası kullanılamıyor.");
+                    StaleReason: L.T("No OpenCode Go subscription — no quota.", "OpenCode Go aboneliği yok — kota yok."),
+                    PlanName: L.T("No quota", "Kota yok"),
+                    StatusDetail: L.T("No OpenCode Go subscription — server quota unavailable.", "OpenCode Go aboneliği yok — sunucu kotası kullanılamıyor."));
             }
 
             if (!response.IsSuccessStatusCode)
@@ -291,7 +291,7 @@ public sealed class OpenCodeUsageSource : IUsageSource
                     Status: ProviderStatus.Error,
                     ResolvedVia: Kind,
                     FetchedAt: DateTimeOffset.UtcNow,
-                    StaleReason: $"OpenCode kullanım yanıtı: HTTP {(int)response.StatusCode}");
+                    StaleReason: L.T($"OpenCode usage response: HTTP {(int)response.StatusCode}", $"OpenCode kullanım yanıtı: HTTP {(int)response.StatusCode}"));
             }
 
             var windows = OpenCodeUsageParser.ParseWindows(body);
@@ -305,20 +305,20 @@ public sealed class OpenCodeUsageSource : IUsageSource
                 FetchedAt: DateTimeOffset.UtcNow,
                 StaleReason: windows.Count > 0
                     ? null
-                    : "OpenCode kullanım yanıtında rolling/weekly/monthly bulunamadı.",
+                    : L.T("No rolling/weekly/monthly in the OpenCode usage response.", "OpenCode kullanım yanıtında rolling/weekly/monthly bulunamadı."),
                 PlanName: "OpenCode Go");
         }
         catch (JsonException ex)
         {
             RationTrace.Error("provider.http", $"provider=opencode endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("opencode", ProviderStatus.Error,
-                $"OpenCode JSON ayrıştırılamadı: {ex.Message}", Kind);
+                L.T($"OpenCode JSON could not be parsed: {ex.Message}", $"OpenCode JSON ayrıştırılamadı: {ex.Message}"), Kind);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             RationTrace.Error("provider.http", $"provider=opencode endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("opencode", ProviderStatus.Error,
-                $"OpenCode ağ hatası: {ex.GetType().Name}", Kind);
+                L.T($"OpenCode network error: {ex.GetType().Name}", $"OpenCode ağ hatası: {ex.GetType().Name}"), Kind);
         }
     }
 
@@ -354,11 +354,11 @@ public static class OpenCodeUsageParser
 
         var windows = new List<UsageWindow>(3);
         AddWindow(usage, "rolling", WindowKind.Session, TimeSpan.FromHours(5),
-            "Rolling · $ limiti (5 saat)", windows);
+            L.T("Rolling · $ limit (5 hours)", "Rolling · $ limiti (5 saat)"), windows);
         AddWindow(usage, "weekly", WindowKind.Weekly, TimeSpan.FromDays(7),
-            "Haftalık · $ limiti (7 gün)", windows);
+            L.T("Weekly · $ limit (7 days)", "Haftalık · $ limiti (7 gün)"), windows);
         AddWindow(usage, "monthly", WindowKind.Monthly, TimeSpan.FromDays(30),
-            "Aylık · $ limiti (30 gün)", windows);
+            L.T("Monthly · $ limit (30 days)", "Aylık · $ limiti (30 gün)"), windows);
         return windows;
     }
 

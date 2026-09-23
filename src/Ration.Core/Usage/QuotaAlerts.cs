@@ -30,11 +30,11 @@ public static class QuotaAlerts
             if (window.Label?.Contains("gpt-", StringComparison.OrdinalIgnoreCase) == true) continue;
 
             var remaining = Math.Clamp(100 - window.Percent, 0, 100);
-            var (level, threshold) = remaining <= 0 ? ("doldu", "0") : remaining <= LowRemaining ? ("azaldı", "20") : (null, null);
+            var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= LowRemaining ? (L.T("running low", "azaldı"), "20") : (null, null);
             if (level is null) continue;
 
             // Claude'da Haftalık, Haftalık · Opus, Haftalık · Sonnet aynı türdedir; etiket ayırır.
-            var windowName = window.Kind == WindowKind.Session ? "Oturum" : window.Label ?? "Haftalık";
+            var windowName = window.Kind == WindowKind.Session ? L.T("Session", "Oturum") : window.Label ?? L.T("Weekly", "Haftalık");
             // Sıfırlanma zamanı bazı kaynaklarda "N sn sonra"dan hesaplanır ve sorgudan sorguya
             // birkaç saniye kayar; 10 dk dilime yuvarlanmazsa aynı bildirim tekrar tekrar gelir.
             var cycle = window.ResetsAt is { } r ? ((r.ToUnixTimeSeconds() + 300) / 600).ToString() : "-";
@@ -44,10 +44,10 @@ public static class QuotaAlerts
             var group = string.IsNullOrWhiteSpace(window.GroupName) ? string.Empty : $" ({window.GroupName})";
             var reset = FormatUntil(window.ResetsAt, now);
             var body = remaining <= 0
-                ? (reset is null ? "Kota tükendi." : $"{reset} sonra sıfırlanır.")
-                : $"%{remaining:F0} kaldı" + (reset is null ? "." : $" · {reset} sonra sıfırlanır.");
+                ? (reset is null ? L.T("Quota used up.", "Kota tükendi.") : L.T($"Resets in {reset}.", $"{reset} sonra sıfırlanır."))
+                : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı") + (reset is null ? "." : L.T($" · resets in {reset}.", $" · {reset} sonra sıfırlanır."));
 
-            alerts.Add(new QuotaAlert(key, $"{providerName}{group} · {windowName} kotası {level}", body));
+            alerts.Add(new QuotaAlert(key, L.T($"{providerName}{group} · {windowName} quota {level}", $"{providerName}{group} · {windowName} kotası {level}"), body));
         }
 
         return alerts;
@@ -57,8 +57,8 @@ public static class QuotaAlerts
     {
         if (resetsAt is not { } reset || reset <= now) return null;
         var left = reset - now;
-        if (left.TotalMinutes < 60) return $"{Math.Max(1, (int)left.TotalMinutes)} dk";
-        if (left.TotalHours < 24) return $"{(int)left.TotalHours} sa {left.Minutes} dk";
-        return $"{(int)left.TotalDays} gün {left.Hours} sa";
+        if (left.TotalMinutes < 60) return L.T($"{Math.Max(1, (int)left.TotalMinutes)}m", $"{Math.Max(1, (int)left.TotalMinutes)} dk");
+        if (left.TotalHours < 24) return L.T($"{(int)left.TotalHours}h {left.Minutes}m", $"{(int)left.TotalHours} sa {left.Minutes} dk");
+        return L.T($"{(int)left.TotalDays}d {left.Hours}h", $"{(int)left.TotalDays} gün {left.Hours} sa");
     }
 }

@@ -44,7 +44,7 @@ public sealed class TokenTally
         long reasoningTokens = 0,
         DateTimeOffset? at = null)
     {
-        var key = string.IsNullOrWhiteSpace(model) ? "(bilinmeyen model)" : model;
+        var key = string.IsNullOrWhiteSpace(model) ? L.T("(unknown model)", "(bilinmeyen model)") : model;
 
         if (!_byModel.TryGetValue(key, out var bucket))
         {

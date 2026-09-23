@@ -234,7 +234,7 @@ public static class OpenCodeLocalUsageReader
         while (reader.Read())
         {
             var model = reader.IsDBNull(0)
-                ? "(bilinmeyen model)"
+                ? L.T("(unknown model)", "(bilinmeyen model)")
                 : NormalizeModelName(reader.GetString(0));
             var input = ReadLong(reader, 1);
             var output = ReadLong(reader, 2);

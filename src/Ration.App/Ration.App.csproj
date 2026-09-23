@@ -38,6 +38,7 @@
 
   <ItemGroup>
     <Manifest Include="$(ApplicationManifest)" />
+    <Using Include="Ration.Core" />
   </ItemGroup>
 
   <ItemGroup>

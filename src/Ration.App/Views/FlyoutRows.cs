@@ -51,10 +51,12 @@ public sealed record WindowRow(
                     remaining,
                     QuotaVisuals.MeterBrush(window.Percent),
                     // Az kullanım yuvarlamada kaybolmasın: %0,2 kullanımda "%100 kaldı" yerine "%99,8 kaldı".
-                    remaining is > 99 and < 99.95 ? $"%{remaining:0.#} kaldı" : $"%{remaining:F0} kaldı",
+                    remaining is > 99 and < 99.95
+                        ? L.T($"{remaining:0.#}% left", $"%{remaining:0.#} kaldı")
+                        : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı"),
                     ResetTextFor(window.ResetsAt, stale),
                     pace,
-                    $"{title}, yüzde {remaining:F0} kaldı"));
+                    L.T($"{title}, {remaining:F0} percent left", $"{title}, yüzde {remaining:F0} kaldı")));
                 heading = null;
             }
         }
@@ -62,48 +64,46 @@ public sealed record WindowRow(
         return rows;
     }
 
-    private static readonly Regex HourLabel = new(@"^(\d+ saatlik|Saatlik)$", RegexOptions.CultureInvariant);
+    private static readonly Regex HourLabel = new(@"^(\d+ saatlik|Saatlik|\d+-hour|Hourly)$", RegexOptions.CultureInvariant);
 
     private static string TitleFor(UsageWindow window)
     {
         if (string.IsNullOrWhiteSpace(window.Label)) return KindName(window.Kind);
 
-        // "5 saatlik" sağlayıcıların oturum penceresidir; CodexBar dilinde "Oturum".
-        if (window.Kind == WindowKind.Session && HourLabel.IsMatch(window.Label)) return "Oturum";
+        // "5 saatlik"/"5-hour" sağlayıcıların oturum penceresidir; CodexBar dilinde "Oturum".
+        if (window.Kind == WindowKind.Session && HourLabel.IsMatch(window.Label)) return L.T("Session", "Oturum");
 
         // Codex'in model bazlı ek limitleri iç adla gelir ("gpt-reserve · Haftalık"); kullanıcıya
         // bir şey anlatmaz. Sağ taraf (pencere adı) korunur.
         var parts = window.Label.Split(" · ", 2);
         return parts.Length == 2 && parts[0].StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
-            ? $"Ek model limiti · {parts[1]}"
+            ? L.T($"Extra model limit · {parts[1]}", $"Ek model limiti · {parts[1]}")
             : window.Label;
     }
 
     /// <summary>Sağlayıcının İngilizce grup adları ("Gemini Models", "Claude and GPT models").</summary>
     private static string LocalizeGroup(string name)
     {
+        if (!L.Turkish) return name;
         var text = Regex.Replace(name, @"\s+models$", " modelleri", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return Regex.Replace(text, @"\s+and\s+", " ve ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static string KindName(WindowKind kind) => kind switch
     {
-        WindowKind.Session => "Oturum",
-        WindowKind.Weekly => "Haftalık",
-        WindowKind.Daily => "Günlük",
-        WindowKind.Monthly => "Aylık",
+        WindowKind.Session => L.T("Session", "Oturum"),
+        WindowKind.Weekly => L.T("Weekly", "Haftalık"),
+        WindowKind.Daily => L.T("Daily", "Günlük"),
+        WindowKind.Monthly => L.T("Monthly", "Aylık"),
         _ => kind.ToString(),
     };
 
     private static string ResetTextFor(DateTimeOffset? resetsAt, bool stale)
     {
         var text = QuotaVisuals.FormatReset(resetsAt, stale);
-        return text switch
-        {
-            "" => string.Empty,
-            "sıfırlandı" or "sıfırlanmış olabilir" or "Sıfırlanma zamanı geldi — doğrulanıyor" => text,
-            _ => $"{text} sonra sıfırlanır",
-        };
+        // Süre geçtiyse metin bir durum cümlesidir ("sıfırlanmış olabilir"), olduğu gibi yazılır.
+        if (text.Length == 0 || resetsAt <= DateTimeOffset.UtcNow) return text;
+        return L.T($"Resets in {text}", $"{text} sonra sıfırlanır");
     }
 }
 
@@ -157,7 +157,7 @@ public static class UsageFormat
             {
                 var tokens = byDay.GetValueOrDefault(day);
                 var h = tokens <= 0 ? 0 : Math.Max(2, height * tokens / max);
-                return new DayBar(h, barWidth, $"{day.ToString("d MMM", CultureInfo.CurrentCulture)} · {Tokens(tokens)} token", day == today ? 1.0 : 0.55);
+                return new DayBar(h, barWidth, $"{day.ToString("d MMM", CultureInfo.CurrentCulture)} · {Tokens(tokens)} " + L.T("tokens", "token"), day == today ? 1.0 : 0.55);
             })
             .ToList();
     }

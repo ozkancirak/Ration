@@ -44,7 +44,7 @@ public sealed partial class FlyoutWindow : Window
     private DateTimeOffset _lastManualRefresh = DateTimeOffset.MinValue;
     private bool _isVisible;
     private double? _currentGaugePercent;
-    private string _currentTooltip = "Ration: Veri yok";
+    private string _currentTooltip = L.T("Ration: No data", "Ration: Veri yok");
     private string? _trayProviderId = TrayProviderPreference.Current;
     private SettingsWindow? _settingsWindow;
     private IntPtr _currentIconHandle = IntPtr.Zero;
@@ -246,6 +246,7 @@ public sealed partial class FlyoutWindow : Window
         {
             _settingsWindow = new SettingsWindow();
             _settingsWindow.TrayProviderChanged += OnTrayProviderChanged;
+            _settingsWindow.LanguageChanged += () => this.DispatcherQueue.TryEnqueue(() => RestartApp("language"));
         }
         _settingsWindow.ShowAndFocus();
     }
@@ -471,9 +472,14 @@ public sealed partial class FlyoutWindow : Window
     private bool RestartIfAppThemeChanged()
     {
         if (AppThemePreference.IsAppLightTheme() == App.AppliedLightTheme) return false;
+        return RestartApp("theme");
+    }
 
+    /// <summary>Tema ve dil yalnızca açılışta uygulanır; değişince süreç kendini yeniden başlatır.</summary>
+    private bool RestartApp(string reason)
+    {
         var reopenSettings = _settingsWindow?.IsShown == true;
-        Trace.Info("app", $"restart reason=theme settings={(reopenSettings ? "open" : "closed")}");
+        Trace.Info("app", $"restart reason={reason} settings={(reopenSettings ? "open" : "closed")}");
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
@@ -670,7 +676,7 @@ public sealed partial class FlyoutWindow : Window
             var percent = MainPercent(snapshot);
             meter.Value = 100 - percent;
             meter.Foreground = tabBrush;
-            AutomationProperties.SetName(button, $"{snapshot.ProviderId}, yüzde {100 - percent:F0} kaldı");
+            AutomationProperties.SetName(button, L.T($"{snapshot.ProviderId}, {100 - percent:F0} percent left", $"{snapshot.ProviderId}, yüzde {100 - percent:F0} kaldı"));
         }
     }
 
@@ -774,9 +780,9 @@ public sealed partial class FlyoutWindow : Window
     {
         "claude" => "%USERPROFILE%\\.claude\\.credentials.json",
         "codex" => "%USERPROFILE%\\.codex\\auth.json",
-        "antigravity" => "language_server.exe veya %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log",
-        "opencode" => "%USERPROFILE%\\.local\\share\\opencode\\auth.json veya opencode.db",
-        _ => "yerel sağlayıcı kaynakları",
+        "antigravity" => L.T("language_server.exe or %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log", "language_server.exe veya %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log"),
+        "opencode" => L.T("%USERPROFILE%\\.local\\share\\opencode\\auth.json or opencode.db", "%USERPROFILE%\\.local\\share\\opencode\\auth.json veya opencode.db"),
+        _ => L.T("local provider sources", "yerel sağlayıcı kaynakları"),
     };
 
     /// <summary>
@@ -832,7 +838,7 @@ public sealed partial class FlyoutWindow : Window
         ToolTipService.SetToolTip(
             DetailPlanBadge,
             snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) && snapshot.Windows.Count == 0
-                ? "OpenCode'un kendi kotası yok, yapılandırdığın sağlayıcıların aboneliğini kullanır."
+                ? L.T("OpenCode has no quota of its own; it uses the subscriptions of the providers you configured.", "OpenCode'un kendi kotası yok, yapılandırdığın sağlayıcıların aboneliğini kullanır.")
                 : null);
 
         DetailUnavailableTitle.Visibility = Visibility.Visible;
@@ -850,7 +856,7 @@ public sealed partial class FlyoutWindow : Window
             ShowStaleNotice(
                 snapshot.FetchedAt,
                 snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
-                snapshot.StaleReason?.StartsWith("Oturum yenilenmeli", StringComparison.Ordinal) == true);
+                snapshot.StaleReason?.StartsWith(L.T("Session needs renewal", "Oturum yenilenmeli"), StringComparison.Ordinal) == true);
         }
         else
         {
@@ -864,10 +870,10 @@ public sealed partial class FlyoutWindow : Window
         if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
-            DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? "Oturum Süresi Doldu" : "Kota Alınamadı";
+            DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? L.T("Session expired", "Oturum Süresi Doldu") : L.T("Couldn't get quota", "Kota Alınamadı");
             DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
                 ? UserErrorDetail(snapshot)
-                : snapshot.StaleReason ?? "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
+                : snapshot.StaleReason ?? L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.");
             DetailErrorDetail.Visibility = Visibility.Visible;
             DetailError.Visibility = Visibility.Visible;
             ToolTipService.SetToolTip(DetailError, null);
@@ -894,15 +900,15 @@ public sealed partial class FlyoutWindow : Window
         }
         else if (snapshot.Status == ProviderStatus.NotInstalled)
         {
-            DetailUnavailableTitle.Text = "Kurulu değil veya açık değil";
-            DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Antigravity açık değil.";
+            DetailUnavailableTitle.Text = L.T("Not installed or not running", "Kurulu değil veya açık değil");
+            DetailUnavailableDetail.Text = snapshot.StaleReason ?? L.T("Antigravity is not running.", "Antigravity açık değil.");
             DetailUnavailable.Visibility = Visibility.Visible;
             SetWindows(null);
         }
         else if (snapshot.Windows.Count == 0)
         {
-            DetailUnavailableTitle.Text = "Veri yok";
-            DetailUnavailableDetail.Text = "Sağlayıcıdan kullanılabilir kota alınamadı.";
+            DetailUnavailableTitle.Text = L.T("No data", "Veri yok");
+            DetailUnavailableDetail.Text = L.T("No usable quota received from the provider.", "Sağlayıcıdan kullanılabilir kota alınamadı.");
             DetailUnavailable.Visibility = Visibility.Visible;
             SetWindows(null);
         }
@@ -922,7 +928,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void SetFreeUsage(FreeModelUsage? freeUsage)
     {
-        FreeUsageText.Text = freeUsage is null ? string.Empty : $"Ücretsiz modeller · bugün {freeUsage.RequestsToday} istek";
+        FreeUsageText.Text = freeUsage is null ? string.Empty : L.T($"Free models · {freeUsage.RequestsToday} requests today", $"Ücretsiz modeller · bugün {freeUsage.RequestsToday} istek");
         FreeUsageSection.Visibility = freeUsage is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -994,36 +1000,36 @@ public sealed partial class FlyoutWindow : Window
     private void ShowStaleNotice(DateTimeOffset fetchedAt, bool sessionRenewalRequired)
     {
         DetailErrorTitle.Text = sessionRenewalRequired
-            ? "Oturum yenilenmeli"
+            ? L.T("Session needs renewal", "Oturum yenilenmeli")
             : FormatStaleAge(fetchedAt);
         DetailErrorDetail.Text = string.Empty;
         DetailErrorDetail.Visibility = Visibility.Collapsed; // boş satır uyarının altında boşluk bırakıyordu
         DetailError.Visibility = Visibility.Visible;
         ToolTipService.SetToolTip(
             DetailError,
-            "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.");
+            L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek."));
     }
 
     private static string FormatStaleAge(DateTimeOffset fetchedAt)
     {
         var age = DateTimeOffset.UtcNow - fetchedAt;
-        if (age < TimeSpan.FromMinutes(1)) return "Az önceki veri";
-        if (age.TotalHours < 1) return $"{(int)age.TotalMinutes} dk önceki veri";
-        if (age.TotalDays < 1) return $"{(int)age.TotalHours} sa önceki veri";
-        return $"{(int)age.TotalDays} gün önceki veri";
+        if (age < TimeSpan.FromMinutes(1)) return L.T("Data from just now", "Az önceki veri");
+        if (age.TotalHours < 1) return L.T($"Data from {(int)age.TotalMinutes} min ago", $"{(int)age.TotalMinutes} dk önceki veri");
+        if (age.TotalDays < 1) return L.T($"Data from {(int)age.TotalHours} h ago", $"{(int)age.TotalHours} sa önceki veri");
+        return L.T($"Data from {(int)age.TotalDays} d ago", $"{(int)age.TotalDays} gün önceki veri");
     }
 
     private string UserErrorDetail(UsageSnapshot snapshot)
     {
         if (snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase) &&
-            snapshot.StaleReason?.StartsWith("Oturum yenilenmeli", StringComparison.Ordinal) == true)
+            snapshot.StaleReason?.StartsWith(L.T("Session needs renewal", "Oturum yenilenmeli"), StringComparison.Ordinal) == true)
         {
-            return "Oturum yenilenmeli — Claude Code'u bir kez çalıştır";
+            return L.T("Session needs renewal — run Claude Code once", "Oturum yenilenmeli — Claude Code'u bir kez çalıştır");
         }
 
         return snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase)
-            ? "Claude Code'da tekrar giriş yapın."
-            : "Sağlayıcıda tekrar giriş yapın.";
+            ? L.T("Sign in to Claude Code again.", "Claude Code'da tekrar giriş yapın.")
+            : L.T("Sign in to the provider again.", "Sağlayıcıda tekrar giriş yapın.");
     }
 
     private static string FormatOpenCodeNoQuota(UsageSnapshot snapshot)
@@ -1177,7 +1183,7 @@ public sealed partial class FlyoutWindow : Window
                 : UsageFormat.Money(report.TotalCost, pricing.Currency) + (unknown.Count > 0 ? "*" : string.Empty);
         }
 
-        var monthLabel = month is { PeriodKnown: false } ? "Toplam" : "Son 30 gün";
+        var monthLabel = month is { PeriodKnown: false } ? L.T("Total", "Toplam") : L.T("Last 30 days", "Son 30 gün");
         var stats = new List<StatItem>();
         var todayMoney = Money(today);
         var monthMoney = Money(month);
@@ -1186,11 +1192,11 @@ public sealed partial class FlyoutWindow : Window
         // "$0,00" ve "—" tutarsız görünüyordu. Yalnızca token kalır.
         if (monthMoney is not null)
         {
-            if (today is not null) stats.Add(new StatItem("Bugün", todayMoney ?? "—"));
-            stats.Add(new StatItem($"{monthLabel} maliyeti", monthMoney));
+            if (today is not null) stats.Add(new StatItem(L.T("Today", "Bugün"), todayMoney ?? "—"));
+            stats.Add(new StatItem(L.T($"{monthLabel} cost", $"{monthLabel} maliyeti"), monthMoney));
         }
-        if (today is not null) stats.Add(new StatItem("Bugün token", UsageFormat.Tokens(today.TotalTokens)));
-        if (month is not null) stats.Add(new StatItem($"{monthLabel} token", UsageFormat.Tokens(month.TotalTokens)));
+        if (today is not null) stats.Add(new StatItem(L.T("Today tokens", "Bugün token"), UsageFormat.Tokens(today.TotalTokens)));
+        if (month is not null) stats.Add(new StatItem(L.T($"{monthLabel} tokens", $"{monthLabel} token"), UsageFormat.Tokens(month.TotalTokens)));
         StatList.ItemsSource = stats;
 
         var daily = month?.Daily ?? Array.Empty<DailyTokens>();
@@ -1209,14 +1215,14 @@ public sealed partial class FlyoutWindow : Window
                 .Count();
         var tooltipLines = new List<string>
         {
-            "Tokenlar yerel oturum loglarından okunur. Maliyet, aboneliğinle ödediğin tutar değil: aynı kullanım API fiyatlarıyla bu kadar tutardı.",
+            L.T("Tokens are read from local session logs. Cost is not what your subscription charges: it's what the same usage would cost at API prices.", "Tokenlar yerel oturum loglarından okunur. Maliyet, aboneliğinle ödediğin tutar değil: aynı kullanım API fiyatlarıyla bu kadar tutardı."),
         };
         if (_selectedId.Equals("codex", StringComparison.OrdinalIgnoreCase))
         {
-            tooltipLines.Add("Codex masaüstü uygulamasının bulut (ChatGPT) oturumları yerel günlük yazmaz, burada sayılmaz; kota çubukları onları içerir.");
+            tooltipLines.Add(L.T("Cloud (ChatGPT) sessions of the Codex desktop app write no local logs and are not counted here; the quota bars include them.", "Codex masaüstü uygulamasının bulut (ChatGPT) oturumları yerel günlük yazmaz, burada sayılmaz; kota çubukları onları içerir."));
         }
-        if (unpricedCount > 0) tooltipLines.Add($"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.");
-        if (pricing.DownloadedAt is { } downloadedAt) tooltipLines.Add($"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla.");
+        if (unpricedCount > 0) tooltipLines.Add(L.T($"{unpricedCount} model(s) missing from the pricing table, not included in the total.", $"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi."));
+        if (pricing.DownloadedAt is { } downloadedAt) tooltipLines.Add(L.T($"Prices as of {downloadedAt.ToLocalTime():d}.", $"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla."));
         ToolTipService.SetToolTip(CostInfoIcon, string.Join("\n", tooltipLines));
 
         CostSection.Visibility = Visibility.Visible;
@@ -1456,10 +1462,10 @@ public sealed partial class FlyoutWindow : Window
 
         double? gaugePercent = selected?.Percent;
         string tooltip = selected is { } value
-            ? $"{value.Name} · %{100 - value.Percent:F0} kaldı"
+            ? L.T($"{value.Name} · {100 - value.Percent:F0}% left", $"{value.Name} · %{100 - value.Percent:F0} kaldı")
             : _trayProviderId is { } missing
-                ? $"{TabDisplayName(missing)}: Veri yok"
-                : "Ration: Veri yok";
+                ? L.T($"{TabDisplayName(missing)}: No data", $"{TabDisplayName(missing)}: Veri yok")
+                : L.T("Ration: No data", "Ration: Veri yok");
 
         _currentGaugePercent = gaugePercent;
         _currentTooltip = tooltip;

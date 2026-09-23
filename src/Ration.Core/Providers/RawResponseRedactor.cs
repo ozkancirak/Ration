@@ -56,7 +56,7 @@ public static class RawResponseRedactor
         }
         catch (JsonException)
         {
-            return "(yanıt JSON olarak ayrıştırılamadı; gizleme yapılamadığı için gösterilmiyor)";
+            return L.T("(response could not be parsed as JSON; not shown because it could not be redacted)", "(yanıt JSON olarak ayrıştırılamadı; gizleme yapılamadığı için gösterilmiyor)");
         }
     }
 

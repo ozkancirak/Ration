@@ -3,6 +3,7 @@
     x:Class="Ration.App.Views.TrayMenuWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l="using:Ration.App"
     Title="Ration Menü">
 
     <Grid x:Name="RootLayout"
@@ -32,7 +33,7 @@
                     Spacing="0">
             <Button x:Name="RefreshButton"
                     Style="{StaticResource TrayMenuButtonStyle}"
-                    AutomationProperties.Name="Yenile">
+                    AutomationProperties.Name="{l:Loc En='Refresh', Tr='Yenile'}">
                 <StackPanel Orientation="Horizontal"
                             Spacing="12"
                             VerticalAlignment="Center">
@@ -43,7 +44,7 @@
                                   FontSize="16"
                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </Viewbox>
-                    <TextBlock Text="Yenile"
+                    <TextBlock Text="{l:Loc En='Refresh', Tr='Yenile'}"
                                Style="{StaticResource BodyTextBlockStyle}"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -51,7 +52,7 @@
 
             <Button x:Name="SettingsButton"
                     Style="{StaticResource TrayMenuButtonStyle}"
-                    AutomationProperties.Name="Ayarlar">
+                    AutomationProperties.Name="{l:Loc En='Settings', Tr='Ayarlar'}">
                 <StackPanel Orientation="Horizontal"
                             Spacing="12"
                             VerticalAlignment="Center">
@@ -62,7 +63,7 @@
                                   FontSize="16"
                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </Viewbox>
-                    <TextBlock Text="Ayarlar"
+                    <TextBlock Text="{l:Loc En='Settings', Tr='Ayarlar'}"
                                Style="{StaticResource BodyTextBlockStyle}"
                                VerticalAlignment="Center" />
                 </StackPanel>
@@ -75,7 +76,7 @@
 
             <Button x:Name="ExitButton"
                     Style="{StaticResource TrayMenuButtonStyle}"
-                    AutomationProperties.Name="Çıkış">
+                    AutomationProperties.Name="{l:Loc En='Exit', Tr='Çıkış'}">
                 <StackPanel Orientation="Horizontal"
                             Spacing="12"
                             VerticalAlignment="Center">
@@ -86,7 +87,7 @@
                                   FontSize="16"
                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                     </Viewbox>
-                    <TextBlock Text="Çıkış"
+                    <TextBlock Text="{l:Loc En='Exit', Tr='Çıkış'}"
                                Style="{StaticResource BodyTextBlockStyle}"
                                VerticalAlignment="Center" />
                 </StackPanel>
