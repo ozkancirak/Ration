@@ -108,3 +108,83 @@ public sealed class ClaudeUsageSourceTests
 
     private sealed record Call(Uri Uri, string? Authorization, string Body);
 }
+
+public sealed class ClaudeStatusLineTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"ration-statusline-{Guid.NewGuid():N}.json");
+
+    // Sentetik: gerçek statusLine girdisinin yalnızca şekli; oturum içeriği yok.
+    private const string Input = """
+    {"session_id":"sentetik","cwd":"C:/gizli","rate_limits":{"five_hour":{"used_percentage":12.5,"resets_at":1790157600},"seven_day":{"used_percentage":40,"resets_at":1790500000.5}}}
+    """;
+
+    public void Dispose() => File.Delete(_path);
+
+    [Fact]
+    public void Yakalama_YalnizcaKotaAlanlariniYazar_VeGeriOkunur()
+    {
+        var limits = ClaudeStatusLine.Capture(Input, _path);
+
+        Assert.NotNull(limits);
+        Assert.Equal(12.5, limits!.FiveHour);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1790500000), limits.SevenDayResetsAt);
+
+        var saved = File.ReadAllText(_path);
+        Assert.DoesNotContain("session_id", saved);
+        Assert.DoesNotContain("gizli", saved);
+
+        var read = ClaudeStatusLine.Read(_path);
+        Assert.Equal(40, read!.Value.Limits.SevenDay);
+    }
+
+    [Fact]
+    public void EksikGirdi_OncekiTamKaydiEzmez()
+    {
+        ClaudeStatusLine.Capture(Input, _path);
+
+        Assert.Null(ClaudeStatusLine.Capture("""{"rate_limits":{"five_hour":{"used_percentage":1}}}""", _path));
+        Assert.Equal(12.5, ClaudeStatusLine.Read(_path)!.Value.Limits.FiveHour);
+    }
+
+    [Fact]
+    public async Task TazeKayitOk_EskiKayitVeriyleBirlikteDegraded()
+    {
+        ClaudeStatusLine.Capture(Input, _path, DateTimeOffset.UtcNow);
+        var fresh = await new ClaudeStatusLineUsageSource(_path).FetchAsync();
+        Assert.Equal(ProviderStatus.Ok, fresh.Status);
+        Assert.Equal(2, fresh.Windows.Count);
+
+        ClaudeStatusLine.Capture(Input, _path, DateTimeOffset.UtcNow.AddHours(-1));
+        var stale = await new ClaudeStatusLineUsageSource(_path).FetchAsync();
+        Assert.Equal(ProviderStatus.Degraded, stale.Status);
+        Assert.Equal(2, stale.Windows.Count);
+    }
+
+    [Fact]
+    public async Task Resolver_VeriIcerenBayatSonucuHatayaTercihEder()
+    {
+        ClaudeStatusLine.Capture(Input, _path, DateTimeOffset.UtcNow.AddHours(-1));
+        var provider = new StubProvider(new FailingSource(), new ClaudeStatusLineUsageSource(_path));
+
+        var result = await Ration.Core.Providers.ProviderResolver.ResolveAsync(provider);
+
+        Assert.Equal(ProviderStatus.Degraded, result.Status);
+        Assert.Equal(2, result.Windows.Count);
+    }
+
+    private sealed class FailingSource : Ration.Core.Abstractions.IUsageSource
+    {
+        public SourceKind Kind => SourceKind.LocalFile;
+        public Task<bool> IsAvailableAsync(CancellationToken ct = default) => Task.FromResult(true);
+        public Task<UsageSnapshot> FetchAsync(CancellationToken ct = default) =>
+            Task.FromResult(Snapshot.Empty("claude", ProviderStatus.AuthRequired, "sentetik 401", Kind));
+    }
+
+    private sealed class StubProvider(params Ration.Core.Abstractions.IUsageSource[] sources) : Ration.Core.Abstractions.IUsageProvider
+    {
+        public string Id => "claude";
+        public string DisplayName => "Claude";
+        public Ration.Core.Abstractions.ProviderCapabilities Capabilities { get; } = new(true, true, false, false, false);
+        public IReadOnlyList<Ration.Core.Abstractions.IUsageSource> Sources { get; } = sources;
+    }
+}

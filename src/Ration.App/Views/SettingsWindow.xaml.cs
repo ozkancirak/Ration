@@ -90,6 +90,7 @@ public sealed partial class SettingsWindow : Window
 
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
+        CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = $"Sürüm {UpdateService.CurrentVersion}";
         UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastResult);
 
@@ -244,15 +245,51 @@ public sealed partial class SettingsWindow : Window
             Directory.Exists(KnownPaths.CodexSessionsDir), priced);
     }
 
+    /// <summary>
+    /// ~/.claude/settings.json'a eklenecek statusLine satırını panoya koyar. Ration o dosyaya
+    /// kendisi yazmaz (AGENTS.md §2.1); kullanıcı yapıştırır.
+    /// </summary>
+    private async void CopyStatusLineSnippet()
+    {
+        var exe = Environment.ExpandEnvironmentVariables(StartupRegistration.TargetValue.Trim('"'));
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        var snippet = "\"statusLine\": " + new System.Text.Json.Nodes.JsonObject
+        {
+            ["type"] = "command",
+            ["command"] = $"\"{exe}\" --statusline",
+        }.ToJsonString(options);
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(snippet);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Trace.Info("settings", "statusline snippet copied");
+
+        CopyStatusLineButton.Content = "Kopyalandı";
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        CopyStatusLineButton.Content = "Satırı kopyala";
+    }
+
     private void RefreshProviderStatus()
     {
+        var statusLine = ClaudeStatusLine.Read();
+        SetProviderStatus(
+            ClaudeStatusLineBadge,
+            ClaudeStatusLineStatus,
+            statusLine is not null,
+            statusLine is { } record ? $"Bağlı · {QuotaVisuals.FormatUpdated(record.CapturedAt).Replace(" güncellendi", string.Empty)}" : string.Empty,
+            "Bağlı değil");
+
         var claude = ClaudeCredentialStore.TryRead();
         SetProviderStatus(
             ClaudeProviderBadge,
             ClaudeProviderStatus,
-            claude is not null,
-            claude?.IsExpired == true ? "Oturum süresi geçmiş" : "Kimlik bulundu",
-            "Kimlik bulunamadı");
+            claude is { IsExpired: false },
+            "Kimlik bulundu",
+            // Süresi geçmiş oturum da bir sorundur: uyarı rozetiyle gösterilir (yeşil yanıltıyordu).
+            claude is null ? "Kimlik bulunamadı" : "Oturum süresi geçmiş — Claude Code'u çalıştırın");
 
         var codex = CodexCredentialStore.TryRead();
         SetProviderStatus(

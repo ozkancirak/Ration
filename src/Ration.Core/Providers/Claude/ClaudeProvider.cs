@@ -94,6 +94,8 @@ public sealed class ClaudeProvider : IUsageProvider
         Sources = new IUsageSource[]
         {
             new ClaudeOAuthUsageSource(http),
+            // OAuth 401 (oturum süresi) ya da 429 verdiğinde Claude Code statusLine kaydı.
+            new ClaudeStatusLineUsageSource(),
         };
     }
 }

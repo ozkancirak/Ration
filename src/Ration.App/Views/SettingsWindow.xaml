@@ -85,6 +85,26 @@
                                            Visibility="Collapsed" />
                             </StackPanel>
                         </controls:SettingsCard>
+                        <!-- Oturum süresi dolunca / 429'da ağsız yedek kaynak. Ration kullanıcının
+                             ~/.claude/settings.json dosyasına yazmaz; satırı kullanıcı ekler. -->
+                        <controls:SettingsCard Header="Claude Code durum satırı"
+                                               Description="Kota, Claude Code açıkken ağ isteği olmadan buradan okunur. Satırı ~/.claude/settings.json dosyasına ekleyin; mevcut bir statusLine varsa onun yerine geçer.">
+                            <StackPanel Spacing="8" HorizontalAlignment="Right">
+                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                    <InfoBadge x:Name="ClaudeStatusLineBadge"
+                                               Style="{StaticResource AttentionDotInfoBadgeStyle}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock x:Name="ClaudeStatusLineStatus"
+                                               Text="Bağlı değil"
+                                               Style="{StaticResource CaptionTextBlockStyle}"
+                                               FontWeight="SemiBold"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Button x:Name="CopyStatusLineButton"
+                                        Content="Satırı kopyala"
+                                        HorizontalAlignment="Right" />
+                            </StackPanel>
+                        </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 

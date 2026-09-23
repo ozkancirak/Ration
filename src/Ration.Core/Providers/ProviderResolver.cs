@@ -16,6 +16,7 @@ public static class ProviderResolver
         Action<UsageSnapshot>? onProgress = null)
     {
         UsageSnapshot? firstProblem = null;
+        UsageSnapshot? staleWithData = null;
 
         foreach (var source in provider.Sources)
         {
@@ -61,10 +62,18 @@ public static class ProviderResolver
 
             if (snapshot.Status == ProviderStatus.Ok) return snapshot;
 
-            firstProblem ??= snapshot;
+            // Veri içeren bayat sonuç (örn. statusLine kaydı), veri içermeyen hatadan iyidir.
+            if (snapshot.Status == ProviderStatus.Degraded && snapshot.Windows.Count > 0)
+            {
+                staleWithData ??= snapshot;
+            }
+            else
+            {
+                firstProblem ??= snapshot;
+            }
         }
 
-        return firstProblem ?? Snapshot.Empty(
+        return staleWithData ?? firstProblem ?? Snapshot.Empty(
             provider.Id,
             ProviderStatus.AuthRequired,
             "Kullanılabilir kaynak yok. İlgili CLI ile giriş yapıldığından emin olun.");
