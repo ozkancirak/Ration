@@ -33,7 +33,7 @@ internal static class SelfTestRunner
         }
         catch (Exception ex)
         {
-            ReportFailure(failures, $"ekran görüntüsü dizini oluşturulamadı ({ex.GetType().Name})");
+            ReportFailure(failures, $"could not create screenshot directory ({ex.GetType().Name})");
             Finish(failures, finalExitRequested: false);
             Environment.Exit(1);
             return;
@@ -126,7 +126,7 @@ internal static class SelfTestRunner
         }
         catch (Exception ex)
         {
-            ReportFailure(failures, $"beklenmeyen hata ({ex.GetType().Name})");
+            ReportFailure(failures, $"unexpected error ({ex.GetType().Name})");
         }
         finally
         {
@@ -185,7 +185,7 @@ internal static class SelfTestRunner
 
         if (!passed)
         {
-            ReportFailure(failures, $"fare tıklaması doğrulanamadı: {label}");
+            ReportFailure(failures, $"mouse click not verified: {label}");
             return;
         }
 
@@ -254,7 +254,7 @@ internal static class SelfTestRunner
 
         if (!passed)
         {
-            ReportFailure(failures, $"klavye girişi doğrulanamadı: {label}");
+            ReportFailure(failures, $"keyboard input not verified: {label}");
             return;
         }
 
@@ -292,7 +292,7 @@ internal static class SelfTestRunner
             MenuTimeout);
         if (!opened)
         {
-            ReportFailure(failures, "menü açılamadı veya düğmeler ölçülemedi");
+            ReportFailure(failures, "menu did not open or buttons could not be measured");
         }
         else
         {
@@ -311,14 +311,14 @@ internal static class SelfTestRunner
             bool ok = await WindowScreenshotHelper.CaptureWindowAsync(window, path, delayMs: 0);
             if (!ok)
             {
-                ReportFailure(failures, $"ekran görüntüsü alınamadı: {Path.GetFileName(path)}");
+                ReportFailure(failures, $"screenshot failed: {Path.GetFileName(path)}");
             }
 
             return ok;
         }
         catch (Exception ex)
         {
-            ReportFailure(failures, $"ekran görüntüsü hatası ({ex.GetType().Name})");
+            ReportFailure(failures, $"screenshot error ({ex.GetType().Name})");
             return false;
         }
     }
@@ -327,7 +327,7 @@ internal static class SelfTestRunner
     {
         if (rect.Width <= 0 || rect.Height <= 0)
         {
-            ReportFailure(failures, $"geçersiz ekran dikdörtgeni: {label}");
+            ReportFailure(failures, $"invalid screen rectangle: {label}");
             return false;
         }
 
@@ -385,7 +385,7 @@ internal static class SelfTestRunner
         uint sent = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
         if (sent != inputs.Length)
         {
-            ReportFailure(failures, $"fare olayı gönderilemedi: {label} win32={Marshal.GetLastWin32Error()}");
+            ReportFailure(failures, $"mouse event could not be sent: {label} win32={Marshal.GetLastWin32Error()}");
             return false;
         }
 
@@ -426,7 +426,7 @@ internal static class SelfTestRunner
         uint sent = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
         if (sent != inputs.Length)
         {
-            ReportFailure(failures, $"klavye olayı gönderilemedi: {label} win32={Marshal.GetLastWin32Error()}");
+            ReportFailure(failures, $"keyboard event could not be sent: {label} win32={Marshal.GetLastWin32Error()}");
             return false;
         }
 
@@ -450,9 +450,9 @@ internal static class SelfTestRunner
 
     private static string FilePart(string value) => value switch
     {
-        "Yenile" or "Refresh" => "yenile",
-        "Ayarlar" or "Settings" => "ayarlar",
-        "Çıkış" or "Exit" => "cikis",
+        "Yenile" or "Refresh" => "refresh",
+        "Ayarlar" or "Settings" => "settings",
+        "Çıkış" or "Exit" => "exit",
         _ => "menu",
     };
 

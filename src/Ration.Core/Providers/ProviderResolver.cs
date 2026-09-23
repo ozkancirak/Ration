@@ -49,7 +49,7 @@ public static class ProviderResolver
                 snapshot = Snapshot.Empty(
                     provider.Id,
                     ProviderStatus.Error,
-                    $"{source.Kind} beklenmedik hata: {ex.GetType().Name}",
+                    L.T($"{source.Kind} unexpected error: {ex.GetType().Name}", $"{source.Kind} beklenmedik hata: {ex.GetType().Name}"),
                     source.Kind);
             }
             finally

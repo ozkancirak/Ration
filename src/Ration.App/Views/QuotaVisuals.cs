@@ -88,7 +88,7 @@ public static class QuotaVisuals
 
         bar.Value = window.Percent;
         bar.Foreground = MeterBrush(window.Percent);
-        percentText.Text = $"%{window.Percent:F0}";
+        percentText.Text = L.T($"{window.Percent:F0}%", $"%{window.Percent:F0}");
 
         if (labelText is not null && !string.IsNullOrWhiteSpace(window.Label))
         {

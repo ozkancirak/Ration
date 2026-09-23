@@ -197,7 +197,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
             RationTrace.Info(
                 "provider.refresh",
                 $"result provider={provider.Id} source=none status=exception:{ex.GetType().Name} durationMs={stopwatch.ElapsedMilliseconds}");
-            PublishFallback(provider.Id, $"Beklenmedik hata: {ex.GetType().Name}");
+            PublishFallback(provider.Id, L.T($"Unexpected error: {ex.GetType().Name}", $"Beklenmedik hata: {ex.GetType().Name}"));
         }
         finally
         {

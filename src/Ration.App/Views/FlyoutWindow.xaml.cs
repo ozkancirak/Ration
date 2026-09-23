@@ -818,7 +818,7 @@ public sealed partial class FlyoutWindow : Window
         if (!_scheduler.Current.TryGetValue(_selectedId, out var snapshot))
         {
             DetailName.Text = TabDisplayName(_selectedId);
-            DetailUpdated.Text = "Bekleniyor…";
+            DetailUpdated.Text = L.T("Waiting…", "Bekleniyor…");
             DetailUpdated.Visibility = Visibility.Visible;
             DetailPlanBadge.Visibility = Visibility.Collapsed;
             DetailError.Visibility = Visibility.Collapsed;
@@ -987,8 +987,8 @@ public sealed partial class FlyoutWindow : Window
     private void LogModelSummary(string providerId, IReadOnlyList<ModelTokenUsage> models)
     {
         var diagnostic = models.Count == 0
-            ? "0 farklı model, en çok=yok %0"
-            : $"{models.Count} farklı model, en çok={models[0].Model} %{models[0].Tokens * 100d / Math.Max(1, models.Sum(model => model.Tokens)):F0}";
+            ? "0 models, top=none 0%"
+            : $"{models.Count} models, top={models[0].Model} {models[0].Tokens * 100d / Math.Max(1, models.Sum(model => model.Tokens)):F0}%";
         if (!_modelDiagnosticState.TryGetValue(providerId, out var previousDiagnostic) ||
             !string.Equals(previousDiagnostic, diagnostic, StringComparison.Ordinal))
         {

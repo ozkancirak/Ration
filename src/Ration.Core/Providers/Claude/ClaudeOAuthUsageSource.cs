@@ -142,7 +142,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
                 $"provider=claude response-body-first200={redactedPreview}");
             RationTrace.Info(
                 "provider.http",
-                $"provider=claude retry-after={(LastRetryAfter is null ? "yok" : $"var value={LastRetryAfter}")}");
+                $"provider=claude retry-after={(LastRetryAfter is null ? "none" : $"set value={LastRetryAfter}")}");
             RationTrace.Info(
                 "provider.http",
                 $"provider=claude endpoint=usage status={(int)response.StatusCode}");

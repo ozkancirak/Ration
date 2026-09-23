@@ -61,7 +61,7 @@ public static class ProviderDiscovery
         {
             if (!Directory.Exists(root))
             {
-                notes.Add(L.T($"(no directory: {root})", $"(dizin yok: {root})"));
+                notes.Add($"(no directory: {root})");
                 continue;
             }
 
@@ -79,7 +79,7 @@ public static class ProviderDiscovery
             }
             catch (UnauthorizedAccessException)
             {
-                notes.Add(L.T($"(directory could not be read: {root})", $"(dizin okunamadı: {root})"));
+                notes.Add($"(directory could not be read: {root})");
                 continue;
             }
 
@@ -127,9 +127,9 @@ public static class ProviderDiscovery
             using var document = JsonDocument.Parse(stream);
             return WalkToList(document.RootElement);
         }
-        catch (JsonException) { return new[] { L.T("(JSON could not be parsed)", "(JSON ayrıştırılamadı)") }; }
-        catch (IOException) { return new[] { L.T("(file could not be read)", "(dosya okunamadı)") }; }
-        catch (UnauthorizedAccessException) { return new[] { L.T("(file could not be read)", "(dosya okunamadı)") }; }
+        catch (JsonException) { return new[] { "(JSON could not be parsed)" }; }
+        catch (IOException) { return new[] { "(file could not be read)" }; }
+        catch (UnauthorizedAccessException) { return new[] { "(file could not be read)" }; }
     }
 
     private static IReadOnlyList<string> DescribeJsonlFile(string path)

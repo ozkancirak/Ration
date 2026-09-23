@@ -58,7 +58,7 @@ public sealed partial class TrayMenuWindow : Window
         ExitButton.Click += (s, e) =>
         {
             HideMenu();
-            Trace.Info("menu", "click action=Çıkış");
+            Trace.Info("menu", "click action=exit");
             ExitRequested?.Invoke();
         };
 

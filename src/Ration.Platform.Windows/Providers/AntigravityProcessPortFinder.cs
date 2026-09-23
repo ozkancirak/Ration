@@ -178,7 +178,7 @@ public static class AntigravityProcessPortFinder
                 names.TryGetValue(pid, out var name) ? name : "unknown",
                 commandLines.TryGetValue(pid, out var commandLine)
                     ? RedactCommandLine(commandLine)
-                    : "[erişilemedi]"))
+                    : "[inaccessible]"))
             .ToArray();
     }
 
@@ -336,7 +336,7 @@ public static class AntigravityProcessPortFinder
 
     private static string RedactCommandLine(string commandLine)
     {
-        if (string.IsNullOrWhiteSpace(commandLine)) return "(boş)";
+        if (string.IsNullOrWhiteSpace(commandLine)) return "(empty)";
 
         var redacted = SecretArgument.Replace(
             commandLine,

@@ -163,7 +163,7 @@ void PrintSnapshot(UsageSnapshot snapshot)
             ? L.T($"   resets: {resetsAt.ToLocalTime():g}", $"   sıfırlanma: {resetsAt.ToLocalTime():dd.MM HH:mm}")
             : string.Empty;
 
-        Console.WriteLine($"  {label,-20} %{window.Percent,5:F1}{reset}");
+        Console.WriteLine($"  {label,-20} " + L.T($"{window.Percent,5:F1}%", $"%{window.Percent,5:F1}") + reset);
     }
 
     if (snapshot.Credits is { } credits)
@@ -233,11 +233,11 @@ void PrintClaudeDiagnostics(ClaudeOAuthUsageSource source)
 
     Console.WriteLine(L.T("--- Claude diagnostics (credential values redacted) ---", "--- Claude tanı (kimlik değerleri gizlendi) ---"));
     Console.WriteLine(L.T($".credentials.json readable: {YesNo(source.LastCredentialsAvailable)}", $".credentials.json okunabildi: {YesNo(source.LastCredentialsAvailable)}"));
-    Console.WriteLine($"expiresAt: {(source.LastCredentialsExpiresAt?.ToUniversalTime().ToString("O") ?? "yok")}");
+    Console.WriteLine($"expiresAt: {(source.LastCredentialsExpiresAt?.ToUniversalTime().ToString("O") ?? L.T("none", "yok"))}");
     Console.WriteLine(L.T($"expiresAt passed: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}", $"expiresAt geçmiş: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}"));
     Console.WriteLine(L.T($"refreshToken present: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}", $"refreshToken mevcut: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}"));
     Console.WriteLine(L.T("HTTP status: ", "HTTP kodu: ") + (source.LastStatusCode?.ToString() ?? L.T("no request made", "istek yapılmadı")));
-    Console.WriteLine($"Retry-After: {source.LastRetryAfter ?? "yok"}");
+    Console.WriteLine($"Retry-After: {source.LastRetryAfter ?? L.T("none", "yok")}");
     Console.WriteLine(L.T("request URL", "istek URL") + $": GET {ClaudeOAuthUsageSource.UsageEndpoint}");
     Console.WriteLine(L.T("header names: Authorization, anthropic-beta", "header adları: Authorization, anthropic-beta"));
 
@@ -418,7 +418,7 @@ void PrintThemeInfo()
     var light1 = SystemAccent.GetAccentLight1();
     var dark1 = SystemAccent.GetAccentDark1();
 
-    Console.WriteLine($"  Accent (Ana)        : #{accent.R:X2}{accent.G:X2}{accent.B:X2} (R:{accent.R} G:{accent.G} B:{accent.B})");
+    Console.WriteLine($"  Accent (main)       : #{accent.R:X2}{accent.G:X2}{accent.B:X2} (R:{accent.R} G:{accent.G} B:{accent.B})");
     Console.WriteLine($"  Accent (Light1)     : #{light1.R:X2}{light1.G:X2}{light1.B:X2} (R:{light1.R} G:{light1.G} B:{light1.B})");
     Console.WriteLine($"  Accent (Dark1)      : #{dark1.R:X2}{dark1.G:X2}{dark1.B:X2} (R:{dark1.R} G:{dark1.G} B:{dark1.B})");
     Console.WriteLine();
@@ -509,13 +509,13 @@ void RenderIconPreview(string outputPath)
         using var whiteBrush = new SolidBrush(Color.White);
         using var grayBrush = new SolidBrush(Color.FromArgb(170, 170, 170));
 
-        g.DrawString("Ration — Tray İkonu Önizleme Matrisi (Contact Sheet)", fontHeader, whiteBrush, 24, 16);
-        g.DrawString("Dikey Outline Tank/Gauge · DPI × tema × kullanım · — = veri yok · dolgu = kullanılabilir kota", fontSubLabel, grayBrush, 24, 40);
+        g.DrawString("Ration — Tray icon contact sheet", fontHeader, whiteBrush, 24, 16);
+        g.DrawString("Vertical outline tank/gauge · DPI × theme × usage · — = no data · fill = remaining quota", fontSubLabel, grayBrush, 24, 40);
 
         var themes = new[]
         {
-            (IsLight: false, Name: "Koyu Görev Çubuğu (Varsayılan Windows 11)", Bg: Color.FromArgb(32, 32, 32), Fg: Color.White, LabelFg: Color.FromArgb(200, 200, 200), Y: 68),
-            (IsLight: true, Name: "Açık Görev Çubuğu", Bg: Color.FromArgb(243, 243, 243), Fg: Color.Black, LabelFg: Color.FromArgb(60, 60, 60), Y: 410)
+            (IsLight: false, Name: "Dark taskbar (Windows 11 default)", Bg: Color.FromArgb(32, 32, 32), Fg: Color.White, LabelFg: Color.FromArgb(200, 200, 200), Y: 68),
+            (IsLight: true, Name: "Light taskbar", Bg: Color.FromArgb(243, 243, 243), Fg: Color.Black, LabelFg: Color.FromArgb(60, 60, 60), Y: 410)
         };
 
         foreach (var theme in themes)
@@ -535,11 +535,11 @@ void RenderIconPreview(string outputPath)
             {
                 var pct = percentages[p];
                 string thresholdText = pct is null
-                    ? "Veri yok"
+                    ? "No data"
                     : pct >= 90
-                        ? "Kritik"
-                        : "Monokrom";
-                string percentLabel = pct is double value ? $"%{value:F0}" : "—";
+                        ? "Critical"
+                        : "Monochrome";
+                string percentLabel = pct is double value ? $"{value:F0}%" : "—";
 
                 int cx = colStartX + (p * colWidth);
                 g.DrawString(percentLabel, fontTitle, themeFgBrush, cx + 20, theme.Y + 30);
@@ -556,10 +556,10 @@ void RenderIconPreview(string outputPath)
                 g.DrawString($"{size}px", fontTitle, themeFgBrush, 40, ry + 12);
                 string dpiLabel = size switch
                 {
-                    16 => "%100",
-                    20 => "%125",
-                    24 => "%150",
-                    32 => "%200",
+                    16 => "100%",
+                    20 => "125%",
+                    24 => "150%",
+                    32 => "200%",
                     _ => ""
                 };
                 g.DrawString(dpiLabel, fontSubLabel, themeLabelBrush, 40, ry + 28);
@@ -594,7 +594,7 @@ void RenderIconPreview(string outputPath)
         Directory.CreateDirectory(dir);
     }
     canvas.Save(outputPath, ImageFormat.Png);
-    Console.WriteLine(L.T($"Icon contact sheet saved: {outputPath}", $"İkon temas levhası (contact sheet) kaydedildi: {outputPath}"));
+    Console.WriteLine($"Icon contact sheet saved: {outputPath}");
 }
 
 async Task<int> RunDiscoverAsync(string which, bool asJson)
@@ -631,7 +631,7 @@ async Task<int> RunDiscoverAsync(string which, bool asJson)
         return 0;
     }
 
-    Console.WriteLine("Sağlayıcı keşfi — yalnızca yol + anahtar yolları + türler yazılır, DEĞER yazılmaz.");
+    Console.WriteLine("Provider discovery — only paths, key paths and types are printed, never VALUES.");
     Console.WriteLine();
 
     foreach (var report in reports)
@@ -640,11 +640,11 @@ async Task<int> RunDiscoverAsync(string which, bool asJson)
 
         foreach (var note in report.Notes) Console.WriteLine($"  ! {note}");
 
-        if (report.Files.Count == 0) Console.WriteLine("  (dosya yok)");
+        if (report.Files.Count == 0) Console.WriteLine("  (no files)");
 
         foreach (var file in report.Files)
         {
-            Console.WriteLine($"  {file.Path}   ({file.Size:N0} bayt)");
+            Console.WriteLine($"  {file.Path}   ({file.Size:N0} bytes)");
 
             if (file.Schema is { Count: > 0 } schema)
             {
@@ -660,7 +660,7 @@ async Task<int> RunDiscoverAsync(string which, bool asJson)
 
 int RunClaudeScopeDiscover()
 {
-    Console.WriteLine("Claude kapsamı keşfi — yalnızca yollar, sayılar ve anahtar yolları yazılır; DEĞER yazılmaz.");
+    Console.WriteLine("Claude scope discovery — only paths, counts and key paths are printed; never VALUES.");
     Console.WriteLine();
 
     foreach (var root in KnownPaths.ClaudeDesktopSessionRoots)
@@ -683,7 +683,7 @@ int RunClaudeScopeDiscover()
             files = Array.Empty<string>();
         }
 
-        Console.WriteLine($"{root}  dizin={(Directory.Exists(root) ? "var" : "yok")}  dosya={files.Count}");
+        Console.WriteLine($"{root}  dir={(Directory.Exists(root) ? "yes" : "no")}  files={files.Count}");
         if (files.Count == 0) continue;
 
         var first = files[0];
@@ -695,15 +695,15 @@ int RunClaudeScopeDiscover()
             .Where(path => path.Contains("model", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
-        Console.WriteLine($"  ilk-dosya={first}");
-        Console.WriteLine($"  message.usage.*={(usagePaths.Length > 0 ? "var" : "yok")}");
-        Console.WriteLine($"  model alanları={(modelPaths.Length > 0 ? string.Join(", ", modelPaths) : "yok")}");
-        Console.WriteLine("  anahtar-yolları:");
+        Console.WriteLine($"  first-file={first}");
+        Console.WriteLine($"  message.usage.*={(usagePaths.Length > 0 ? "yes" : "no")}");
+        Console.WriteLine($"  model fields={(modelPaths.Length > 0 ? string.Join(", ", modelPaths) : "none")}");
+        Console.WriteLine("  key-paths:");
         foreach (var path in schema) Console.WriteLine($"    {path}");
     }
 
     Console.WriteLine();
-    Console.WriteLine("Desktop günlüklerinde doğrulanmış şema yoksa Claude kapsamı yalnızca Claude Code olarak kalır.");
+    Console.WriteLine("Without a verified schema in Desktop logs, Claude scope stays Claude Code only.");
     return 0;
 }
 
@@ -732,27 +732,27 @@ async Task<int> RunAntigravityDiscoverAsync()
             group => group.Select(endpoint => endpoint.CsrfToken)
                 .FirstOrDefault(token => !string.IsNullOrWhiteSpace(token)));
 
-    Console.WriteLine("Antigravity keşfi");
+    Console.WriteLine("Antigravity discovery");
     Console.WriteLine();
-    Console.WriteLine("Aday süreçler:");
+    Console.WriteLine("Candidate processes:");
     if (processes.Count == 0)
     {
-        Console.WriteLine("  (yok)");
+        Console.WriteLine("  (none)");
     }
     else
     {
         foreach (var process in processes)
         {
             Console.WriteLine(
-                $"  - {process.Name}.exe  PID={process.ProcessId}  komut satırı={process.CommandLine}");
+                $"  - {process.Name}.exe  PID={process.ProcessId}  command line={process.CommandLine}");
         }
     }
 
     Console.WriteLine();
-    Console.WriteLine("Dinleyen 127.0.0.1 portları:");
+    Console.WriteLine("Listening 127.0.0.1 ports:");
     if (listeners.Count == 0)
     {
-        Console.WriteLine("  (yok)");
+        Console.WriteLine("  (none)");
     }
     else
     {
@@ -763,10 +763,10 @@ async Task<int> RunAntigravityDiscoverAsync()
     }
 
     Console.WriteLine();
-    Console.WriteLine("RetrieveUserQuotaSummary yoklaması:");
+    Console.WriteLine("RetrieveUserQuotaSummary probe:");
     if (listeners.Count == 0)
     {
-        Console.WriteLine("  (yok)");
+        Console.WriteLine("  (none)");
     }
     else
     {
@@ -794,13 +794,13 @@ async Task<int> RunAntigravityDiscoverAsync()
             if (probe.Failure is not null)
             {
                 Console.WriteLine(
-                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.Failure} gövde=(yok)");
+                    $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.Failure} body=(none)");
                 continue;
             }
 
             var shape = DescribeJsonShape(probe.Body);
             Console.WriteLine(
-                $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.StatusCode} taşıma={probe.Scheme} gövde={shape}");
+                $"  - PID={listener.ProcessId} port={listener.Port} HTTP={probe.StatusCode} transport={probe.Scheme} body={shape}");
 
             if (probe.StatusCode == 200)
             {
@@ -811,7 +811,7 @@ async Task<int> RunAntigravityDiscoverAsync()
 
     Console.WriteLine();
     Console.WriteLine("cli.log:");
-    PrintAntigravityLogDiagnostics("varsayılan", KnownPaths.AntigravityDefaultCliLog);
+    PrintAntigravityLogDiagnostics("default", KnownPaths.AntigravityDefaultCliLog);
     if (KnownPaths.AntigravityOverrideCliLog is { } overrideLog &&
         !string.Equals(
             KnownPaths.AntigravityDefaultCliLog,
@@ -856,32 +856,32 @@ async Task<int> RunAntigravityDiscoverAsync()
                 return ((int)response.StatusCode, body, scheme, null);
             }
 
-            return (null, string.Empty, "https", "bağlantı-reddedildi");
+            return (null, string.Empty, "https", "connection-refused");
         }
         catch (HttpRequestException)
         {
-            return (null, string.Empty, "http", "bağlantı-reddedildi");
+            return (null, string.Empty, "http", "connection-refused");
         }
         catch (TaskCanceledException)
         {
-            return (null, string.Empty, "http", "zaman-aşımı");
+            return (null, string.Empty, "http", "timeout");
         }
     }
 }
 
 void PrintAntigravityLogDiagnostics(string label, string path)
 {
-    Console.WriteLine($"  {label}: {(File.Exists(path) ? "var" : "yok")}");
+    Console.WriteLine($"  {label}: {(File.Exists(path) ? "yes" : "no")}");
     foreach (var line in AntigravityPortFinder.ReadLastListeningLines(path))
     {
         var port = AntigravityPortFinder.FindPortInLogText(line);
-        Console.WriteLine($"    listening port={(port?.ToString() ?? "bilinmiyor")}");
+        Console.WriteLine($"    listening port={(port?.ToString() ?? "unknown")}");
     }
 }
 
 static string DescribeJsonShape(string body)
 {
-    if (string.IsNullOrWhiteSpace(body)) return "boş";
+    if (string.IsNullOrWhiteSpace(body)) return "empty";
 
     try
     {
@@ -945,7 +945,7 @@ static void PrintAntigravityGroupNames(string body)
 
         if (groups.ValueKind != JsonValueKind.Array)
         {
-            Console.WriteLine("    200 grup/bucket adı: (groups dizisi yok)");
+            Console.WriteLine("    200 group/bucket names: (no groups array)");
             return;
         }
 
@@ -953,13 +953,13 @@ static void PrintAntigravityGroupNames(string body)
         {
             var groupName = group.TryGetProperty("displayName", out var displayName)
                 ? SafeDiagnosticName(displayName.GetString())
-                : "(adsız grup)";
-            Console.WriteLine($"    grup={groupName}");
+                : "(unnamed group)";
+            Console.WriteLine($"    group={groupName}");
 
             if (!group.TryGetProperty("buckets", out var buckets) ||
                 buckets.ValueKind != JsonValueKind.Array)
             {
-                Console.WriteLine("      bucket=(yok)");
+                Console.WriteLine("      bucket=(none)");
                 continue;
             }
 
@@ -967,26 +967,26 @@ static void PrintAntigravityGroupNames(string body)
             {
                 var bucketName = bucket.TryGetProperty("displayName", out var bucketDisplayName)
                     ? SafeDiagnosticName(bucketDisplayName.GetString())
-                    : "(adsız bucket)";
+                    : "(unnamed bucket)";
                 Console.WriteLine($"      bucket={bucketName}");
             }
         }
     }
     catch (JsonException)
     {
-        Console.WriteLine("    200 grup/bucket adı: (JSON ayrıştırılamadı)");
+        Console.WriteLine("    200 group/bucket names: (JSON could not be parsed)");
     }
 }
 
 static string SafeDiagnosticName(string? value)
 {
-    if (string.IsNullOrWhiteSpace(value)) return "(boş)";
+    if (string.IsNullOrWhiteSpace(value)) return "(empty)";
 
     var safe = Regex.Replace(value, @"(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", "[email]");
     safe = Regex.Replace(
         safe,
         @"(?i)\b(?:bearer|token|api[_-]?key|csrf[_-]?token)\s*[:=]\s*\S+",
-        "[gizlendi]");
+        "[redacted]");
     safe = Regex.Replace(
         safe,
         @"\b[0-9a-f]{8}-[0-9a-f-]{27,}\b",

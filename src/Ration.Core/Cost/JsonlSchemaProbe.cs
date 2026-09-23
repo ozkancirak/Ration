@@ -21,7 +21,7 @@ public static class JsonlSchemaProbe
     {
         var paths = new SortedSet<string>(StringComparer.Ordinal);
 
-        if (!Directory.Exists(directory)) return new[] { L.T($"(no directory: {directory})", $"(dizin yok: {directory})") };
+        if (!Directory.Exists(directory)) return new[] { $"(no directory: {directory})" };
 
         IEnumerable<string> files;
         try
@@ -33,7 +33,7 @@ public static class JsonlSchemaProbe
         }
         catch (UnauthorizedAccessException)
         {
-            return new[] { L.T("(directory could not be read)", "(dizin okunamadı)") };
+            return new[] { "(directory could not be read)" };
         }
 
         foreach (var file in files)
