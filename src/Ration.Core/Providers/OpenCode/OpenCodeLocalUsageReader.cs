@@ -85,6 +85,7 @@ public static class OpenCodeLocalUsageReader
             ? ReadModelUsage(connection, periodStart)
             : null;
         var freeUsage = ReadFreeUsage(connection, freeModelPath, ct);
+        var daily = ReadDaily(connection, periodStart);
 
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -114,7 +115,35 @@ public static class OpenCodeLocalUsageReader
             CacheReadTokens: ReadLong(reader, 4),
             CacheCreationTokens: ReadLong(reader, 5),
             Models: modelUsage,
-            FreeUsage: freeUsage);
+            FreeUsage: freeUsage,
+            Daily: daily);
+    }
+
+    /// <summary>Günlük grafik için yerel güne göre token toplamı (oturum oluşturulma günü).</summary>
+    private static IReadOnlyList<DailyTokens> ReadDaily(SqliteConnection connection, DateTimeOffset periodStart)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                date(time_created / 1000, 'unixepoch', 'localtime'),
+                SUM(COALESCE(tokens_input, 0) + COALESCE(tokens_output, 0)
+                    + COALESCE(tokens_cache_read, 0) + COALESCE(tokens_cache_write, 0))
+            FROM session
+            WHERE time_created >= $threshold
+            GROUP BY 1
+            ORDER BY 1;
+            """;
+        command.Parameters.AddWithValue("$threshold", periodStart.ToUnixTimeMilliseconds());
+
+        var result = new List<DailyTokens>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (reader.IsDBNull(0) ||
+                !DateOnly.TryParseExact(reader.GetString(0), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)) continue;
+            result.Add(new DailyTokens(day, ReadLong(reader, 1)));
+        }
+        return result;
     }
 
     /// <summary>Süreç kopyalama sırasında kapanırsa kalan eski okuma klasörlerini siler.</summary>

@@ -34,7 +34,7 @@ public sealed record WindowRow(
 
         foreach (var group in groups)
         {
-            var heading = groups.Count > 1 && group.Key.Length > 0 ? group.Key : null;
+            var heading = groups.Count > 1 && group.Key.Length > 0 ? LocalizeGroup(group.Key) : null;
             foreach (var window in group.OrderBy(w => w.Kind))
             {
                 var title = TitleFor(window);
@@ -69,7 +69,21 @@ public sealed record WindowRow(
         if (string.IsNullOrWhiteSpace(window.Label)) return KindName(window.Kind);
 
         // "5 saatlik" sağlayıcıların oturum penceresidir; CodexBar dilinde "Oturum".
-        return window.Kind == WindowKind.Session && HourLabel.IsMatch(window.Label) ? "Oturum" : window.Label;
+        if (window.Kind == WindowKind.Session && HourLabel.IsMatch(window.Label)) return "Oturum";
+
+        // Codex'in model bazlı ek limitleri iç adla gelir ("gpt-reserve · Haftalık"); kullanıcıya
+        // bir şey anlatmaz. Sağ taraf (pencere adı) korunur.
+        var parts = window.Label.Split(" · ", 2);
+        return parts.Length == 2 && parts[0].StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
+            ? $"Ek model limiti · {parts[1]}"
+            : window.Label;
+    }
+
+    /// <summary>Sağlayıcının İngilizce grup adları ("Gemini Models", "Claude and GPT models").</summary>
+    private static string LocalizeGroup(string name)
+    {
+        var text = Regex.Replace(name, @"\s+models$", " modelleri", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return Regex.Replace(text, @"\s+and\s+", " ve ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static string KindName(WindowKind kind) => kind switch
@@ -95,7 +109,8 @@ public sealed record WindowRow(
 
 public sealed record StatItem(string Label, string Value);
 
-public sealed record DayBar(double BarHeight, double BarWidth, string Tip);
+/// <summary>Günlük çubuk. Bugün tam renk, geçmiş günler soluk: göz önce bugüne gitsin.</summary>
+public sealed record DayBar(double BarHeight, double BarWidth, string Tip, double BarOpacity);
 
 public static class UsageFormat
 {
@@ -142,7 +157,7 @@ public static class UsageFormat
             {
                 var tokens = byDay.GetValueOrDefault(day);
                 var h = tokens <= 0 ? 0 : Math.Max(2, height * tokens / max);
-                return new DayBar(h, barWidth, $"{day.ToString("d MMM", CultureInfo.CurrentCulture)} · {Tokens(tokens)} token");
+                return new DayBar(h, barWidth, $"{day.ToString("d MMM", CultureInfo.CurrentCulture)} · {Tokens(tokens)} token", day == today ? 1.0 : 0.55);
             })
             .ToList();
     }

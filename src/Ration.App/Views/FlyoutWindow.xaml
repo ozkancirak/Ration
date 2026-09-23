@@ -216,19 +216,6 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!--  OpenCode: ücretsiz model sayacı (IP bazlı sınır, yalnızca bu bilgisayar)  -->
-                    <StackPanel x:Name="FreeUsageSection"
-                                Orientation="Horizontal"
-                                Spacing="4"
-                                Visibility="Collapsed">
-                        <TextBlock x:Name="FreeUsageText" Style="{StaticResource CaptionTextBlockStyle}" />
-                        <FontIcon Glyph="&#xE946;"
-                                  FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  VerticalAlignment="Center"
-                                  ToolTipService.ToolTip="Sınır IP adresine göre uygulanır ve yayınlanmaz. Bu sayaç yalnızca bu bilgisayarı sayar." />
-                    </StackPanel>
-
                     <!--  Kullanım ve API karşılığı (yerel log taraması; veri yoksa gizli)  -->
                     <StackPanel x:Name="CostSection" Spacing="10" Visibility="Collapsed">
 
@@ -264,6 +251,20 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!--  OpenCode: ücretsiz model sayacı (IP bazlı sınır, yalnızca bu bilgisayar)  -->
+                        <StackPanel x:Name="FreeUsageSection"
+                                    Orientation="Horizontal"
+                                    Spacing="4"
+                                    Visibility="Collapsed">
+                            <TextBlock x:Name="FreeUsageText" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <FontIcon Glyph="&#xE946;"
+                                      FontSize="12"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                      VerticalAlignment="Center"
+                                      ToolTipService.ToolTip="Sınır IP adresine göre uygulanır ve yayınlanmaz. Bu sayaç yalnızca bu bilgisayarı sayar." />
+                        </StackPanel>
+
+
                         <!--  Son 30 günün günlük token çubukları  -->
                         <ItemsControl x:Name="DailyChart" Height="44">
                             <ItemsControl.ItemsPanel>
@@ -285,6 +286,7 @@
                                                    Fill="{ThemeResource ControlStrongFillColorDisabledBrush}" />
                                         <Rectangle Height="{x:Bind BarHeight}"
                                                    VerticalAlignment="Bottom"
+                                                   Opacity="{x:Bind BarOpacity}"
                                                    RadiusX="1.5"
                                                    RadiusY="1.5"
                                                    Fill="{ThemeResource AccentFillColorDefaultBrush}" />
@@ -292,6 +294,15 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Grid x:Name="DailyChartAxis" Margin="0,-6,0,0">
+                            <TextBlock Text="30 gün önce"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Text="Bugün"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                        </Grid>
 
                         <StackPanel Spacing="2">
                             <TextBlock x:Name="ModelLine"

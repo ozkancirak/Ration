@@ -283,7 +283,8 @@ public sealed partial class SettingsWindow : Window
             ClaudeStatusLineStatus,
             statusLine is not null,
             statusLine is { } record ? $"Bağlı · {QuotaVisuals.FormatUpdated(record.CapturedAt).Replace(" güncellendi", string.Empty)}" : string.Empty,
-            "Bağlı değil");
+            "Bağlı değil",
+            unavailableIsProblem: false);
 
         var claude = ClaudeCredentialStore.TryRead();
         SetProviderStatus(
@@ -310,7 +311,8 @@ public sealed partial class SettingsWindow : Window
             AntigravityProviderStatus,
             antigravityRunning,
             "Açık",
-            "Kapalı — açınca veri gelir");
+            "Kapalı — açınca veri gelir",
+            unavailableIsProblem: false);
 
         SetProviderStatus(
             OpenCodeProviderBadge,
@@ -398,10 +400,15 @@ public sealed partial class SettingsWindow : Window
         TextBlock status,
         bool available,
         string availableText,
-        string unavailableText)
+        string unavailableText,
+        bool unavailableIsProblem = true)
     {
         status.Text = available ? availableText : unavailableText;
-        var styleKey = available ? "SuccessDotInfoBadgeStyle" : "AttentionDotInfoBadgeStyle";
+        // Sorun (oturum süresi, kimlik yok) sarı uyarı; sorun olmayan durum (bağlı değil,
+        // uygulama kapalı) nötr. Önceden hepsi aynı mavi rozetle gösteriliyordu.
+        var styleKey = available
+            ? "SuccessDotInfoBadgeStyle"
+            : unavailableIsProblem ? "CautionDotInfoBadgeStyle" : "AttentionDotInfoBadgeStyle";
         if (Application.Current.Resources.TryGetValue(styleKey, out var style) &&
             style is Style providerStyle)
         {

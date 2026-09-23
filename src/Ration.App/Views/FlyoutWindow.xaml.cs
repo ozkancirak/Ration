@@ -119,6 +119,9 @@ public sealed partial class FlyoutWindow : Window
         {
             Interval = RefreshIntervalPreference.Current,
             MaxJitter = TimeSpan.FromSeconds(5),
+            // Dört sağlayıcı aynı anda: 3 sınırında sonuncu sırada bekliyor ve panel
+            // açılışında eski veriyle kalıyordu.
+            MaxConcurrency = 4,
             EmitCachedOnStart = true,
         });
 
@@ -651,9 +654,9 @@ public sealed partial class FlyoutWindow : Window
 
             if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
             {
-                // Hata: mini ölçer yerine critical renginde 2px dolu çizgi.
+                // Hata: uyarı renginde dolu çizgi; "kota yok"un gri çizgisinden ayırt edilsin.
                 meter.Value = 100;
-                meter.Foreground = tabBrush;
+                meter.Foreground = QuotaVisuals.Fill("SystemFillColorCautionBrush");
                 continue;
             }
 
@@ -866,6 +869,7 @@ public sealed partial class FlyoutWindow : Window
             DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
                 ? UserErrorDetail(snapshot)
                 : snapshot.StaleReason ?? "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
+            DetailErrorDetail.Visibility = Visibility.Visible;
             DetailError.Visibility = Visibility.Visible;
             ToolTipService.SetToolTip(DetailError, null);
             SetWindows(null);
@@ -994,6 +998,7 @@ public sealed partial class FlyoutWindow : Window
             ? "Oturum yenilenmeli"
             : FormatStaleAge(fetchedAt);
         DetailErrorDetail.Text = string.Empty;
+        DetailErrorDetail.Visibility = Visibility.Collapsed; // boş satır uyarının altında boşluk bırakıyordu
         DetailError.Visibility = Visibility.Visible;
         ToolTipService.SetToolTip(
             DetailError,
@@ -1178,10 +1183,12 @@ public sealed partial class FlyoutWindow : Window
         var todayMoney = Money(today);
         var monthMoney = Money(month);
 
-        if (todayMoney is not null || monthMoney is not null)
+        // Dönem fiyatlanamıyorsa (bilinmeyen model) maliyet kutuları hiç gösterilmez; yan yana
+        // "$0,00" ve "—" tutarsız görünüyordu. Yalnızca token kalır.
+        if (monthMoney is not null)
         {
             if (today is not null) stats.Add(new StatItem("Bugün", todayMoney ?? "—"));
-            if (month is not null) stats.Add(new StatItem($"{monthLabel} maliyeti", monthMoney ?? "—"));
+            stats.Add(new StatItem($"{monthLabel} maliyeti", monthMoney));
         }
         if (today is not null) stats.Add(new StatItem("Bugün token", UsageFormat.Tokens(today.TotalTokens)));
         if (month is not null) stats.Add(new StatItem($"{monthLabel} token", UsageFormat.Tokens(month.TotalTokens)));
@@ -1192,6 +1199,7 @@ public sealed partial class FlyoutWindow : Window
             ? null
             : UsageFormat.Bars(daily, DateOnly.FromDateTime(DateTime.Today), 30, ChartWidth(), 44);
         DailyChart.Visibility = daily.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        DailyChartAxis.Visibility = DailyChart.Visibility;
 
         var unpricedCount = pricing.IsEmpty
             ? 0
