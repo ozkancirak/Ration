@@ -171,10 +171,22 @@ public sealed partial class SettingsWindow : Window
 
     private void RefreshProviderIcons()
     {
-        ClaudeProviderExpander.Header = ProviderIcons.CreateHeader("claude", "Claude Code");
-        CodexProviderExpander.Header = ProviderIcons.CreateHeader("codex", "Codex");
-        AntigravityProviderExpander.Header = ProviderIcons.CreateHeader("antigravity", "Antigravity");
-        OpenCodeProviderExpander.Header = ProviderIcons.CreateHeader("opencode", "OpenCode");
+        SetProviderHeader(ClaudeProviderExpander, "claude", "Claude Code");
+        SetProviderHeader(CodexProviderExpander, "codex", "Codex");
+        SetProviderHeader(AntigravityProviderExpander, "antigravity", "Antigravity");
+        SetProviderHeader(OpenCodeProviderExpander, "opencode", "OpenCode");
+    }
+
+    /// <summary>
+    /// Açıklama expander'ın kendi alanında dururken ikonun altına düşüyordu; başlığın
+    /// içine, adın altına taşınır. XAML'daki metin ilk seferde Tag'e saklanır.
+    /// </summary>
+    private static void SetProviderHeader(SettingsExpander expander, string providerId, string name)
+    {
+        var description = expander.Tag as string ?? expander.Description as string;
+        expander.Tag = description;
+        expander.Description = null;
+        expander.Header = ProviderIcons.CreateHeader(providerId, name, description);
     }
 
     private void UpdateWindowFrameTheme()

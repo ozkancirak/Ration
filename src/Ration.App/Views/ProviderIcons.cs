@@ -84,23 +84,42 @@ internal static class ProviderIcons
         => (XamlPath)XamlReader.Load(
             $"<Path xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Data=\"{definition.PathData}\" />");
 
-    public static StackPanel CreateHeader(string providerId, string name)
+    /// <summary>
+    /// Ayarlar kartı başlığı: solda marka ikonu, sağında ad + açıklama alt alta.
+    /// İkon boşluğu SettingsCard'ın kendi HeaderIcon kenar boşluğuyla (2,0,20,0) aynı;
+    /// böylece metin, FontIcon'lu diğer kartlarla aynı sütuna hizalanır.
+    /// </summary>
+    public static Grid CreateHeader(string providerId, string name, string? description = null)
     {
-        var header = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        header.Children.Add(Create(providerId, 20, active: true));
+        var header = new Grid { VerticalAlignment = VerticalAlignment.Center };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var label = new TextBlock
+        var icon = Create(providerId, 20, active: true);
+        if (icon is FrameworkElement iconElement)
         {
-            Text = name,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
-        header.Children.Add(label);
+            iconElement.Margin = new Thickness(2, 0, 20, 0);
+            iconElement.VerticalAlignment = VerticalAlignment.Center;
+        }
+        header.Children.Add(icon);
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        var label = new TextBlock { Text = name };
+        QuotaVisuals.SetTextStyle(label, "BodyTextBlockStyle");
+        text.Children.Add(label);
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            var detail = new TextBlock
+            {
+                Text = description,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
+            };
+            QuotaVisuals.SetTextStyle(detail, "CaptionTextBlockStyle");
+            text.Children.Add(detail);
+        }
+        Grid.SetColumn(text, 1);
+        header.Children.Add(text);
         return header;
     }
 

@@ -64,7 +64,7 @@
                                                Description="~/.claude/projects/ altındaki JSONL oturum loglarını tara">
                             <!-- Kapalı gibi duran pasif toggle yerine gerçek durum: tarama
                                  ayarsız her zaman çalışır, para tutarı pricing.json ister. -->
-                            <StackPanel Spacing="2" MinWidth="180">
+                            <StackPanel Spacing="2" HorizontalAlignment="Right">
                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <InfoBadge x:Name="ClaudeCostBadge"
                                                Style="{StaticResource SuccessDotInfoBadgeStyle}"
@@ -77,6 +77,9 @@
                                 </StackPanel>
                                 <TextBlock x:Name="ClaudeCostReason"
                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                           HorizontalAlignment="Right"
+                                           HorizontalTextAlignment="Right"
+                                           MaxWidth="240"
                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            TextWrapping="Wrap"
                                            Visibility="Collapsed" />
@@ -105,7 +108,7 @@
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Maliyet Taraması"
                                                Description="~/.codex/sessions/ altındaki JSONL oturum loglarını tara">
-                            <StackPanel Spacing="2" MinWidth="180">
+                            <StackPanel Spacing="2" HorizontalAlignment="Right">
                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <InfoBadge x:Name="CodexCostBadge"
                                                Style="{StaticResource SuccessDotInfoBadgeStyle}"
@@ -118,6 +121,9 @@
                                 </StackPanel>
                                 <TextBlock x:Name="CodexCostReason"
                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                           HorizontalAlignment="Right"
+                                           HorizontalTextAlignment="Right"
+                                           MaxWidth="240"
                                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                                            TextWrapping="Wrap"
                                            Visibility="Collapsed" />
@@ -188,6 +194,9 @@
 
                 <controls:SettingsCard Header="Tema"
                                        Description="Ration'ın renk teması. Değişince Ration kendini yeniden başlatır.">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE790;" />
+                    </controls:SettingsCard.HeaderIcon>
                     <ComboBox x:Name="ThemeSelection"
                               MinWidth="140"
                               AutomationProperties.Name="Tema">
@@ -225,10 +234,13 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard x:Name="UpdatesCard">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE895;" />
+                    </controls:SettingsCard.HeaderIcon>
                     <controls:SettingsCard.Header>
                         <StackPanel Spacing="2">
                             <TextBlock Text="Güncellemeler"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                       Style="{StaticResource BodyTextBlockStyle}" />
                             <TextBlock x:Name="UpdateStatusText"
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -242,6 +254,9 @@
 
                 <controls:SettingsCard Header="Tanılama"
                                        Description="Sorun giderme için Ration günlüğünü aç">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE9D9;" />
+                    </controls:SettingsCard.HeaderIcon>
                     <Button x:Name="OpenLogButton"
                             Content="Günlüğü aç"
                             HorizontalAlignment="Left" />
@@ -253,6 +268,9 @@
                        Margin="0,16,0,0" />
 
             <controls:SettingsCard Description="Windows 11 Native System Tray Quota Tracker">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE946;" />
+                    </controls:SettingsCard.HeaderIcon>
                     <controls:SettingsCard.Header>
                         <StackPanel Spacing="2">
                             <TextBlock Text="Ration"
