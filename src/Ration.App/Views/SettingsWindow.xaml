@@ -12,11 +12,19 @@
                   MinHeight="420"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
-                  HorizontalContentAlignment="Center">
+                  HorizontalContentAlignment="Stretch">
+        <!-- Ortalama içeriğe değil pencereye bağlı: kenar sütunlar boşluğu eşit paylaşır, orta
+             sütun en fazla 1000px. Önceden genişlik/konum içeriğin istediği genişliğe göre
+             hesaplanıyor, bir bölüm açılıp kapanınca (uzun metin) tüm sayfa kayıyordu. -->
+        <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="1000*" MaxWidth="1000" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <StackPanel x:Name="SettingsContent"
+                    Grid.Column="1"
                     Spacing="8"
-                    MaxWidth="1000"
-                    HorizontalAlignment="Stretch"
                     Padding="24,0,24,24">
 
             <!-- Özel Başlık Çubuğu (Drag Region) -->
@@ -319,5 +327,6 @@
             </controls:SettingsCard>
 
         </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Window>
