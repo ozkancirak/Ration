@@ -2,7 +2,9 @@
 
 Ration, Windows 11 görev çubuğunda AI kodlama sağlayıcılarının kota kullanımını, sıfırlanma zamanlarını ve yerel token/maliyet özetlerini gösteren native bir tepsi uygulamasıdır.
 
-![Ration tepsi ve flyout görünümü](docs/screenshots/tray-contact-sheet.png)
+![Ration paneli](docs/screenshots/flyout.png)
+
+Tepsi ikonu kalan kotayı dolgu olarak gösterir: [ikon matrisi](docs/screenshots/tray-contact-sheet.png).
 
 ## Desteklenen sağlayıcılar
 
