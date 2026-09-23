@@ -556,3 +556,24 @@ public sealed class JsonlSchemaProbeTests : IDisposable
         Assert.Empty(paths);
     }
 }
+
+public sealed class TokenTallyDailyTests
+{
+    [Fact]
+    public void GunlukKovalar_YerelGuneGoreAyrilir_ZamaniOlmayanGrafigeGirmez()
+    {
+        var tally = new TokenTally();
+        var day1 = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 9, 20)));
+        var day2 = day1.AddDays(1);
+
+        tally.Add("m", 10, 5, 0, 0, at: day1);
+        tally.Add("m", 1, 1, 1, 1, at: day1);
+        tally.Add("m", 100, 0, 0, 0, at: day2);
+        tally.Add("m", 999, 0, 0, 0);
+
+        Assert.Equal(
+            [new DailyTokens(new DateOnly(2026, 9, 20), 19), new DailyTokens(new DateOnly(2026, 9, 21), 100)],
+            tally.Daily);
+        Assert.Equal(1110, tally.TotalInputTokens);
+    }
+}

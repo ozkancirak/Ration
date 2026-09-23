@@ -80,7 +80,9 @@ public sealed record CostReport(
     FreeModelUsage? FreeUsage = null,
     // false means the local scan included an event without a usable timestamp;
     // the UI must not label that total as an exact "last 30 days" period.
-    bool PeriodKnown = true)
+    bool PeriodKnown = true,
+    // Yerel güne göre token toplamları (günlük çubuk grafik). Maliyet değil, token.
+    IReadOnlyList<Ration.Core.Cost.DailyTokens>? Daily = null)
 {
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
 }

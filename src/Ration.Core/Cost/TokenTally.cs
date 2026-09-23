@@ -24,6 +24,7 @@ public sealed record ModelTokens(
 public sealed class TokenTally
 {
     private readonly Dictionary<string, long[]> _byModel = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<DateOnly, long> _byDay = new();
 
     private const int Input = 0;
     private const int Output = 1;
@@ -39,7 +40,8 @@ public sealed class TokenTally
         long outputTokens,
         long cacheReadTokens,
         long cacheCreationTokens,
-        long reasoningTokens = 0)
+        long reasoningTokens = 0,
+        DateTimeOffset? at = null)
     {
         var key = string.IsNullOrWhiteSpace(model) ? "(bilinmeyen model)" : model;
 
@@ -54,6 +56,13 @@ public sealed class TokenTally
         bucket[CacheRead] += cacheReadTokens;
         bucket[CacheCreate] += cacheCreationTokens;
         bucket[Reasoning] += reasoningTokens;
+
+        // Günlük grafik için yerel güne göre toplam; zamanı bilinmeyen olay grafiğe girmez.
+        if (at is { } time)
+        {
+            var day = DateOnly.FromDateTime(time.ToLocalTime().DateTime);
+            _byDay[day] = _byDay.GetValueOrDefault(day) + inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
+        }
 
         EntryCount++;
     }
@@ -80,8 +89,13 @@ public sealed class TokenTally
 
     public long TotalReasoningTokens => _byModel.Values.Sum(v => v[Reasoning]);
 
+    public IReadOnlyList<DailyTokens> Daily =>
+        _byDay.OrderBy(kv => kv.Key).Select(kv => new DailyTokens(kv.Key, kv.Value)).ToList();
+
     public bool IsEmpty => _byModel.Count == 0;
 }
+
+public sealed record DailyTokens(DateOnly Day, long Tokens);
 
 public sealed record CostScanResult(
     TokenTally Tally,

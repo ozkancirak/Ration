@@ -164,7 +164,7 @@ public static class QuotaVisuals
             return;
         }
 
-        text.Text = displayName.ToUpperInvariant();
+        text.Text = char.ToUpper(displayName[0], System.Globalization.CultureInfo.CurrentCulture) + displayName[1..];
         badge.Visibility = Visibility.Visible;
     }
 

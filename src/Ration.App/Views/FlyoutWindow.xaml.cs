@@ -65,7 +65,6 @@ public sealed partial class FlyoutWindow : Window
     private long _costRun;
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
-    private CostReport? _displayedLocalCost;
     private readonly Dictionary<string, string> _modelDiagnosticState = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _modelDiagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private bool _allModelDiagnosticsStarted;
@@ -624,9 +623,9 @@ public sealed partial class FlyoutWindow : Window
             }
 
             var percent = MainPercent(snapshot);
-            meter.Value = percent;
+            meter.Value = 100 - percent;
             meter.Foreground = tabBrush;
-            AutomationProperties.SetName(button, $"{snapshot.ProviderId}, yüzde {percent:F0}");
+            AutomationProperties.SetName(button, $"{snapshot.ProviderId}, yüzde {100 - percent:F0} kaldı");
         }
     }
 
@@ -710,19 +709,11 @@ public sealed partial class FlyoutWindow : Window
         DetailPanel.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
         TabStrip.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
 
-        if (discovered || WelcomeProvidersPanel.Children.Count > 0) return;
+        if (discovered || WelcomeProviders.ItemsSource is not null) return;
 
-        foreach (var provider in _providers)
-        {
-            var line = new TextBlock
-            {
-                Text = $"{provider.DisplayName} — {ProviderSearchLocation(provider.Id)}",
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
-            };
-            QuotaVisuals.SetTextStyle(line, "CaptionTextBlockStyle");
-            WelcomeProvidersPanel.Children.Add(line);
-        }
+        WelcomeProviders.ItemsSource = _providers
+            .Select(p => $"{p.DisplayName} — {ProviderSearchLocation(p.Id)}")
+            .ToList();
     }
 
     private static bool HasDiscoveredProvider(UsageSnapshot snapshot) =>
@@ -769,14 +760,16 @@ public sealed partial class FlyoutWindow : Window
 
     private void RenderDetail()
     {
+        UpdateProviderLinks(_selectedId);
+
         if (!_scheduler.Current.TryGetValue(_selectedId, out var snapshot))
         {
             DetailName.Text = TabDisplayName(_selectedId);
-            DetailIconHost.Content = CreateProviderIcon(GetProviderTab(_selectedId), active: true);
             DetailUpdated.Text = "Bekleniyor…";
+            DetailPlanBadge.Visibility = Visibility.Collapsed;
             DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
-            DetailWindows.Children.Clear();
+            SetWindows(null);
             ClearCostSection();
             return;
         }
@@ -787,21 +780,13 @@ public sealed partial class FlyoutWindow : Window
         }
 
         DetailName.Text = TabDisplayName(snapshot.ProviderId);
-        DetailIconHost.Content = CreateProviderIcon(GetProviderTab(snapshot.ProviderId), active: true);
         QuotaVisuals.ApplyPlan(DetailPlanBadge, DetailPlanText, snapshot.PlanName);
-        if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
-            snapshot.Windows.Count == 0)
-        {
-            ToolTipService.SetToolTip(
-                DetailPlanBadge,
-                "OpenCode'un kendi kotası yok, yapılandırdığın sağlayıcıların aboneliğini kullanır.");
-        }
-        else
-        {
-            ToolTipService.SetToolTip(DetailPlanBadge, null);
-        }
+        ToolTipService.SetToolTip(
+            DetailPlanBadge,
+            snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) && snapshot.Windows.Count == 0
+                ? "OpenCode'un kendi kotası yok, yapılandırdığın sağlayıcıların aboneliğini kullanır."
+                : null);
 
-        QuotaVisuals.SetTextStyle(DetailUnavailableTitle, "CaptionTextBlockStyle");
         DetailUnavailableTitle.Visibility = Visibility.Visible;
 
         var stale = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null } &&
@@ -823,6 +808,9 @@ public sealed partial class FlyoutWindow : Window
             ToolTipService.SetToolTip(DetailError, null);
         }
 
+        SetFreeUsage(snapshot.Cost?.FreeUsage);
+        var isOpenCode = snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase);
+
         if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
@@ -832,83 +820,76 @@ public sealed partial class FlyoutWindow : Window
                 : snapshot.StaleReason ?? "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.";
             DetailError.Visibility = Visibility.Visible;
             ToolTipService.SetToolTip(DetailError, null);
-            DetailWindows.Children.Clear();
+            SetWindows(null);
         }
-        else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
-                 snapshot.Cost is { } localUsage &&
-                 snapshot.Windows.Count == 0)
+        else if (isOpenCode && snapshot.Windows.Count == 0 &&
+                 (snapshot.Cost is not null || !string.IsNullOrWhiteSpace(snapshot.StatusDetail)))
         {
+            // OpenCode'un kendi kotası yok: yapılandırılmış sağlayıcılar + yerel kullanım.
             DetailUnavailableTitle.Visibility = Visibility.Collapsed;
             var noQuotaDetail = FormatOpenCodeNoQuota(snapshot);
             DetailUnavailableDetail.Text = noQuotaDetail;
             DetailUnavailable.Visibility = string.IsNullOrWhiteSpace(noQuotaDetail)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            RenderOpenCodeLocalUsage(localUsage);
-        }
-        else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
-                 snapshot.Windows.Count == 0 &&
-                 !string.IsNullOrWhiteSpace(snapshot.StatusDetail))
-        {
-            DetailUnavailableTitle.Visibility = Visibility.Collapsed;
-            var noQuotaDetail = FormatOpenCodeNoQuota(snapshot);
-            DetailUnavailableDetail.Text = noQuotaDetail;
-            DetailUnavailable.Visibility = string.IsNullOrWhiteSpace(noQuotaDetail)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            DetailWindows.Children.Clear();
+            SetWindows(null);
         }
         else if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
                  snapshot.Windows.Count == 0 &&
-                 snapshot.Cost is { } antigravityUsage)
+                 snapshot.Cost is not null)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
-            RenderTokenUsage(antigravityUsage);
+            SetWindows(null);
         }
         else if (snapshot.Status == ProviderStatus.NotInstalled)
         {
             DetailUnavailableTitle.Text = "Kurulu değil veya açık değil";
             DetailUnavailableDetail.Text = snapshot.StaleReason ?? "Antigravity açık değil.";
             DetailUnavailable.Visibility = Visibility.Visible;
-            DetailWindows.Children.Clear();
+            SetWindows(null);
         }
         else if (snapshot.Windows.Count == 0)
         {
             DetailUnavailableTitle.Text = "Veri yok";
             DetailUnavailableDetail.Text = "Sağlayıcıdan kullanılabilir kota alınamadı.";
             DetailUnavailable.Visibility = Visibility.Visible;
-            DetailWindows.Children.Clear();
+            SetWindows(null);
         }
         else
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
-            RenderWindows(snapshot);
-            if (snapshot.ProviderId.Equals("antigravity", StringComparison.OrdinalIgnoreCase) &&
-                snapshot.Cost is { } antigravityTokenUsage)
-            {
-                RenderTokenUsage(antigravityTokenUsage, clear: false);
-            }
-            else if (snapshot.ProviderId.Equals("opencode", StringComparison.OrdinalIgnoreCase) &&
-                     snapshot.Cost is { } openCodeUsage)
-            {
-                RenderFreeUsage(openCodeUsage);
-            }
+            SetWindows(snapshot);
         }
-
-        // Claude/Codex maliyet taraması kota snapshot'ından bağımsızdır. Kota
-        // hata verse veya yeniden çizilse bile aynı paylaşılan Kullanım
-        // bileşeni yerel raporu göstermeye devam eder.
-        RenderCachedLocalUsageIfNeeded();
     }
 
-    private void RenderCachedLocalUsageIfNeeded()
+    private void SetWindows(UsageSnapshot? snapshot)
     {
-        if (!IsLocalCostProvider(_selectedId) || _displayedLocalCost is not { } usage)
-        {
-            return;
-        }
+        var rows = snapshot is null ? Array.Empty<WindowRow>() : WindowRow.From(snapshot, DateTimeOffset.UtcNow);
+        WindowList.ItemsSource = rows;
+        WindowList.Visibility = rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        RenderTokenUsage(usage, clear: false);
+    private void SetFreeUsage(FreeModelUsage? freeUsage)
+    {
+        FreeUsageText.Text = freeUsage is null ? string.Empty : $"Ücretsiz modeller · bugün {freeUsage.RequestsToday} istek";
+        FreeUsageSection.Visibility = freeUsage is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Sağlayıcının kendi kullanım ve durum sayfaları; bilinmeyende bağlantı gösterilmez.
+    private static (string? Dashboard, string? Status) ProviderLinks(string providerId) => providerId.ToLowerInvariant() switch
+    {
+        "claude" => ("https://claude.ai/settings/usage", "https://status.anthropic.com"),
+        "codex" => ("https://chatgpt.com/codex/settings/usage", "https://status.openai.com"),
+        _ => (null, null),
+    };
+
+    private void UpdateProviderLinks(string providerId)
+    {
+        var (dashboard, status) = ProviderLinks(providerId);
+        DashboardLink.NavigateUri = dashboard is null ? null : new Uri(dashboard);
+        DashboardLink.Visibility = dashboard is null ? Visibility.Collapsed : Visibility.Visible;
+        StatusLink.NavigateUri = status is null ? null : new Uri(status);
+        StatusLink.Visibility = status is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private static bool IsLocalCostProvider(string providerId) =>
@@ -935,222 +916,6 @@ public sealed partial class FlyoutWindow : Window
 
     private static void SetProviderIconBrush(UIElement icon, Microsoft.UI.Xaml.Media.Brush brush)
         => ProviderIcons.SetBrush(icon, brush);
-
-    private void RenderWindows(UsageSnapshot snapshot)
-    {
-        DetailWindows.Children.Clear();
-        var now = DateTimeOffset.UtcNow;
-        var stale = snapshot.Status == ProviderStatus.Degraded && snapshot.StaleReason is not null;
-        var groups = snapshot.Windows
-            .GroupBy(window => window.GroupName ?? string.Empty, StringComparer.Ordinal)
-            .ToList();
-        var showGroupHeadings = groups.Count > 1;
-
-        foreach (var group in groups)
-        {
-            var groupPanel = new StackPanel { Spacing = 8 };
-            if (showGroupHeadings && !string.IsNullOrWhiteSpace(group.Key))
-            {
-                var heading = new TextBlock
-                {
-                    Text = group.Key,
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
-                groupPanel.Children.Add(heading);
-            }
-
-            foreach (var window in group)
-            {
-                var block = new StackPanel { Spacing = 6 };
-
-                var label = new TextBlock
-                {
-                    Text = string.IsNullOrWhiteSpace(window.Label) ? KindName(window.Kind) : window.Label,
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                QuotaVisuals.SetTextStyle(label, "BodyStrongTextBlockStyle");
-                block.Children.Add(label);
-
-                var bar = new ProgressBar
-                {
-                    Value = window.Percent,
-                    Maximum = 100,
-                    Height = 3,
-                    CornerRadius = new CornerRadius(1.5),
-                    Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
-                    Foreground = QuotaVisuals.MeterBrush(window.Percent),
-                };
-                AutomationProperties.SetName(bar, $"{label.Text}, yüzde {window.Percent:F0}");
-                block.Children.Add(bar);
-
-                var row = new Grid();
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-
-                var percentText = new TextBlock
-                {
-                    Text = $"%{window.Percent:F0} kullanıldı",
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                QuotaVisuals.SetTextStyle(percentText, "CaptionTextBlockStyle");
-                Grid.SetColumn(percentText, 0);
-                row.Children.Add(percentText);
-
-                var reset = QuotaVisuals.FormatReset(window.ResetsAt, stale);
-                var resetText = new TextBlock
-                {
-                    Text = reset switch
-                    {
-                        "" => string.Empty,
-                        "sıfırlandı" or "sıfırlanmış olabilir" or "Sıfırlanma zamanı geldi — doğrulanıyor" => reset,
-                        _ => $"{reset} sonra",
-                    },
-                    Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                QuotaVisuals.SetTextStyle(resetText, "CaptionTextBlockStyle");
-                Grid.SetColumn(resetText, 1);
-                row.Children.Add(resetText);
-                block.Children.Add(row);
-
-                if (window.Percent >= 100)
-                {
-                    // Tükendi rozeti: tempo satırı yerine hap.
-                    var badgeText = new TextBlock
-                    {
-                        Text = PaceCalculator.FormatConsumedBadge(window, now),
-                        TextWrapping = TextWrapping.Wrap,
-                    };
-                    QuotaVisuals.SetTextStyle(badgeText, "CaptionTextBlockStyle");
-                    var badge = new Border
-                    {
-                        Background = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush"),
-                        CornerRadius = QuotaVisuals.PillCorner(),
-                        Padding = new Thickness(6, 1, 6, 1),
-                        HorizontalAlignment = HorizontalAlignment.Left,
-                        Child = badgeText,
-                    };
-                    block.Children.Add(badge);
-                }
-                else if (!stale && PaceCalculator.Calculate(window, now) is { } pace)
-                {
-                    var tempoText = new TextBlock
-                    {
-                        Text = PaceCalculator.Format(window, pace, now),
-                        Foreground = QuotaVisuals.Fill("TextFillColorTertiaryBrush"),
-                        TextWrapping = TextWrapping.Wrap,
-                    };
-                    QuotaVisuals.SetTextStyle(tempoText, "CaptionTextBlockStyle");
-                    block.Children.Add(tempoText);
-                }
-
-                groupPanel.Children.Add(block);
-            }
-
-            DetailWindows.Children.Add(groupPanel);
-        }
-    }
-
-    private static string KindName(WindowKind kind) => kind switch
-    {
-        WindowKind.Session => "Oturum",
-        WindowKind.Weekly => "Haftalık",
-        WindowKind.Daily => "Günlük",
-        WindowKind.Monthly => "Aylık",
-        _ => kind.ToString(),
-    };
-
-    private static long TotalTokens(CostReport usage) =>
-        usage.InputTokens + usage.OutputTokens +
-        usage.CacheReadTokens + usage.CacheCreationTokens;
-
-    private void RenderOpenCodeLocalUsage(CostReport usage)
-        => RenderTokenUsage(usage);
-
-    private void RenderTokenUsage(CostReport usage, bool clear = true)
-    {
-        if (clear) DetailWindows.Children.Clear();
-
-        var section = new StackPanel { Spacing = 8 };
-        var heading = new TextBlock { Text = "Kullanım" };
-        QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
-        section.Children.Add(heading);
-
-        AddTokenRow(section, "Toplam", $"{CompactTokens(TotalTokens(usage))} token");
-        AddTokenRow(section, "Girdi", CompactTokens(usage.InputTokens));
-        AddTokenRow(section, "Çıktı", CompactTokens(usage.OutputTokens));
-        AddTokenRow(section, "Akıl yürütme", CompactTokens(usage.ReasoningTokens));
-        AddTokenRow(
-            section,
-            "Cache",
-            CompactTokens(usage.CacheReadTokens + usage.CacheCreationTokens));
-
-        DetailWindows.Children.Add(section);
-        RenderFreeUsage(usage);
-        SetMostUsedModel(_selectedId, usage);
-    }
-
-    private void RenderFreeUsage(CostReport usage)
-    {
-        if (usage.FreeUsage is not { } freeUsage) return;
-
-        var section = new StackPanel { Spacing = 4 };
-        var heading = new TextBlock { Text = "Ücretsiz modeller" };
-        QuotaVisuals.SetTextStyle(heading, "BodyStrongTextBlockStyle");
-        section.Children.Add(heading);
-
-        var countRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-        };
-        var count = new TextBlock { Text = $"Bugün {freeUsage.RequestsToday} istek" };
-        QuotaVisuals.SetTextStyle(count, "CaptionTextBlockStyle");
-        countRow.Children.Add(count);
-
-        var info = new FontIcon
-        {
-            Glyph = "\uE946",
-            FontSize = 12,
-            Foreground = QuotaVisuals.Fill("TextFillColorSecondaryBrush"),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        ToolTipService.SetToolTip(
-            info,
-            "Sınır IP adresine göre uygulanır ve yayınlanmaz. Bu sayaç yalnızca bu bilgisayarı sayar.");
-        countRow.Children.Add(info);
-        section.Children.Add(countRow);
-
-        DetailWindows.Children.Add(section);
-    }
-
-    private static void AddTokenRow(StackPanel section, string label, string value)
-    {
-        var row = new Grid { ColumnSpacing = 8 };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var labelText = new TextBlock
-        {
-            Text = label,
-            TextWrapping = TextWrapping.Wrap,
-        };
-        QuotaVisuals.SetTextStyle(labelText, "CaptionTextBlockStyle");
-        row.Children.Add(labelText);
-
-        var valueText = new TextBlock
-        {
-            Text = value,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            TextWrapping = TextWrapping.Wrap,
-        };
-        QuotaVisuals.SetTextStyle(valueText, "CaptionTextBlockStyle");
-        Grid.SetColumn(valueText, 1);
-        row.Children.Add(valueText);
-
-        section.Children.Add(row);
-    }
 
     private void SetMostUsedModel(string providerId, CostReport? report)
     {
@@ -1223,7 +988,7 @@ public sealed partial class FlyoutWindow : Window
             : string.Empty;
     }
 
-    // ---- Maliyet özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
+    // ---- Kullanım özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
 
     private void RefreshCost(bool force)
     {
@@ -1240,9 +1005,9 @@ public sealed partial class FlyoutWindow : Window
             return;
         }
 
-        if (id.Equals("opencode", StringComparison.OrdinalIgnoreCase) ||
-            id.Equals("antigravity", StringComparison.OrdinalIgnoreCase))
+        if (!IsLocalCostProvider(id))
         {
+            // OpenCode/Antigravity raporu snapshot ile gelir; tarama gerekmez.
             _costForId = id;
             _costAt = DateTimeOffset.UtcNow;
             var localCost = _scheduler.Current.TryGetValue(id, out var snapshot)
@@ -1274,31 +1039,22 @@ public sealed partial class FlyoutWindow : Window
         _costAt = DateTimeOffset.UtcNow;
         Task.Run(() =>
         {
-            CostScanResult ScanToday(string pid) => pid switch
+            CostScanResult Scan(DateTimeOffset since) => id switch
             {
-                "claude" => ClaudeCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
-                "codex" => CodexCostScanner.Scan(new DateTimeOffset(DateTime.Today)),
-                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0),
-            };
-            CostScanResult ScanMonth(string pid) => pid switch
-            {
-                "claude" => ClaudeCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-30)),
-                "codex" => CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-30)),
-                _ => new CostScanResult(new TokenTally(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0),
+                "claude" => ClaudeCostScanner.Scan(since),
+                _ => CodexCostScanner.Scan(since),
             };
             var pricing = PricingTable.LoadOrEmpty();
-            var today = ScanToday(id);
-            var month = ScanMonth(id);
             return (
-                Today: CostEstimator.Estimate(today, pricing),
-                Month: CostEstimator.Estimate(month, pricing),
+                Today: CostEstimator.Estimate(Scan(new DateTimeOffset(DateTime.Today)), pricing),
+                Month: CostEstimator.Estimate(Scan(DateTimeOffset.UtcNow.AddDays(-30)), pricing),
                 Pricing: pricing);
         }).ContinueWith(t =>
         {
             if (run != _costRun) return;
             if (t.Status != TaskStatus.RanToCompletion)
             {
-                // Sessiz düşme: tanı için türü yaz (token/icerik asla loglanmaz).
+                // Sessiz düşme: tanı için türü yaz (token/içerik asla loglanmaz).
                 Trace.Error(
                     "cost",
                     $"scan-failed provider={id} type={t.Exception?.InnerException?.GetType().Name ?? t.Exception?.GetType().Name ?? "unknown"}");
@@ -1315,9 +1071,13 @@ public sealed partial class FlyoutWindow : Window
         }, TaskScheduler.Default);
     }
 
+    // Grafik bölümü ilk çizimde gizli olabilir (ActualWidth=0); kaydırma alanının görünen
+    // genişliği güvenilirdir. Henüz ölçülmediyse kaydırma çubuğu payıyla tahmin et.
+    private double ChartWidth() =>
+        DetailScrollViewer.ViewportWidth > 0 ? DetailScrollViewer.ViewportWidth : FlyoutWidthDip - 48;
+
     private static bool IsCostProvider(string providerId) =>
-        providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ||
-        providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
+        IsLocalCostProvider(providerId) ||
         providerId.Equals("opencode", StringComparison.OrdinalIgnoreCase) ||
         providerId.Equals("antigravity", StringComparison.OrdinalIgnoreCase);
 
@@ -1326,128 +1086,85 @@ public sealed partial class FlyoutWindow : Window
         _costForId = null;
         _costAt = DateTimeOffset.MinValue;
         _costRun++;
-        _displayedLocalCost = null;
         CostSection.Visibility = Visibility.Collapsed;
-        CostAmount.Text = string.Empty;
-        CostSummary.Text = string.Empty;
+        StatList.ItemsSource = null;
+        DailyChart.ItemsSource = null;
         ToolTipService.SetToolTip(CostInfoIcon, null);
         ModelLine.Visibility = Visibility.Collapsed;
         ModelScopeLabel.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// CodexBar düzeni: iki sütunlu istatistik ızgarası + 30 günlük çubuk grafik +
+    /// en çok kullanılan model. Fiyat tablosu boşsa para GÖSTERİLMEZ (sıfır dolar
+    /// yanlış bilgidir); yalnızca tokenlar yazılır.
+    /// </summary>
     private void ApplyCost(
         CostReport? today,
         CostReport? month,
         PricingTable pricing,
         FreeModelCatalog? freeModels = null)
     {
-        var lines = new List<string>(2);
-        var reports = new[] { today, month }.Where(report => report is not null).Cast<CostReport>().ToArray();
+        var reports = new[] { today, month }.OfType<CostReport>().Where(r => r.TotalTokens > 0).ToArray();
+        var mostUsed = reports.OrderByDescending(r => r.TotalTokens).FirstOrDefault();
+        SetMostUsedModel(_selectedId, mostUsed);
 
-        // Fiyat tablosu boşsa para kısmı GÖSTERİLMEZ; sıfır dolar yanlış bilgidir.
-        string Line(string prefix, CostReport? report)
+        if (reports.Length == 0)
         {
-            if (report is null) return string.Empty;
-            var total = report.TotalTokens;
-            if (total <= 0) return string.Empty;
-            var period = report.PeriodKnown ? prefix : "Dönemi bilinmiyor";
-            return $"{period} · {CompactTokens(total)} token";
+            CostSection.Visibility = Visibility.Collapsed;
+            return;
         }
 
-        var todayLine = Line("Bugün", today);
-        var monthLine = Line("Son 30 gün", month);
+        string? Money(CostReport? report)
+        {
+            if (report is null || pricing.IsEmpty) return null;
+            if (report.TotalTokens == 0) return UsageFormat.Money(0, pricing.Currency);
+            var unknown = report.ModelsWithoutPricing ?? Array.Empty<string>();
+            var models = report.Models ?? Array.Empty<ModelTokenUsage>();
+            var allFree = freeModels is not null && models.Count > 0 && models.All(m => freeModels.IsFree(m.Model));
+            var hasPriced = models.Any(m => !unknown.Contains(m.Model, StringComparer.OrdinalIgnoreCase));
+            return allFree || !hasPriced
+                ? null
+                : UsageFormat.Money(report.TotalCost, pricing.Currency) + (unknown.Count > 0 ? "*" : string.Empty);
+        }
 
-        if (!string.IsNullOrEmpty(todayLine)) lines.Add(todayLine);
-        if (!string.IsNullOrEmpty(monthLine)) lines.Add(monthLine);
+        var monthLabel = month is { PeriodKnown: false } ? "Toplam" : "Son 30 gün";
+        var stats = new List<StatItem>();
+        var todayMoney = Money(today);
+        var monthMoney = Money(month);
+
+        if (todayMoney is not null || monthMoney is not null)
+        {
+            if (today is not null) stats.Add(new StatItem("Bugün", todayMoney ?? "—"));
+            if (month is not null) stats.Add(new StatItem($"{monthLabel} maliyeti", monthMoney ?? "—"));
+        }
+        if (today is not null) stats.Add(new StatItem("Bugün token", UsageFormat.Tokens(today.TotalTokens)));
+        if (month is not null) stats.Add(new StatItem($"{monthLabel} token", UsageFormat.Tokens(month.TotalTokens)));
+        StatList.ItemsSource = stats;
+
+        var daily = month?.Daily ?? Array.Empty<DailyTokens>();
+        DailyChart.ItemsSource = daily.Count == 0
+            ? null
+            : UsageFormat.Bars(daily, DateOnly.FromDateTime(DateTime.Today), 30, ChartWidth(), 44);
+        DailyChart.Visibility = daily.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         var unpricedCount = pricing.IsEmpty
             ? 0
             : reports
-            .SelectMany(report => report.ModelsWithoutPricing ?? Array.Empty<string>())
-            .Where(model => !string.IsNullOrWhiteSpace(model))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
-        var mostUsed = reports
-            .OrderByDescending(report => report.TotalTokens)
-            .FirstOrDefault(report => report.TotalTokens > 0);
-        SetMostUsedModel(_selectedId, mostUsed);
-        _displayedLocalCost = IsLocalCostProvider(_selectedId) ? mostUsed : null;
-        RenderCachedLocalUsageIfNeeded();
-
-        if (lines.Count == 0)
-        {
-            CostSection.Visibility = Visibility.Collapsed;
-            CostAmount.Text = string.Empty;
-            CostSummary.Text = string.Empty;
-            return;
-        }
-
-        var allModels = reports
-            .SelectMany(report => report.Models ?? Array.Empty<ModelTokenUsage>())
-            .Where(model => model.Tokens > 0)
-            .ToArray();
-        var allModelsFree = freeModels is not null &&
-            allModels.Length > 0 &&
-            allModels.All(model => freeModels.IsFree(model.Model));
-        if (allModelsFree)
-        {
-            // Ücretsiz modellerin API karşılığı 0'dır; sıfır maliyet bölümü
-            // kullanıcıya ek bilgi vermediği için tamamen gizlenir.
-            CostSection.Visibility = Visibility.Collapsed;
-            CostAmount.Text = string.Empty;
-            CostSummary.Text = string.Empty;
-            ToolTipService.SetToolTip(CostInfoIcon, null);
-            return;
-        }
-
-        var primary = month is { TotalTokens: > 0 } ? month : today;
-        var primaryUnknown = primary?.ModelsWithoutPricing ?? Array.Empty<string>();
-        var primaryHasPricedModel = primary?.Models is { Count: > 0 } primaryModels &&
-            primaryModels.Any(model => !primaryUnknown.Contains(model.Model, StringComparer.OrdinalIgnoreCase));
-        CostAmount.Text = primary is not null &&
-            !pricing.IsEmpty &&
-            primaryHasPricedModel
-            ? $"{MoneyText(primary.TotalCost, pricing.Currency)}{(primaryUnknown.Count > 0 ? "*" : string.Empty)}"
-            : string.Empty;
-
+                .SelectMany(r => r.ModelsWithoutPricing ?? Array.Empty<string>())
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
         var tooltipLines = new List<string>
         {
-            "Aboneliğinle ödediğin tutar değil. Aynı kullanım API fiyatlarıyla bu kadar tutardı.",
+            "Tokenlar yerel oturum loglarından okunur. Maliyet, aboneliğinle ödediğin tutar değil: aynı kullanım API fiyatlarıyla bu kadar tutardı.",
         };
-        if (unpricedCount > 0)
-        {
-            tooltipLines.Add($"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.");
-        }
-        if (pricing.DownloadedAt is { } downloadedAt)
-        {
-            tooltipLines.Add($"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla.");
-        }
-
+        if (unpricedCount > 0) tooltipLines.Add($"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.");
+        if (pricing.DownloadedAt is { } downloadedAt) tooltipLines.Add($"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla.");
         ToolTipService.SetToolTip(CostInfoIcon, string.Join("\n", tooltipLines));
-        CostSummary.Text = string.Join("\n", lines);
+
         CostSection.Visibility = Visibility.Visible;
         EnqueueResize();
-    }
-
-    private static string CompactTokens(long tokens) => tokens switch
-    {
-        >= 1_000_000 => $"{tokens / 1_000_000.0:F0}M",
-        >= 1_000 => $"{tokens / 1_000.0:F0}K",
-        _ => tokens.ToString(System.Globalization.CultureInfo.InvariantCulture),
-    };
-
-    private static string MoneyText(decimal amount, string currency)
-    {
-        var symbol = currency.ToUpperInvariant() switch
-        {
-            "USD" => "$",
-            "EUR" => "€",
-            "GBP" => "£",
-            "TRY" => "₺",
-            _ => currency + " ",
-        };
-        return amount >= 100 ? $"{symbol}{amount:F0}" : $"{symbol}{amount:F2}";
     }
 
     public void UpdateTrayIcon(double? percent, string? tooltip = null)
@@ -1668,7 +1385,7 @@ public sealed partial class FlyoutWindow : Window
 
         double? gaugePercent = selected?.Percent;
         string tooltip = selected is { } value
-            ? $"{value.Name} %{value.Percent:F0}"
+            ? $"{value.Name} · %{100 - value.Percent:F0} kaldı"
             : _trayProviderId is { } missing
                 ? $"{TabDisplayName(missing)}: Veri yok"
                 : "Ration: Veri yok";

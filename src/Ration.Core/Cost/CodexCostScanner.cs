@@ -168,7 +168,7 @@ public static class CodexCostScanner
             previous = (long[])item.Usage.Clone();
             if (Sum(delta) == 0) continue;
 
-            tally.Add(item.Model, delta[0], delta[1], delta[2], delta[3], delta[4]);
+            tally.Add(item.Model, delta[0], delta[1], delta[2], delta[3], delta[4], item.At);
         }
     }
 
@@ -191,7 +191,7 @@ public static class CodexCostScanner
                 : $"usage\0{item.Model}\0{string.Join(',', item.Usage)}";
             if (!seen.Add(fingerprint)) continue;
 
-            tally.Add(item.Model, item.Usage[0], item.Usage[1], item.Usage[2], item.Usage[3], item.Usage[4]);
+            tally.Add(item.Model, item.Usage[0], item.Usage[1], item.Usage[2], item.Usage[3], item.Usage[4], item.At);
         }
     }
 

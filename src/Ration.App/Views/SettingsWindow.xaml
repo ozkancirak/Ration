@@ -145,7 +145,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="Tema"
-                                       Description="Ration'ın renk teması">
+                                       Description="Ration'ın renk teması. Değişiklik yeniden başlatınca tam uygulanır.">
                     <ComboBox x:Name="ThemeSelection"
                               MinWidth="140"
                               AutomationProperties.Name="Tema">

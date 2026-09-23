@@ -17,6 +17,16 @@ public partial class App : Application
     {
         InitializeComponent();
 
+        // Zorlanan tema uygulama düzeyinde de geçerli olmalı: koddan alınan fırçalar ve
+        // şablon içi ThemeResource'lar Application temasından çözülür. Yalnızca kök
+        // öğeye RequestedTheme vermek koyu panelde açık tema renkleri bırakıyordu.
+        // WinUI bunu yalnızca pencere oluşmadan önce kabul eder.
+        switch (Ration.Platform.Windows.Theme.AppThemePreference.Current)
+        {
+            case Ration.Platform.Windows.Theme.AppThemeMode.Light: RequestedTheme = ApplicationTheme.Light; break;
+            case Ration.Platform.Windows.Theme.AppThemeMode.Dark: RequestedTheme = ApplicationTheme.Dark; break;
+        }
+
         AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
             var type = e.ExceptionObject?.GetType().Name ?? "unknown";

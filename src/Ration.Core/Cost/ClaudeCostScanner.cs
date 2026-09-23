@@ -139,7 +139,8 @@ public static class ClaudeCostScanner
                 ReadLong(usage, "output_tokens"),
                 ReadLong(usage, "cache_read_input_tokens"),
                 ReadLong(usage, "cache_creation_input_tokens"),
-                thinking);
+                thinking,
+                timestamp);
         }
         catch (JsonException)
         {

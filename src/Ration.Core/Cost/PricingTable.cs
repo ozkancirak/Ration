@@ -647,7 +647,8 @@ public static class CostEstimator
                     model.CacheReadTokens,
                     model.CacheCreationTokens))
                 .ToArray(),
-            PeriodKnown: scan.PeriodKnown);
+            PeriodKnown: scan.PeriodKnown,
+            Daily: scan.Tally.Daily);
     }
 
     /// <summary>
