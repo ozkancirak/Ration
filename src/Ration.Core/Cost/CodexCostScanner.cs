@@ -46,6 +46,10 @@ public static class CodexCostScanner
             return new CostScanResult(tally, since, now, 0, "Dizin okunamadı (yetki).");
         }
 
+        // Bazı oturumlarda (ör. codex-auto-review) olaylar model adı taşımaz; Codex modeli kendi
+        // durum veritabanında oturum dosyasına göre tutar. Yoksa "(bilinmeyen model)" çıkıyordu.
+        var threadModels = ReadThreadModels(Path.GetDirectoryName(Path.GetFullPath(directory)));
+
         foreach (var file in files)
         {
             ct.ThrowIfCancellationRequested();
@@ -56,7 +60,7 @@ public static class CodexCostScanner
                 using var reader = new StreamReader(stream);
 
                 filesScanned++;
-                ScanFile(reader, since, tally, ref periodKnown);
+                ScanFile(reader, since, tally, ref periodKnown, threadModels.GetValueOrDefault(Path.GetFullPath(file)));
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
@@ -83,9 +87,10 @@ public static class CodexCostScanner
         StreamReader reader,
         DateTimeOffset since,
         TokenTally tally,
-        ref bool periodKnown)
+        ref bool periodKnown,
+        string? fallbackModel = null)
     {
-        string? currentModel = null;
+        string? currentModel = fallbackModel;
         var events = new List<TokenEvent>();
 
         while (reader.ReadLine() is { } line)
@@ -356,6 +361,48 @@ public static class CodexCostScanner
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Codex'in durum veritabanından (~/.codex/state_N.sqlite, threads tablosu) oturum dosyası
+    /// → model eşlemesi. Salt okunur; yalnızca rollout_path ve model sütunları okunur, konuşma
+    /// içeriğine dokunulmaz. Veritabanı yoksa ya da şema değişmişse boş döner.
+    /// </summary>
+    private static Dictionary<string, string> ReadThreadModels(string? codexHome)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (codexHome is null || !Directory.Exists(codexHome)) return result;
+
+        var database = Directory.EnumerateFiles(codexHome, "state_*.sqlite")
+            .OrderByDescending(path => int.TryParse(
+                Path.GetFileNameWithoutExtension(path)["state_".Length..], out var version) ? version : -1)
+            .FirstOrDefault();
+        if (database is null) return result;
+
+        try
+        {
+            var connectionString = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = database,
+                Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadOnly,
+                Pooling = false,
+            }.ToString();
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT rollout_path, model FROM threads WHERE model IS NOT NULL AND rollout_path IS NOT NULL";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                result[Path.GetFullPath(reader.GetString(0))] = reader.GetString(1);
+            }
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // Codex şemasını değiştirirse yalnızca bu yedek kaybolur; tarama sürer.
+        }
+
+        return result;
     }
 
     private static string? FindModel(JsonElement root)

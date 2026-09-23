@@ -1204,6 +1204,10 @@ public sealed partial class FlyoutWindow : Window
         {
             "Tokenlar yerel oturum loglarından okunur. Maliyet, aboneliğinle ödediğin tutar değil: aynı kullanım API fiyatlarıyla bu kadar tutardı.",
         };
+        if (_selectedId.Equals("codex", StringComparison.OrdinalIgnoreCase))
+        {
+            tooltipLines.Add("Codex masaüstü uygulamasının bulut (ChatGPT) oturumları yerel günlük yazmaz, burada sayılmaz; kota çubukları onları içerir.");
+        }
         if (unpricedCount > 0) tooltipLines.Add($"{unpricedCount} model fiyat tablosunda yok, toplama dahil edilmedi.");
         if (pricing.DownloadedAt is { } downloadedAt) tooltipLines.Add($"Fiyatlar {downloadedAt.ToLocalTime():dd.MM.yyyy} itibarıyla.");
         ToolTipService.SetToolTip(CostInfoIcon, string.Join("\n", tooltipLines));

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Management;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Ration.Core.Providers.Antigravity;
@@ -13,8 +12,8 @@ public sealed record AntigravityListener(int ProcessId, int Port);
 /// <summary>
 /// Finds Antigravity's actual loopback listeners by PID.
 ///
-/// The listener table is the primary source. WMI command lines are used only
-/// for the explicit diagnostic command, never to decide which port to probe.
+/// The listener table is the primary source. Command lines (read natively, see
+/// ReadCommandLines) only supply each process's CSRF token and diagnostics.
 /// </summary>
 public static class AntigravityProcessPortFinder
 {
@@ -195,30 +194,82 @@ public static class AntigravityProcessPortFinder
             .ToArray();
     }
 
+    /// <summary>
+    /// Süreç komut satırları (CSRF anahtarı oradadır). WMI (System.Management) yerine
+    /// NtQueryInformationProcess(ProcessCommandLineInformation): WMI .NET'in yerleşik COM
+    /// desteğini ister; WinUI'de kapalı, budanmış yayında da eksik üyeler yüzünden
+    /// TypeInitializationException veriyordu ve uygulama her portta 401 alıyordu.
+    /// Yerel çağrı COM gerektirmez, trimming'den etkilenmez ve çok daha hızlıdır.
+    /// </summary>
     private static Dictionary<int, string> ReadCommandLines(IReadOnlySet<int> candidatePids)
     {
         var result = new Dictionary<int, string>();
-
-        try
+        foreach (var pid in candidatePids)
         {
-            using var searcher = new ManagementObjectSearcher(
-                "SELECT ProcessId, Name, CommandLine FROM Win32_Process");
-            using var processes = searcher.Get();
-
-            foreach (ManagementObject process in processes)
-            {
-                var value = process["ProcessId"];
-                if (value is null || !int.TryParse(value.ToString(), out var pid)) continue;
-                if (!candidatePids.Contains(pid)) continue;
-                result[pid] = process["CommandLine"] as string ?? string.Empty;
-            }
+            if (ReadCommandLine(pid) is { } commandLine) result[pid] = commandLine;
         }
-        catch (ManagementException) { }
-        catch (System.ComponentModel.Win32Exception) { }
-        catch (UnauthorizedAccessException) { }
+
+        if (result.Count < candidatePids.Count)
+        {
+            Ration.Core.Diagnostics.Trace.Error(
+                "provider.source",
+                $"provider=antigravity commandline-read partial read={result.Count} candidates={candidatePids.Count}");
+        }
 
         return result;
     }
+
+    private static string? ReadCommandLine(int pid)
+    {
+        const uint ProcessQueryLimitedInformation = 0x1000;
+        const int ProcessCommandLineInformation = 60;
+        const int StatusInfoLengthMismatch = unchecked((int)0xC0000004);
+
+        var handle = OpenProcess(ProcessQueryLimitedInformation, false, (uint)pid);
+        if (handle == IntPtr.Zero) return null;
+
+        try
+        {
+            var status = NtQueryInformationProcess(handle, ProcessCommandLineInformation, IntPtr.Zero, 0, out var length);
+            if (status != StatusInfoLengthMismatch || length <= 0) return null;
+
+            var buffer = Marshal.AllocHGlobal(length);
+            try
+            {
+                if (NtQueryInformationProcess(handle, ProcessCommandLineInformation, buffer, length, out _) != 0) return null;
+
+                // Tampon bir UNICODE_STRING ile başlar; Buffer alanı aynı tampon içini gösterir.
+                var text = Marshal.PtrToStructure<UnicodeString>(buffer);
+                return text.Buffer == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUni(text.Buffer, text.Length / 2);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+        finally
+        {
+            CloseHandle(handle);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UnicodeString
+    {
+        public ushort Length;
+        public ushort MaximumLength;
+        public IntPtr Buffer;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtQueryInformationProcess(
+        IntPtr processHandle, int processInformationClass, IntPtr processInformation, int length, out int returnLength);
 
     private static IReadOnlyList<MibTcpRowOwnerPid> ReadListenerRows()
     {

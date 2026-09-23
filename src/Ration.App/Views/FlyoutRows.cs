@@ -50,7 +50,8 @@ public sealed record WindowRow(
                     title,
                     remaining,
                     QuotaVisuals.MeterBrush(window.Percent),
-                    $"%{remaining:F0} kaldı",
+                    // Az kullanım yuvarlamada kaybolmasın: %0,2 kullanımda "%100 kaldı" yerine "%99,8 kaldı".
+                    remaining is > 99 and < 99.95 ? $"%{remaining:F1} kaldı" : $"%{remaining:F0} kaldı",
                     ResetTextFor(window.ResetsAt, stale),
                     pace,
                     $"{title}, yüzde {remaining:F0} kaldı"));

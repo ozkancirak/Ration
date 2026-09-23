@@ -516,9 +516,11 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
                 Add(new PortCandidate(endpoint.Port, "process", endpoint.CsrfToken, "http"));
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // A process metadata failure must not prevent the log fallback.
+            // A process metadata failure must not prevent the log fallback; ama sessiz
+            // kalmasın: yutulan hata anahtarsız porta düşüp her yerde 401 alınmasına yol açıyordu.
+            RationTrace.Error("provider.source", $"provider=antigravity endpoint-discovery failed type={ex.GetType().Name} hr=0x{ex.HResult:X8} inner={ex.InnerException?.GetType().Name}");
         }
 
         try

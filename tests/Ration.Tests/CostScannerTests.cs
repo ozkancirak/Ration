@@ -230,6 +230,30 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
+    public void ModelYazilmayanOturum_CodexDurumVeritabanindanModelAlir()
+    {
+        // Sentetik Codex ev dizini: sessions/ + state_5.sqlite (threads: rollout_path, model).
+        var home = Path.Combine(_dir, "home");
+        var sessions = Path.Combine(home, "sessions");
+        Directory.CreateDirectory(sessions);
+        var rollout = Path.Combine(sessions, "rollout-sentetik.jsonl");
+        File.WriteAllLines(rollout, new[] { TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 40, 0, 2, model: null!) });
+
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(home, "state_5.sqlite")};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE threads (rollout_path TEXT, model TEXT); INSERT INTO threads VALUES ($p, 'ornek-inceleme');";
+            command.Parameters.AddWithValue("$p", rollout);
+            command.ExecuteNonQuery();
+        }
+
+        var result = CodexCostScanner.Scan(DateTimeOffset.UtcNow.AddDays(-1), sessions);
+
+        Assert.Equal("ornek-inceleme", Assert.Single(result.Tally.Models).Model);
+    }
+
+    [Fact]
     public void CodexCacheGirdisiniNormalGirdidenAyrir()
     {
         WriteJsonl(TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 100, 80, 10));
