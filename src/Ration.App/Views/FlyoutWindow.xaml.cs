@@ -713,7 +713,8 @@ public sealed partial class FlyoutWindow : Window
 
     private void MaybeScheduleAllModelDiagnostics()
     {
-        if (_allModelDiagnosticsStarted || _modelDiagnosticSnapshots.Count < 4) return;
+        // Yalnızca tanı günlüğü için iki tam tarama; açılışta değil panel ilk açıldığında.
+        if (_allModelDiagnosticsStarted || !_isVisible || _modelDiagnosticSnapshots.Count < 4) return;
 
         _allModelDiagnosticsStarted = true;
         var antigravity = _scheduler.Current.TryGetValue("antigravity", out var agy)
@@ -1032,6 +1033,9 @@ public sealed partial class FlyoutWindow : Window
 
     private void RefreshCost(bool force)
     {
+        // Gizli panel için tarama yapılmaz; panel açılınca (ShowFlyout) yapılır.
+        if (!_isVisible) return;
+
         var id = _selectedId;
         if (!IsCostProvider(id))
         {
@@ -1079,15 +1083,17 @@ public sealed partial class FlyoutWindow : Window
         _costAt = DateTimeOffset.UtcNow;
         Task.Run(() =>
         {
-            CostScanResult Scan(DateTimeOffset since) => id switch
-            {
-                "claude" => ClaudeCostScanner.Scan(since),
-                _ => CodexCostScanner.Scan(since),
-            };
+            // Tek tarama: "bugün" 30 günlük taramanın gün kovalarından türetilir (önceden
+            // aynı dosyalar iki kez okunuyordu).
+            var since = DateTimeOffset.UtcNow.AddDays(-30);
+            var month = id == "claude" ? ClaudeCostScanner.Scan(since) : CodexCostScanner.Scan(since);
+            var todayStart = new DateTimeOffset(DateTime.Today);
+            var today = new CostScanResult(
+                month.Tally.SinceDay(DateOnly.FromDateTime(DateTime.Today)), todayStart, month.PeriodEnd, month.FilesScanned);
             var pricing = PricingTable.LoadOrEmpty();
             return (
-                Today: CostEstimator.Estimate(Scan(new DateTimeOffset(DateTime.Today)), pricing),
-                Month: CostEstimator.Estimate(Scan(DateTimeOffset.UtcNow.AddDays(-30)), pricing),
+                Today: CostEstimator.Estimate(today, pricing),
+                Month: CostEstimator.Estimate(month, pricing),
                 Pricing: pricing);
         }).ContinueWith(t =>
         {

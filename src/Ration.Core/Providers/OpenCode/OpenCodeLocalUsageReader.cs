@@ -7,8 +7,11 @@ using Ration.Core.Model;
 namespace Ration.Core.Providers.OpenCode;
 
 /// <summary>
-/// OpenCode veritabanını canlı dosyaya bağlanmadan okur. Ana DB ve varsa WAL/SHM
-/// önce Ration cache altında tek kullanımlık bir klasöre kopyalanır.
+/// OpenCode veritabanını salt okunur okur. Önce doğrudan salt okunur bağlantı denenir:
+/// SQLite okuyucusu DB dosyasını değiştirmez, WAL modunda OpenCode'un yazmasını engellemez.
+/// Önceden her okumada DB kopyalanıyordu; 1,1 GB'lık bir DB ile her yenilemede 1,1 GB
+/// disk yazımı ve yarıda kalan kopyalardan GB'larca kalıntı demekti. Doğrudan açılamazsa
+/// (kilit vb.) eski yol: tek kullanımlık klasöre kopyalayıp oku.
 /// </summary>
 public static class OpenCodeLocalUsageReader
 {
@@ -20,12 +23,21 @@ public static class OpenCodeLocalUsageReader
     {
         if (!File.Exists(databasePath)) return null;
 
+        CleanupStaleCopies(cacheDirectory);
+        var start = DateTimeOffset.UtcNow.AddDays(-30);
+        try
+        {
+            return Query(databasePath, start, freeModelPath, ct);
+        }
+        catch (SqliteException)
+        {
+            // Doğrudan okunamadı; kopya üzerinden dene.
+        }
+
         var copyDirectory = Path.Combine(
             cacheDirectory,
             "read-" + Guid.NewGuid().ToString("N"));
         var copyPath = Path.Combine(copyDirectory, "opencode.db");
-        var periodEnd = DateTimeOffset.UtcNow;
-        var periodStart = periodEnd.AddDays(-30);
 
         try
         {
@@ -34,53 +46,7 @@ public static class OpenCodeLocalUsageReader
             CopyIfPresent(databasePath + "-wal", Path.Combine(copyDirectory, "opencode.db-wal"), ct);
             CopyIfPresent(databasePath + "-shm", Path.Combine(copyDirectory, "opencode.db-shm"), ct);
 
-            var connectionString = new SqliteConnectionStringBuilder
-            {
-                DataSource = copyPath,
-                Mode = SqliteOpenMode.ReadOnly,
-                Cache = SqliteCacheMode.Private,
-            }.ToString();
-
-            using (var connection = new SqliteConnection(connectionString))
-            {
-                connection.Open();
-                var modelUsage = HasColumn(connection, "model")
-                    ? ReadModelUsage(connection, periodStart)
-                    : null;
-                var freeUsage = ReadFreeUsage(connection, freeModelPath, ct);
-
-                using var command = connection.CreateCommand();
-                command.CommandText = """
-                    SELECT
-                        SUM(cost),
-                        SUM(tokens_input),
-                        SUM(tokens_output),
-                        SUM(tokens_reasoning),
-                        SUM(tokens_cache_read),
-                        SUM(tokens_cache_write)
-                    FROM session
-                    WHERE time_created >= $threshold;
-                    """;
-                command.Parameters.AddWithValue("$threshold", periodStart.ToUnixTimeMilliseconds());
-
-                using (var reader = command.ExecuteReader())
-                {
-                    if (!reader.Read()) return null;
-
-                    return new CostReport(
-                        TotalCost: ReadDecimal(reader, 0),
-                        Currency: "USD",
-                        PeriodStart: periodStart,
-                        PeriodEnd: periodEnd,
-                        InputTokens: ReadLong(reader, 1),
-                        OutputTokens: ReadLong(reader, 2),
-                        ReasoningTokens: ReadLong(reader, 3),
-                        CacheReadTokens: ReadLong(reader, 4),
-                        CacheCreationTokens: ReadLong(reader, 5),
-                        Models: modelUsage,
-                        FreeUsage: freeUsage);
-                }
-            }
+            return Query(copyPath, start, freeModelPath, ct);
         }
         catch (SqliteException)
         {
@@ -99,6 +65,74 @@ public static class OpenCodeLocalUsageReader
             SqliteConnection.ClearAllPools();
             TryDeleteDirectory(copyDirectory);
         }
+    }
+
+    private static CostReport? Query(string path, DateTimeOffset periodStart, string? freeModelPath, CancellationToken ct)
+    {
+        var connectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Private,
+            // Havuzlanmış bağlantı dosya tanıtıcısını açık tutar; her okumadan sonra bırak.
+            Pooling = false,
+            DefaultTimeout = 5,
+        }.ToString();
+
+        using var connection = new SqliteConnection(connectionString);
+        connection.Open();
+        var modelUsage = HasColumn(connection, "model")
+            ? ReadModelUsage(connection, periodStart)
+            : null;
+        var freeUsage = ReadFreeUsage(connection, freeModelPath, ct);
+
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                SUM(cost),
+                SUM(tokens_input),
+                SUM(tokens_output),
+                SUM(tokens_reasoning),
+                SUM(tokens_cache_read),
+                SUM(tokens_cache_write)
+            FROM session
+            WHERE time_created >= $threshold;
+            """;
+        command.Parameters.AddWithValue("$threshold", periodStart.ToUnixTimeMilliseconds());
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read()) return null;
+
+        return new CostReport(
+            TotalCost: ReadDecimal(reader, 0),
+            Currency: "USD",
+            PeriodStart: periodStart,
+            PeriodEnd: DateTimeOffset.UtcNow,
+            InputTokens: ReadLong(reader, 1),
+            OutputTokens: ReadLong(reader, 2),
+            ReasoningTokens: ReadLong(reader, 3),
+            CacheReadTokens: ReadLong(reader, 4),
+            CacheCreationTokens: ReadLong(reader, 5),
+            Models: modelUsage,
+            FreeUsage: freeUsage);
+    }
+
+    /// <summary>Süreç kopyalama sırasında kapanırsa kalan eski okuma klasörlerini siler.</summary>
+    private static void CleanupStaleCopies(string cacheDirectory)
+    {
+        try
+        {
+            if (!Directory.Exists(cacheDirectory)) return;
+            foreach (var dir in Directory.EnumerateDirectories(cacheDirectory, "read-*"))
+            {
+                if (DateTime.UtcNow - Directory.GetCreationTimeUtc(dir) > TimeSpan.FromMinutes(10))
+                {
+                    TryDeleteDirectory(dir);
+                }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static void CopyIfPresent(string source, string destination, CancellationToken ct)

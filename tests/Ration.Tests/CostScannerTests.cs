@@ -576,4 +576,22 @@ public sealed class TokenTallyDailyTests
             tally.Daily);
         Assert.Equal(1110, tally.TotalInputTokens);
     }
+
+    [Fact]
+    public void SinceDay_TekTaramadanBugunuModelKirilimiylaTuretir()
+    {
+        var tally = new TokenTally();
+        var offset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 9, 20));
+        var day1 = new DateTimeOffset(2026, 9, 20, 12, 0, 0, offset);
+
+        tally.Add("a", 10, 0, 0, 0, at: day1);
+        tally.Add("a", 5, 1, 0, 0, at: day1.AddDays(1));
+        tally.Add("b", 3, 0, 0, 0, at: day1.AddDays(1));
+        tally.Add("a", 999, 0, 0, 0);
+
+        var today = tally.SinceDay(new DateOnly(2026, 9, 21));
+
+        Assert.Equal(8, today.TotalInputTokens);
+        Assert.Equal(new[] { "a", "b" }, today.Models.Select(m => m.Model));
+    }
 }

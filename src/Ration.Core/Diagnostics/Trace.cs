@@ -28,6 +28,10 @@ public static class Trace
     {
         get
         {
+            // Testler gerçek tanı günlüğünü kirletmesin (sahte 429/401 yanıtları görünüyordu).
+            var overridden = Environment.GetEnvironmentVariable("RATION_LOG_PATH");
+            if (!string.IsNullOrWhiteSpace(overridden)) return overridden;
+
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return string.IsNullOrWhiteSpace(localAppData)
                 ? Path.Combine(AppContext.BaseDirectory, "ration.log")

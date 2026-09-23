@@ -24,7 +24,8 @@ public sealed record ModelTokens(
 public sealed class TokenTally
 {
     private readonly Dictionary<string, long[]> _byModel = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<DateOnly, long> _byDay = new();
+    // Yerel güne göre model kırılımı: günlük grafik ve tek taramadan "bugün" raporu için.
+    private readonly Dictionary<DateOnly, TokenTally> _byDay = new();
 
     private const int Input = 0;
     private const int Output = 1;
@@ -57,11 +58,16 @@ public sealed class TokenTally
         bucket[CacheCreate] += cacheCreationTokens;
         bucket[Reasoning] += reasoningTokens;
 
-        // Günlük grafik için yerel güne göre toplam; zamanı bilinmeyen olay grafiğe girmez.
+        // Zamanı bilinmeyen olay gün kovasına girmez (grafikte ve "bugün"de yok).
         if (at is { } time)
         {
             var day = DateOnly.FromDateTime(time.ToLocalTime().DateTime);
-            _byDay[day] = _byDay.GetValueOrDefault(day) + inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
+            if (!_byDay.TryGetValue(day, out var dayTally))
+            {
+                dayTally = new TokenTally();
+                _byDay[day] = dayTally;
+            }
+            dayTally.Add(model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, reasoningTokens);
         }
 
         EntryCount++;
@@ -90,7 +96,26 @@ public sealed class TokenTally
     public long TotalReasoningTokens => _byModel.Values.Sum(v => v[Reasoning]);
 
     public IReadOnlyList<DailyTokens> Daily =>
-        _byDay.OrderBy(kv => kv.Key).Select(kv => new DailyTokens(kv.Key, kv.Value)).ToList();
+        _byDay.OrderBy(kv => kv.Key)
+            .Select(kv => new DailyTokens(kv.Key, kv.Value.Models.Sum(m => m.TotalTokens)))
+            .ToList();
+
+    /// <summary>
+    /// <paramref name="day"/> ve sonrasındaki olaylar. 30 günlük taramadan "bugün" raporunu
+    /// türetir; aynı dosyaları ikinci kez okumaya gerek kalmaz.
+    /// </summary>
+    public TokenTally SinceDay(DateOnly day)
+    {
+        var result = new TokenTally();
+        foreach (var (_, dayTally) in _byDay.Where(kv => kv.Key >= day))
+        {
+            foreach (var m in dayTally.Models)
+            {
+                result.Add(m.Model, m.InputTokens, m.OutputTokens, m.CacheReadTokens, m.CacheCreationTokens, m.ReasoningTokens);
+            }
+        }
+        return result;
+    }
 
     public bool IsEmpty => _byModel.Count == 0;
 }
