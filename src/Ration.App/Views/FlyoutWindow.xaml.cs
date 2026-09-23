@@ -527,6 +527,7 @@ public sealed partial class FlyoutWindow : Window
     private void BuildTabs()
     {
         TabStrip.Children.Clear();
+        TabStrip.ColumnDefinitions.Clear();
         _tabs.Clear();
 
         foreach (var provider in _providers) EnsureTab(provider.Id, provider.DisplayName);
@@ -538,20 +539,21 @@ public sealed partial class FlyoutWindow : Window
         if (_tabs.ContainsKey(id)) return;
 
         var known = GetProviderTab(id, name);
-        var row = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        row.Children.Add(CreateProviderIcon(known));
+
+        // Eşit genişlikte sekme: ikon üstte, ad altta, en altta mini ölçer. Yan yana (ikon + ad)
+        // düzen eşit genişliğe sığmıyordu ("Antigravity"); içeriğe göre genişlikte ise şerit
+        // dağınık görünüyordu.
+        var icon = CreateProviderIcon(known);
+        if (icon is FrameworkElement iconElement) iconElement.HorizontalAlignment = HorizontalAlignment.Center;
+
         var nameText = new TextBlock
         {
             Text = known.Name,
-            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 1,
         };
         QuotaVisuals.SetTextStyle(nameText, "CaptionTextBlockStyle");
-        row.Children.Add(nameText);
 
         var meter = new ProgressBar
         {
@@ -561,30 +563,26 @@ public sealed partial class FlyoutWindow : Window
             Height = 2,
             CornerRadius = new CornerRadius(1),
             Background = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush"),
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(6, 2, 6, 0),
         };
 
-        var content = new StackPanel
-        {
-            Spacing = 6,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        content.Children.Add(row);
+        var content = new StackPanel { Spacing = 4 };
+        content.Children.Add(icon);
+        content.Children.Add(nameText);
         content.Children.Add(meter);
-        row.SizeChanged += (_, args) =>
-        {
-            meter.Width = Math.Max(1, args.NewSize.Width);
-        };
 
         var button = new ToggleButton
         {
             Content = content,
             Background = new SolidColorBrush(Colors.Transparent),
             BorderThickness = new Thickness(0),
-            Padding = new Thickness(8, 6, 8, 6),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
+            Padding = new Thickness(4, 6, 4, 6),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
             CornerRadius = QuotaVisuals.PillCorner(),
         };
+        ToolTipService.SetToolTip(button, known.Name);
         var capturedId = id;
         button.Click += (s, e) => SelectProvider(capturedId);
 
@@ -599,6 +597,8 @@ public sealed partial class FlyoutWindow : Window
         button.Resources["ToggleButtonForegroundCheckedPressed"] = primaryText;
 
         _tabs[id] = (button, meter);
+        TabStrip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(button, TabStrip.ColumnDefinitions.Count - 1);
         TabStrip.Children.Add(button);
     }
 
@@ -637,8 +637,7 @@ public sealed partial class FlyoutWindow : Window
             button.Background = selected ? selectedFill : clear;
 
             if (button.Content is StackPanel content
-                && content.Children.FirstOrDefault() is StackPanel iconRow
-                && iconRow.Children.FirstOrDefault() is UIElement icon)
+                && content.Children.FirstOrDefault() is UIElement icon)
             {
                 SetProviderIconBrush(
                     icon,
