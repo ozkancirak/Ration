@@ -32,12 +32,18 @@ public sealed partial class SettingsWindow : Window
         AppTheme.Apply(SettingsScrollViewer);
         RefreshProviderIcons();
 
+        var savedTrayProvider = TrayProviderPreference.Current ?? "auto";
+        TrayProviderSelection.SelectedItem = TrayProviderSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => string.Equals(item.Tag as string, savedTrayProvider, StringComparison.OrdinalIgnoreCase))
+            ?? TrayProviderSelection.Items[0];
         TrayProviderSelection.SelectionChanged += (s, e) =>
         {
             if (TrayProviderSelection.SelectedItem is ComboBoxItem { Tag: string providerId })
             {
-                TrayProviderChanged?.Invoke(
-                    providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId);
+                var selected = providerId.Equals("auto", StringComparison.OrdinalIgnoreCase) ? null : providerId;
+                TrayProviderPreference.Set(selected);
+                TrayProviderChanged?.Invoke(selected);
             }
         };
 
@@ -185,7 +191,7 @@ public sealed partial class SettingsWindow : Window
     {
         var description = expander.Tag as string ?? expander.Description as string;
         expander.Tag = description;
-        expander.Description = null;
+        expander.ClearValue(SettingsExpander.DescriptionProperty);
         expander.Header = ProviderIcons.CreateHeader(providerId, name, description);
     }
 

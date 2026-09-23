@@ -95,6 +95,10 @@ public sealed class SingleInstanceLease : IDisposable
             return false;
         }
 
+        // Kullanıcının başlattığı bu süreç öne gelme hakkına sahip; hakkı çalışan örneğe
+        // devret. Yoksa uyandırılan panel odak alamayıp anında kapanıyordu.
+        AllowSetForegroundWindow(AsfwAny);
+
         return PostMessage(HwndBroadcast, WakeMessageId, IntPtr.Zero, IntPtr.Zero);
     }
 
@@ -123,6 +127,12 @@ public sealed class SingleInstanceLease : IDisposable
             _mutex.Dispose();
         }
     }
+
+    private const uint AsfwAny = unchecked((uint)-1);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(uint processId);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterWindowMessage(string lpString);

@@ -39,12 +39,13 @@ public sealed partial class FlyoutWindow : Window
     private readonly NativeMethods.SubclassProc _subclassProc;
     private DateTimeOffset _lastDeactivatedTime = DateTimeOffset.MinValue;
     private static readonly TimeSpan FlyoutRefreshDebounce = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan ManualRefreshMinimum = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan ManualRefreshMinimum = TimeSpan.FromSeconds(10);
     private DateTimeOffset _lastInteractiveRefresh = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastManualRefresh = DateTimeOffset.MinValue;
     private bool _isVisible;
     private double? _currentGaugePercent;
     private string _currentTooltip = "Ration: Veri yok";
-    private string? _trayProviderId;
+    private string? _trayProviderId = TrayProviderPreference.Current;
     private SettingsWindow? _settingsWindow;
     private IntPtr _currentIconHandle = IntPtr.Zero;
     private bool _selfTestExitInProgress;
@@ -172,8 +173,9 @@ public sealed partial class FlyoutWindow : Window
 
         _appWindow.Resize(new SizeInt32(1, 1));
 
-        // Start in Efficiency Mode
-        _scheduler.Pause();
+        // Gizli başlar: CPU önceliği düşük (EcoQoS), ama arka plan yenilemesi çalışır.
+        // Yalnızca ekran kilidi / enerji tasarrufu açıksa duraklatılmış başlar.
+        if (EfficiencyModeManager.ShouldPause) _scheduler.Pause();
         EfficiencyModeManager.SetEfficiencyMode(true);
 
         // Start scheduler loop
@@ -264,19 +266,22 @@ public sealed partial class FlyoutWindow : Window
 
     private async Task RefreshManuallyAsync()
     {
-        if (EfficiencyModeManager.ShouldPauseInteractiveRefresh)
+        if (EfficiencyModeManager.ShouldPause)
         {
             Trace.Info("provider.refresh", "manual status=skipped reason=efficiency");
             return;
         }
 
+        // Yalnızca art arda basmaya karşı: panel açılışındaki otomatik yenileme Yenile
+        // düğmesini bloklamaz (önceden ortak damga yüzünden 60 sn sessizce çalışmıyordu).
         var now = DateTimeOffset.UtcNow;
-        if (now - _lastInteractiveRefresh < ManualRefreshMinimum)
+        if (now - _lastManualRefresh < ManualRefreshMinimum)
         {
             Trace.Info("provider.refresh", "manual status=skipped reason=minimum-interval");
             return;
         }
 
+        _lastManualRefresh = now;
         _lastInteractiveRefresh = now;
         RefreshButton.IsEnabled = false;
         try

@@ -13,6 +13,16 @@ public static class StartupRegistration
     public const string ValueName = "Ration";
     public const string ShimValue = @"""%LOCALAPPDATA%\Ration\Ration.exe""";
 
+    /// <summary>
+    /// Kaydedilecek yol: Velopack kurulumunda sabit shim; yoksa (taşınabilir zip, geliştirme)
+    /// çalışan exe. Önceden hep shim yazılıyordu ve kurulum yoksa var olmayan bir yol
+    /// kaydedilip "Windows ile Başlat" sessizce çalışmıyordu.
+    /// </summary>
+    public static string TargetValue =>
+        File.Exists(Environment.ExpandEnvironmentVariables(ShimValue.Trim('"'))) || Environment.ProcessPath is null
+            ? ShimValue
+            : $"\"{Environment.ProcessPath}\"";
+
     public static void MigrateLegacyEntry()
     {
         try
@@ -39,7 +49,7 @@ public static class StartupRegistration
                 ValueName,
                 null,
                 RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
-            return PathsEqual(value, ShimValue);
+            return PathsEqual(value, TargetValue);
         }
         catch (Exception ex)
         {
@@ -55,7 +65,7 @@ public static class StartupRegistration
             if (enabled)
             {
                 using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
-                key?.SetValue(ValueName, ShimValue, RegistryValueKind.ExpandString);
+                key?.SetValue(ValueName, TargetValue, RegistryValueKind.ExpandString);
             }
             else
             {

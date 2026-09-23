@@ -8,7 +8,6 @@ namespace Ration.Platform.Windows.Power;
 public static class EfficiencyModeManager
 {
     private static readonly object Gate = new();
-    private static bool _efficiencyMode;
     private static bool _sessionLocked;
     private static bool _powerSaving;
     private static bool? _lastPauseState;
@@ -52,25 +51,17 @@ public static class EfficiencyModeManager
 
     public static event Action<bool>? PauseChanged;
 
+    // Yalnızca ekran kilidi ve Windows enerji tasarrufu ağ yenilemesini durdurur.
+    // Gizli paneldeki verimlilik modu (EcoQoS) CPU önceliğini düşürür, yenilemeyi DURDURMAZ:
+    // önceden durduruyordu ve arka plan yenilemesi panel kapalıyken hiç çalışmıyordu,
+    // tepsi ikonu panel açılana kadar bayat kalıyordu.
     public static bool ShouldPause
-    {
-        get
-        {
-            lock (Gate) return _efficiencyMode || _sessionLocked || _powerSaving;
-        }
-    }
-
-    // Explicit user actions may run while the hidden flyout uses EcoQoS.
-    // Session lock and Windows energy saver still prevent network activity.
-    public static bool ShouldPauseInteractiveRefresh
     {
         get { lock (Gate) return _sessionLocked || _powerSaving; }
     }
 
     public static void SetEfficiencyMode(bool enable)
     {
-        lock (Gate) _efficiencyMode = enable;
-        NotifyPauseChanged();
 
         try
         {
@@ -118,7 +109,7 @@ public static class EfficiencyModeManager
     private static void NotifyPauseChanged()
     {
         bool shouldPause;
-        lock (Gate) shouldPause = _efficiencyMode || _sessionLocked || _powerSaving;
+        lock (Gate) shouldPause = _sessionLocked || _powerSaving;
 
         lock (Gate)
         {
