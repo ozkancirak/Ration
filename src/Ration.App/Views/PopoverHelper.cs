@@ -153,13 +153,18 @@ internal static class PopoverHelper
     public static void ResizeWithAnimation(
         AppWindow appWindow,
         FrameworkElement root,
-        int width,
+        Windows.Graphics.RectInt32 bounds,
         int currentHeight,
-        int targetHeight)
+        bool anchorBottom)
     {
+        var targetHeight = bounds.Height;
+
+        // Konum da birlikte verilir: görev çubuğu alttayken alt kenar sabit kalmalı,
+        // yalnızca ResizeClient üst kenarı sabitleyip alt kenarı kaydırıyordu
+        // (kısalınca görev çubuğuyla arada boşluk, uzayınca ekrandan taşma).
         if (currentHeight <= 0 || currentHeight == targetHeight)
         {
-            appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+            appWindow.MoveAndResize(bounds);
             return;
         }
 
@@ -176,15 +181,16 @@ internal static class PopoverHelper
         if (!animationsEnabled)
         {
             visual.Scale = new Vector3(1.0f, 1.0f, 1.0f);
-            appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+            appWindow.MoveAndResize(bounds);
             return;
         }
 
-        appWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, targetHeight));
+        appWindow.MoveAndResize(bounds);
 
-        // Scale from the top edge; the action row remains anchored below the
-        // content while the new client height is revealed.
-        visual.CenterPoint = new Vector3(0.0f, 0.0f, 0.0f);
+        // Sabit kenardan ölçekle: alta yaslı pencerede içerik aşağıdan büyür.
+        var rasterScale = root.XamlRoot?.RasterizationScale ?? 1.0;
+        var pivotY = anchorBottom ? (float)(targetHeight / rasterScale) : 0.0f;
+        visual.CenterPoint = new Vector3(0.0f, pivotY, 0.0f);
         var startScale = Math.Clamp((float)currentHeight / targetHeight, 0.1f, 4.0f);
         visual.Scale = new Vector3(1.0f, startScale, 1.0f);
 
@@ -262,6 +268,6 @@ internal static class PopoverHelper
         IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
         if (!NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo)) return 800;
-        return Math.Max(200, (int)Math.Round(monitorInfo.rcWork.Height * 0.70));
+        return Math.Max(200, (int)Math.Round(monitorInfo.rcWork.Height * 0.85));
     }
 }

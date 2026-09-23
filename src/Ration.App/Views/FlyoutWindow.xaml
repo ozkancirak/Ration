@@ -247,7 +247,7 @@
                                 <ItemsPanelTemplate>
                                     <VariableSizedWrapGrid Orientation="Horizontal"
                                                            MaximumRowsOrColumns="2"
-                                                           ItemWidth="174" />
+                                                           ItemWidth="168" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>

@@ -73,6 +73,11 @@ public sealed partial class FlyoutWindow : Window
     private const double FlyoutWidthDip = 380;
     private int _targetWidth;
 
+    // Açılıştaki yerleşim: görev çubuğu alttaysa alt kenar sabit tutulur ki içerik
+    // değişince pencere görev çubuğundan kopmasın ya da ekrandan taşmasın.
+    private FlyoutEdge _edge = FlyoutEdge.Bottom;
+    private int _anchorBottom;
+
     public double? CurrentClaudePercent => _currentGaugePercent;
 
     public FlyoutWindow()
@@ -766,6 +771,7 @@ public sealed partial class FlyoutWindow : Window
         {
             DetailName.Text = TabDisplayName(_selectedId);
             DetailUpdated.Text = "Bekleniyor…";
+            DetailUpdated.Visibility = Visibility.Visible;
             DetailPlanBadge.Visibility = Visibility.Collapsed;
             DetailError.Visibility = Visibility.Collapsed;
             DetailUnavailable.Visibility = Visibility.Collapsed;
@@ -795,6 +801,8 @@ public sealed partial class FlyoutWindow : Window
             snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error
             ? string.Empty
             : QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
+        // Boş satır yer kaplamasın: hata/bayat durumda başlık doğrudan ayırıcıya iner.
+        DetailUpdated.Visibility = DetailUpdated.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         if (stale)
         {
             ShowStaleNotice(
@@ -1265,7 +1273,7 @@ public sealed partial class FlyoutWindow : Window
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
         NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo);
 
-        int maxHeight = (int)Math.Round(monitorInfo.rcWork.Height * 0.70);
+        int maxHeight = (int)Math.Round(monitorInfo.rcWork.Height * 0.85);
 
         int targetHeight = Math.Min(
             (int)Math.Round((desiredHeightDip + 12) * scale),
@@ -1282,6 +1290,8 @@ public sealed partial class FlyoutWindow : Window
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
+        _edge = edge;
+        _anchorBottom = y + targetHeight;
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
 
         _isVisible = true;
@@ -1318,12 +1328,25 @@ public sealed partial class FlyoutWindow : Window
             PopoverHelper.WorkAreaMaxHeight());
         if (targetHeight <= 0) return;
 
+        var position = _appWindow.Position;
+        var pt = new NativeMethods.POINT { X = position.X, Y = position.Y };
+        var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
+        NativeMethods.GetMonitorInfo(
+            NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST), ref monitorInfo);
+
+        // Alt görev çubuğu: alt kenar sabit, pencere yukarı büyür. Üst/yan: üst kenar sabit,
+        // alttan taşarsa yukarı itilir. Her durumda çalışma alanının içinde kalır.
+        var y = _edge == FlyoutEdge.Bottom
+            ? _anchorBottom - targetHeight
+            : Math.Min(position.Y, monitorInfo.rcWork.Bottom - targetHeight);
+        y = Math.Max(y, monitorInfo.rcWork.Top);
+
         PopoverHelper.ResizeWithAnimation(
             _appWindow,
             RootLayout,
-            _targetWidth,
+            new RectInt32(position.X, y, _targetWidth, targetHeight),
             _appWindow.Size.Height,
-            targetHeight);
+            anchorBottom: _edge == FlyoutEdge.Bottom);
     }
 
     private double MeasureSelectedContentDip()
