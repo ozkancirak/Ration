@@ -669,7 +669,7 @@ public sealed partial class FlyoutWindow : Window
             {
                 meter.Value = 0;
                 meter.Foreground = tabBrush;
-                AutomationProperties.SetName(button, $"{snapshot.ProviderId}, veri yok");
+                AutomationProperties.SetName(button, L.T($"{snapshot.ProviderId}, no data", $"{snapshot.ProviderId}, veri yok"));
                 continue;
             }
 

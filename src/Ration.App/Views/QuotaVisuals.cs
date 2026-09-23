@@ -81,7 +81,7 @@ public static class QuotaVisuals
             if (resetText is not null) resetText.Text = string.Empty;
             if (!string.IsNullOrWhiteSpace(automationPrefix))
             {
-                AutomationProperties.SetName(bar, $"{automationPrefix}: veri yok");
+                AutomationProperties.SetName(bar, L.T($"{automationPrefix}: no data", $"{automationPrefix}: veri yok"));
             }
             return;
         }

@@ -172,7 +172,7 @@ internal static class SelfTestRunner
 
         bool passed = isExit
             ? await WaitForAsync(() => CountLog("[selftest] exit-intercepted") > exitBefore, ActionTimeout)
-            : label == "Yenile"
+            : label == L.T("Refresh", "Yenile")
                 ? await WaitForAsync(
                     () => CountLog($"[menu] click action={label}") > clickBefore
                         && CountLog("[provider.refresh] start") > refreshStartBefore
@@ -196,14 +196,14 @@ internal static class SelfTestRunner
         }
 
         Window afterWindow = menu;
-        if (label == "Ayarlar")
+        if (label == L.T("Settings", "Ayarlar"))
         {
             afterWindow = flyout.SettingsWindowForSelfTest!;
             await Task.Delay(500);
         }
 
         await CaptureAsync(afterWindow, Path.Combine(outputDirectory, filePrefix + "-after.png"), failures);
-        if (label == "Ayarlar")
+        if (label == L.T("Settings", "Ayarlar"))
         {
             flyout.SettingsWindowForSelfTest?.HideForSelfTest();
         }
@@ -241,7 +241,7 @@ internal static class SelfTestRunner
 
         bool passed = isExit
             ? await WaitForAsync(() => CountLog("[selftest] exit-close") > exitBefore, ActionTimeout)
-            : label == "Yenile"
+            : label == L.T("Refresh", "Yenile")
                 ? await WaitForAsync(
                     () => CountLog($"[menu] click action={label}") > clickBefore
                         && CountLog("[provider.refresh] start") > refreshStartBefore
@@ -265,14 +265,14 @@ internal static class SelfTestRunner
         }
 
         Window afterWindow = menu;
-        if (label == "Ayarlar")
+        if (label == L.T("Settings", "Ayarlar"))
         {
             afterWindow = flyout.SettingsWindowForSelfTest!;
             await Task.Delay(500);
         }
 
         await CaptureAsync(afterWindow, Path.Combine(outputDirectory, filePrefix + "-after.png"), failures);
-        if (label == "Ayarlar")
+        if (label == L.T("Settings", "Ayarlar"))
         {
             flyout.SettingsWindowForSelfTest?.HideForSelfTest();
         }

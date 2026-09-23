@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Ration.Core;
 using Ration.Core.Abstractions;
 using Ration.Core.Cost;
 using Ration.Core.Diagnostics;
@@ -23,6 +24,7 @@ using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
 // Türkçe karakterler konsolun kod sayfasına göre bozuluyordu; çıktı her yerde UTF-8.
 Console.OutputEncoding = System.Text.Encoding.UTF8;
+L.ApplyCulture();
 
 Ration.Core.LegacySettingsMigration.Run();
 Ration.Platform.Windows.App.StartupRegistration.MigrateLegacyEntry();
@@ -98,7 +100,7 @@ switch (command)
         return await RunUsageAsync("all", asJson: false, showRaw: wantsRaw);
 
     default:
-        Console.Error.WriteLine($"Bilinmeyen komut: {command}");
+        Console.Error.WriteLine(L.T($"Unknown command: {command}", $"Bilinmeyen komut: {command}"));
         PrintHelp();
         return 2;
 }
@@ -117,7 +119,7 @@ async Task<int> RunUsageAsync(string which, bool asJson, bool showRaw)
     }
     else
     {
-        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all");
+        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, antigravity, opencode, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all"));
         return 2;
     }
 
@@ -158,7 +160,7 @@ void PrintSnapshot(UsageSnapshot snapshot)
     {
         var label = window.Label ?? window.Kind.ToString();
         var reset = window.ResetsAt is { } resetsAt
-            ? $"   sıfırlanma: {resetsAt.ToLocalTime():dd.MM HH:mm}"
+            ? L.T($"   resets: {resetsAt.ToLocalTime():g}", $"   sıfırlanma: {resetsAt.ToLocalTime():dd.MM HH:mm}")
             : string.Empty;
 
         Console.WriteLine($"  {label,-20} %{window.Percent,5:F1}{reset}");
@@ -166,21 +168,21 @@ void PrintSnapshot(UsageSnapshot snapshot)
 
     if (snapshot.Credits is { } credits)
     {
-        Console.WriteLine($"  {"Kredi",-20} {credits.RemainingCredits}");
+        Console.WriteLine($"  {L.T("Credits", "Kredi"),-20} {credits.RemainingCredits}");
     }
 
     if (snapshot.Cost is { } cost)
     {
-        Console.WriteLine($"  {"Girdi token",-20} {cost.InputTokens}");
-        Console.WriteLine($"  {"Çıktı token",-20} {cost.OutputTokens}");
-        Console.WriteLine($"  {"Akıl yürütme",-20} {cost.ReasoningTokens}");
-        Console.WriteLine($"  {"Cache okuma",-20} {cost.CacheReadTokens}");
-        Console.WriteLine($"  {"Cache yazma",-20} {cost.CacheCreationTokens}");
+        Console.WriteLine($"  {L.T("Input tokens", "Girdi token"),-20} {cost.InputTokens}");
+        Console.WriteLine($"  {L.T("Output tokens", "Çıktı token"),-20} {cost.OutputTokens}");
+        Console.WriteLine($"  {L.T("Reasoning", "Akıl yürütme"),-20} {cost.ReasoningTokens}");
+        Console.WriteLine($"  {L.T("Cache read", "Cache okuma"),-20} {cost.CacheReadTokens}");
+        Console.WriteLine($"  {L.T("Cache write", "Cache yazma"),-20} {cost.CacheCreationTokens}");
     }
 
     if (snapshot.Windows.Count == 0)
     {
-        Console.WriteLine("  (pencere verisi yok)");
+        Console.WriteLine(L.T("  (no window data)", "  (pencere verisi yok)"));
     }
 
     Console.WriteLine();
@@ -196,7 +198,7 @@ void PrintRawResponses(List<IUsageProvider> selected)
             {
                 if (claude.LastRawResponse is not null)
                 {
-                    Console.WriteLine($"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---");
+                    Console.WriteLine(L.T($"--- raw response: {provider.Id} ({source.Kind}) — identity fields redacted ---", $"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---"));
                     Console.WriteLine(RawResponseRedactor.Redact(claude.LastRawResponse));
                     Console.WriteLine();
                 }
@@ -213,7 +215,7 @@ void PrintRawResponses(List<IUsageProvider> selected)
 
             // Kota uç noktaları token döndürmez ama e-posta ve hesap kimliği döndürür.
             // Bu çıktı bir issue'ya ya da sohbete yapıştırılacak; maskelenmeden gösterilmez.
-            Console.WriteLine($"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---");
+            Console.WriteLine(L.T($"--- raw response: {provider.Id} ({source.Kind}) — identity fields redacted ---", $"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---"));
             Console.WriteLine(RawResponseRedactor.Redact(raw));
             Console.WriteLine();
         }
@@ -224,20 +226,20 @@ void PrintClaudeDiagnostics(ClaudeOAuthUsageSource source)
 {
     static string YesNo(bool? value) => value switch
     {
-        true => "evet",
-        false => "hayır",
+        true => L.T("yes", "evet"),
+        false => L.T("no", "hayır"),
         _ => "—",
     };
 
-    Console.WriteLine("--- Claude tanı (kimlik değerleri gizlendi) ---");
-    Console.WriteLine($".credentials.json okunabildi: {YesNo(source.LastCredentialsAvailable)}");
+    Console.WriteLine(L.T("--- Claude diagnostics (credential values redacted) ---", "--- Claude tanı (kimlik değerleri gizlendi) ---"));
+    Console.WriteLine(L.T($".credentials.json readable: {YesNo(source.LastCredentialsAvailable)}", $".credentials.json okunabildi: {YesNo(source.LastCredentialsAvailable)}"));
     Console.WriteLine($"expiresAt: {(source.LastCredentialsExpiresAt?.ToUniversalTime().ToString("O") ?? "yok")}");
-    Console.WriteLine($"expiresAt geçmiş: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}");
-    Console.WriteLine($"refreshToken mevcut: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}");
-    Console.WriteLine($"HTTP kodu: {source.LastStatusCode?.ToString() ?? "istek yapılmadı"}");
+    Console.WriteLine(L.T($"expiresAt passed: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}", $"expiresAt geçmiş: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsExpired : null)}"));
+    Console.WriteLine(L.T($"refreshToken present: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}", $"refreshToken mevcut: {YesNo(source.LastCredentialsAvailable ? source.LastCredentialsHasRefreshToken : null)}"));
+    Console.WriteLine(L.T("HTTP status: ", "HTTP kodu: ") + (source.LastStatusCode?.ToString() ?? L.T("no request made", "istek yapılmadı")));
     Console.WriteLine($"Retry-After: {source.LastRetryAfter ?? "yok"}");
-    Console.WriteLine($"istek URL: GET {ClaudeOAuthUsageSource.UsageEndpoint}");
-    Console.WriteLine("header adları: Authorization, anthropic-beta");
+    Console.WriteLine(L.T("request URL", "istek URL") + $": GET {ClaudeOAuthUsageSource.UsageEndpoint}");
+    Console.WriteLine(L.T("header names: Authorization, anthropic-beta", "header adları: Authorization, anthropic-beta"));
 
     Console.WriteLine();
 }
@@ -276,7 +278,7 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
 
     if (results.Count == 0)
     {
-        Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all");
+        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, antigravity, opencode, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all"));
         return 2;
     }
 
@@ -291,8 +293,8 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
 
     if (pricing.IsEmpty)
     {
-        Console.WriteLine("Fiyat tablosu boş — yalnızca token sayıları gösteriliyor.");
-        Console.WriteLine($"Fiyat eklemek için: {PricingTable.DefaultPath}");
+        Console.WriteLine(L.T("Pricing table is empty — showing token counts only.", "Fiyat tablosu boş — yalnızca token sayıları gösteriliyor."));
+        Console.WriteLine(L.T($"To add prices: {PricingTable.DefaultPath}", $"Fiyat eklemek için: {PricingTable.DefaultPath}"));
         Console.WriteLine();
     }
 
@@ -307,38 +309,38 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
 void PrintCost(string provider, CostScanResult scan, CostReport report, PricingTable pricing)
 {
     Console.WriteLine(
-        $"{provider}   {scan.PeriodStart.ToLocalTime():dd.MM} → {scan.PeriodEnd.ToLocalTime():dd.MM}   ({scan.FilesScanned} dosya)");
+        $"{provider}   {scan.PeriodStart.ToLocalTime():dd.MM} → {scan.PeriodEnd.ToLocalTime():dd.MM}   ({scan.FilesScanned} " + L.T("files", "dosya") + ")");
 
     if (scan.Note is not null) Console.WriteLine($"  ! {scan.Note}");
 
     if (scan.Tally.IsEmpty)
     {
-        Console.WriteLine("  (token verisi yok)");
+        Console.WriteLine(L.T("  (no token data)", "  (token verisi yok)"));
         Console.WriteLine();
         return;
     }
 
     foreach (var model in scan.Tally.Models)
     {
-        var missingPrice = pricing.Find(model.Model) is null ? "  (fiyat yok)" : string.Empty;
+        var missingPrice = pricing.Find(model.Model) is null ? L.T("  (no price)", "  (fiyat yok)") : string.Empty;
         Console.WriteLine($"  {model.Model,-32} {model.TotalTokens,14:N0} token{missingPrice}");
     }
 
-    Console.WriteLine($"  {"giriş / çıkış",-32} {report.InputTokens,14:N0} / {report.OutputTokens:N0}");
-    Console.WriteLine($"  {"önbellek okuma / yazma",-32} {report.CacheReadTokens,14:N0} / {report.CacheCreationTokens:N0}");
+    Console.WriteLine($"  {L.T("input / output", "giriş / çıkış"),-32} {report.InputTokens,14:N0} / {report.OutputTokens:N0}");
+    Console.WriteLine($"  {L.T("cache read / write", "önbellek okuma / yazma"),-32} {report.CacheReadTokens,14:N0} / {report.CacheCreationTokens:N0}");
 
     if (report.ReasoningTokens > 0)
     {
-        Console.WriteLine($"  {"akıl yürütme (çıkış içinde)",-32} {report.ReasoningTokens,14:N0}");
+        Console.WriteLine($"  {L.T("reasoning (within output)", "akıl yürütme (çıkış içinde)"),-32} {report.ReasoningTokens,14:N0}");
     }
 
     if (!pricing.IsEmpty)
     {
-        Console.WriteLine($"  {"tahmini maliyet",-32} {report.TotalCost,14:N4} {report.Currency}");
+        Console.WriteLine($"  {L.T("estimated cost", "tahmini maliyet"),-32} {report.TotalCost,14:N4} {report.Currency}");
 
         if (report.ModelsWithoutPricing is { Count: > 0 } missing)
         {
-            Console.WriteLine($"  ! Fiyatı bilinmeyen model(ler) maliyete dahil değil: {string.Join(", ", missing)}");
+            Console.WriteLine(L.T($"  ! Model(s) without a price are not included in the cost: {string.Join(", ", missing)}", $"  ! Fiyatı bilinmeyen model(ler) maliyete dahil değil: {string.Join(", ", missing)}"));
         }
     }
 
@@ -347,17 +349,17 @@ void PrintCost(string provider, CostScanResult scan, CostReport report, PricingT
 
 void PrintSchema()
 {
-    Console.WriteLine("JSONL şema keşfi — yalnızca anahtar yolları ve türler yazılır, DEĞER yazılmaz.");
+    Console.WriteLine(L.T("JSONL schema discovery — only key paths and types are printed, never VALUES.", "JSONL şema keşfi — yalnızca anahtar yolları ve türler yazılır, DEĞER yazılmaz."));
     Console.WriteLine();
 
-    Console.WriteLine($"Codex — token_count içeren satırlar ({KnownPaths.CodexSessionsDir}):");
+    Console.WriteLine(L.T($"Codex — lines containing token_count ({KnownPaths.CodexSessionsDir}):", $"Codex — token_count içeren satırlar ({KnownPaths.CodexSessionsDir}):"));
     foreach (var path in JsonlSchemaProbe.DescribeKeyPaths(KnownPaths.CodexSessionsDir, "token_count"))
     {
         Console.WriteLine($"  {path}");
     }
 
     Console.WriteLine();
-    Console.WriteLine($"Claude — usage içeren satırlar ({KnownPaths.ClaudeProjectsDir}):");
+    Console.WriteLine(L.T($"Claude — lines containing usage ({KnownPaths.ClaudeProjectsDir}):", $"Claude — usage içeren satırlar ({KnownPaths.ClaudeProjectsDir}):"));
     foreach (var path in JsonlSchemaProbe.DescribeKeyPaths(KnownPaths.ClaudeProjectsDir, "\"usage\""))
     {
         Console.WriteLine($"  {path}");
@@ -370,17 +372,17 @@ void PrintDiagnostics()
 {
     Console.WriteLine("Ration diagnose");
     Console.WriteLine();
-    Console.WriteLine("Yollar (hepsi salt okunur):");
-    PrintPath("Claude kimlik", KnownPaths.ClaudeCredentialsFile, isFile: true);
+    Console.WriteLine(L.T("Paths (all read-only):", "Yollar (hepsi salt okunur):"));
+    PrintPath(L.T("Claude credentials", "Claude kimlik"), KnownPaths.ClaudeCredentialsFile, isFile: true);
     PrintPath("Claude projects", KnownPaths.ClaudeProjectsDir, isFile: false);
     PrintPath("Codex auth", KnownPaths.CodexAuthFile, isFile: true);
     PrintPath("Codex sessions", KnownPaths.CodexSessionsDir, isFile: false);
     Console.WriteLine();
-    Console.WriteLine("Kimlik okunabilirliği:");
-    Console.WriteLine($"  {"Claude",-16} {(ClaudeCredentialStore.TryRead() is not null ? "okundu" : "okunamadı")}");
-    Console.WriteLine($"  {"Codex",-16} {(CodexCredentialStore.TryRead() is not null ? "okundu" : "okunamadı")}");
+    Console.WriteLine(L.T("Credential readability:", "Kimlik okunabilirliği:"));
+    Console.WriteLine($"  {"Claude",-16} {(ClaudeCredentialStore.TryRead() is not null ? L.T("read", "okundu") : L.T("unreadable", "okunamadı"))}");
+    Console.WriteLine($"  {"Codex",-16} {(CodexCredentialStore.TryRead() is not null ? L.T("read", "okundu") : L.T("unreadable", "okunamadı"))}");
     Console.WriteLine();
-    Console.WriteLine("Not: token değerleri hiçbir çıktıda gösterilmez.");
+    Console.WriteLine(L.T("Note: token values are never shown in any output.", "Not: token değerleri hiçbir çıktıda gösterilmez."));
     Console.WriteLine();
 }
 
@@ -389,7 +391,7 @@ void PrintLog()
     var lines = Trace.ReadLastLines(100);
     if (lines.Count == 0)
     {
-        Console.WriteLine($"Günlük yok: {Trace.LogPath}");
+        Console.WriteLine(L.T($"No log: {Trace.LogPath}", $"Günlük yok: {Trace.LogPath}"));
         return;
     }
 
@@ -402,15 +404,15 @@ void PrintLog()
 void PrintPath(string label, string path, bool isFile)
 {
     var exists = isFile ? File.Exists(path) : Directory.Exists(path);
-    Console.WriteLine($"  {label,-16} {(exists ? "var" : "yok"),-5} {path}");
+    Console.WriteLine($"  {label,-16} {(exists ? L.T("yes", "var") : L.T("no", "yok")),-5} {path}");
 }
 
 void PrintThemeInfo()
 {
-    Console.WriteLine("=== Windows Tema ve Sistem Renkleri ===");
-    Console.WriteLine($"  Görev Çubuğu Teması : {(WindowsThemeListener.IsTaskbarLightTheme() ? "Açık (Light)" : "Koyu (Dark)")}");
-    Console.WriteLine($"  Uygulama Teması     : {(WindowsThemeListener.IsAppLightTheme() ? "Açık (Light)" : "Koyu (Dark)")}");
-    Console.WriteLine($"  Yüksek Kontrast     : {(SystemAccent.IsHighContrast ? "Aktif" : "Kapalı")}");
+    Console.WriteLine(L.T("=== Windows theme and system colors ===", "=== Windows Tema ve Sistem Renkleri ==="));
+    Console.WriteLine(L.T("  Taskbar theme       : ", "  Görev Çubuğu Teması : ") + (WindowsThemeListener.IsTaskbarLightTheme() ? L.T("Light", "Açık (Light)") : L.T("Dark", "Koyu (Dark)")));
+    Console.WriteLine(L.T("  App theme           : ", "  Uygulama Teması     : ") + (WindowsThemeListener.IsAppLightTheme() ? L.T("Light", "Açık (Light)") : L.T("Dark", "Koyu (Dark)")));
+    Console.WriteLine(L.T("  High contrast       : ", "  Yüksek Kontrast     : ") + (SystemAccent.IsHighContrast ? L.T("On", "Aktif") : L.T("Off", "Kapalı")));
 
     var accent = SystemAccent.GetAccent();
     var light1 = SystemAccent.GetAccentLight1();
@@ -427,7 +429,7 @@ int RunSelfTest(string[] forwardedArgs)
     var executable = FindAppExecutable();
     if (executable is null)
     {
-        Console.Error.WriteLine("Ration.exe bulunamadı; önce Ration.App projesini derleyin.");
+        Console.Error.WriteLine(L.T("Ration.exe not found; build the Ration.App project first.", "Ration.exe bulunamadı; önce Ration.App projesini derleyin."));
         return 2;
     }
 
@@ -447,7 +449,7 @@ int RunSelfTest(string[] forwardedArgs)
         using var process = AppProcess.Start(startInfo);
         if (process is null)
         {
-            Console.Error.WriteLine("Self-test süreci başlatılamadı.");
+            Console.Error.WriteLine(L.T("Could not start the self-test process.", "Self-test süreci başlatılamadı."));
             return 1;
         }
 
@@ -456,7 +458,7 @@ int RunSelfTest(string[] forwardedArgs)
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"Self-test başlatılamadı: {ex.GetType().Name}");
+        Console.Error.WriteLine(L.T($"Could not start self-test: {ex.GetType().Name}", $"Self-test başlatılamadı: {ex.GetType().Name}"));
         return 1;
     }
 }
@@ -592,7 +594,7 @@ void RenderIconPreview(string outputPath)
         Directory.CreateDirectory(dir);
     }
     canvas.Save(outputPath, ImageFormat.Png);
-    Console.WriteLine($"İkon temas levhası (contact sheet) kaydedildi: {outputPath}");
+    Console.WriteLine(L.T($"Icon contact sheet saved: {outputPath}", $"İkon temas levhası (contact sheet) kaydedildi: {outputPath}"));
 }
 
 async Task<int> RunDiscoverAsync(string which, bool asJson)
@@ -616,7 +618,7 @@ async Task<int> RunDiscoverAsync(string which, bool asJson)
     {
         if (ProviderDiscovery.RootsFor(name) is null)
         {
-            Console.Error.WriteLine($"Bilinmeyen sağlayıcı: {name}. Seçenekler: gemini, copilot, antigravity, all");
+            Console.Error.WriteLine(L.T($"Unknown provider: {name}. Options: gemini, copilot, antigravity, all", $"Bilinmeyen sağlayıcı: {name}. Seçenekler: gemini, copilot, antigravity, all"));
             return 2;
         }
     }
@@ -996,27 +998,27 @@ static string SafeDiagnosticName(string? value)
 
 void PrintHelp()
 {
-    Console.WriteLine("Ration — AI kota göstergesi");
+    Console.WriteLine(L.T("Ration — AI quota monitor", "Ration — AI kota göstergesi"));
     Console.WriteLine();
-    Console.WriteLine("Kullanım:");
+    Console.WriteLine(L.T("Usage:", "Kullanım:"));
     Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|all] [--json] [--raw]");
     Console.WriteLine("  ration cost  [-p claude|codex|all] [--days N] [--json]");
-    Console.WriteLine("  ration --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  # keşif/şema; değer yazmaz");
-    Console.WriteLine("  ration icon-preview [--out contact-sheet.png]  # DPI/tema temas levhası üretir");
+    Console.WriteLine("  ration --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  " + L.T("# discovery/schema; never prints values", "# keşif/şema; değer yazmaz"));
+    Console.WriteLine("  ration icon-preview [--out contact-sheet.png]  " + L.T("# renders the DPI/theme contact sheet", "# DPI/tema temas levhası üretir"));
     Console.WriteLine("  ration diagnose [--raw]");
-    Console.WriteLine("  ration --log                         # ration.log son 100 satır");
-    Console.WriteLine("  ration --selftest [--screenshot-dir DIR]  # gerçek menü girdisi testi");
+    Console.WriteLine("  ration --log                         " + L.T("# last 100 lines of ration.log", "# ration.log son 100 satır"));
+    Console.WriteLine("  ration --selftest [--screenshot-dir DIR]  " + L.T("# real menu input test", "# gerçek menü girdisi testi"));
     Console.WriteLine();
-    Console.WriteLine("Örnekler:");
+    Console.WriteLine(L.T("Examples:", "Örnekler:"));
     Console.WriteLine("  ration usage -p claude");
     Console.WriteLine("  ration usage -p all --json");
-    Console.WriteLine("  ration usage -p claude --raw     # uç noktanın ham şemasını gösterir");
-    Console.WriteLine("  ration --raw claude               # Claude HTTP tanısı + redakte yanıt");
+    Console.WriteLine("  ration usage -p claude --raw     " + L.T("# shows the endpoint's raw schema", "# uç noktanın ham şemasını gösterir"));
+    Console.WriteLine("  ration --raw claude               " + L.T("# Claude HTTP diagnostics + redacted response", "# Claude HTTP tanısı + redakte yanıt"));
     Console.WriteLine("  ration icon-preview --out contact-sheet.png");
     Console.WriteLine("  ration --log");
     Console.WriteLine("  ration --selftest --screenshot-dir .\\selftest");
     Console.WriteLine();
-    Console.WriteLine("Çıkış kodu: tüm sağlayıcılar Ok ise 0, değilse 1.");
+    Console.WriteLine(L.T("Exit code: 0 if all providers are Ok, otherwise 1.", "Çıkış kodu: tüm sağlayıcılar Ok ise 0, değilse 1."));
 }
 
 static bool HasFlag(string[] argv, string flag) =>
