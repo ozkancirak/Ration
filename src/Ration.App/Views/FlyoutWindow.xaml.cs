@@ -162,6 +162,9 @@ public sealed partial class FlyoutWindow : Window
 
         Trace.Info("tray", "initialized");
 
+        // Kota bildirimine tıklanınca panel açılır.
+        QuotaNotifier.Register(() => this.DispatcherQueue.TryEnqueue(ShowFlyout));
+
         // Theme listeners
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
         AppThemePreference.Changed += OnAppThemeChanged;
@@ -704,6 +707,7 @@ public sealed partial class FlyoutWindow : Window
         RefreshCost(force: false);
         EnqueueResize();
         RecalculateTrayIcon();
+        QuotaNotifier.Evaluate(snapshot, TabDisplayName(snapshot.ProviderId));
         MaybeScheduleAllModelDiagnostics();
     }
 

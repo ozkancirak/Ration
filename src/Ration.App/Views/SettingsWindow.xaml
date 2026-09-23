@@ -253,6 +253,16 @@
                                   OffContent="Kapalı" />
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="Kota bildirimleri"
+                                       Description="Oturum veya haftalık kota %20'nin altına inince ve dolunca bildir">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xEA8F;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="NotificationsToggle"
+                                  OnContent="Açık"
+                                  OffContent="Kapalı" />
+                </controls:SettingsCard>
+
                 <controls:SettingsCard x:Name="UpdatesCard">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE895;" />

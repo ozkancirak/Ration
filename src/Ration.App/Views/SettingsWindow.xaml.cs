@@ -88,6 +88,9 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        NotificationsToggle.IsOn = QuotaNotifier.Enabled;
+        NotificationsToggle.Toggled += (_, _) => QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
+
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
