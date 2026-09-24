@@ -340,10 +340,10 @@ public static class AntigravityProcessPortFinder
 
         var redacted = SecretArgument.Replace(
             commandLine,
-            match => match.Groups["prefix"].Value + "[gizlendi]");
+            match => match.Groups["prefix"].Value + "[redacted]");
         return SecretQueryValue.Replace(
             redacted,
-            match => match.Groups["prefix"].Value + "[gizlendi]");
+            match => match.Groups["prefix"].Value + "[redacted]");
     }
 
     private static string? ExtractCsrfToken(string commandLine)

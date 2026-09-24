@@ -163,7 +163,7 @@ public static class Trace
         if (string.IsNullOrEmpty(value)) return string.Empty;
 
         var safe = EmailPattern.Replace(value, "[email]");
-        safe = SecretPattern.Replace(safe, "[gizlendi]");
+        safe = SecretPattern.Replace(safe, "[redacted]");
         safe = IdentifierPattern.Replace(safe, "[id]");
         return safe;
     }

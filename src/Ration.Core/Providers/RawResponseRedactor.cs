@@ -16,7 +16,7 @@ public static class RawResponseRedactor
     // Köşeli parantez yok: böylece çıktıyı üretirken HTML-safe encoding'i kapatmamız
     // gerekmiyor. Kapatsaydık, sağlayıcıdan gelen ham metin ileride bir diagnostics
     // ekranında gösterildiğinde escape edilmeden basilırdı.
-    public const string Placeholder = "[gizlendi]";
+    public const string Placeholder = "[redacted]";
 
     private static readonly HashSet<string> SensitiveKeys = new(StringComparer.OrdinalIgnoreCase)
     {
