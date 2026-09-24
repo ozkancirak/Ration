@@ -26,7 +26,7 @@ Claude Code · Codex · Antigravity · OpenCode
 
 ## Kurulum
 
-[Releases](https://github.com/ozkancirak/ration/releases) sayfasından `Ration-win-x64-Setup.exe` veya taşınabilir zip'i indir. Windows 10 1809 ve üstü gerekir; Windows 11 için tasarlandı. İmzasız sürümlerde SmartScreen uyarı verebilir.
+[Releases](https://github.com/ozkancirak/Ration/releases) sayfasından `Ration-win-x64-Setup.exe` veya taşınabilir zip'i indir. Windows 10 1809 ve üstü gerekir; Windows 11 için tasarlandı. İmzasız sürümlerde SmartScreen uyarı verebilir.
 
 ## Gizlilik
 
