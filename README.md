@@ -26,7 +26,7 @@ Claude Code · Codex · Antigravity · OpenCode
 
 ## Install
 
-Download `Ration-win-x64-Setup.exe` or the portable zip from [Releases](https://github.com/ozkancirak/Ration/releases). Requires Windows 10 1809 or later; designed for Windows 11. Unsigned builds may trigger a SmartScreen warning.
+Download `Ration-win-x64-Setup.exe` or the portable zip from [Releases](https://github.com/ozkancirak/ration/releases). Requires Windows 10 1809 or later; designed for Windows 11. Unsigned builds may trigger a SmartScreen warning.
 
 ## Privacy
 

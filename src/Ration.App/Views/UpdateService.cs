@@ -24,7 +24,7 @@ public static class UpdateService
     private const string UpdateAvailableValueName = "UpdatesUpdateAvailable";
     private const string AvailableVersionValueName = "UpdatesAvailableVersion";
     private const string IsInstalledValueName = "UpdatesIsInstalled";
-    private const string DefaultRepository = "https://github.com/ozkancirak/Ration";
+    private const string DefaultRepository = "https://github.com/ozkancirak/ration";
 
     public static string RepositoryUrl =>
         Environment.GetEnvironmentVariable("RATION_UPDATE_REPOSITORY") is { Length: > 0 } value
