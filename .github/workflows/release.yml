@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Etiket csproj'daki sürümle aynı olmalı; yoksa uygulama içi güncelleme yanlış sürüm görür.
+      - name: Check version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/Ration.App/Ration.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match version $version" }
+
+      - name: Package
+        shell: pwsh
+        run: ./scripts/package.ps1 -Configuration Release
+
+      # Taslak olarak yüklenir; notlar eklendikten sonra elle yayınlanır.
+      - name: Upload draft release
+        run: >
+          dotnet tool run vpk upload github
+          --outputDir artifacts/release/releases
+          --channel win-x64
+          --repoUrl https://github.com/${{ github.repository }}
+          --token ${{ secrets.GITHUB_TOKEN }}
+          --tag ${{ github.ref_name }}
+          --releaseName "Ration ${{ github.ref_name }}"
