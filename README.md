@@ -18,7 +18,7 @@
 - Tray icon that fills with your remaining quota
 - Token and cost totals for the last 30 days from local logs
 - Notifications when a quota drops below 20% and when it runs out
-- Light and dark theme, English and Turkish
+- Light and dark theme; English and Turkish interface
 
 ## Providers
 

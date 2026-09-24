@@ -18,7 +18,7 @@
 - Kalan kotaya göre dolan tepsi ikonu
 - Yerel loglardan son 30 günün token ve maliyet toplamı
 - Kota %20'nin altına inince ve bitince bildirim
-- Açık ve koyu tema, Türkçe ve İngilizce
+- Açık ve koyu tema; Türkçe ve İngilizce arayüz
 
 ## Sağlayıcılar
 
