@@ -7,7 +7,7 @@ namespace Ration.Tests;
 /// <summary>
 /// wham/usage yanıtının 19.09.2026'da doğrulanmış ŞEKLİNİ kullanır.
 /// İçindeki bütün değerler uydurmadır — gerçek hesaptan kopyalanmış kimlik,
-/// e-posta veya kota verisi repoya giremez (AGENTS.md §2.3).
+/// e-posta veya kota verisi repoya giremez.
 /// </summary>
 public class CodexSchemaTests
 {

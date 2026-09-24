@@ -6,7 +6,7 @@ namespace Ration.Core.Providers.Codex;
 public sealed record CodexCredentials(string AccessToken, string? AccountId);
 
 /// <summary>
-/// ~/.codex/auth.json dosyasını SALT OKUNUR açar (AGENTS.md §2.1).
+/// ~/.codex/auth.json dosyasını SALT OKUNUR açar.
 /// Bu dosya kullanıcının Codex CLI oturumudur; yazılmaz, kilitlenmez.
 /// </summary>
 public static class CodexCredentialStore

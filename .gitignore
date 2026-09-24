@@ -12,7 +12,7 @@ publish/
 *.suo
 *.userprefs
 
-# Secrets & Credential protection (AGENTS.md 2.3)
+# Secrets & credential protection
 *.credentials.json
 auth.json
 secrets.dat

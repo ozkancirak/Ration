@@ -10,7 +10,7 @@ namespace Ration.Core.Providers.Claude;
 
 /// <summary>
 /// Yerel dosyadaki OAuth token ile Anthropic kota uç noktasını sorgular.
-/// Kind = LocalFile'dır: kimlik yerel dosyadan gelir (AGENTS.md kaynak zinciri, 1. sıra).
+/// Kind = LocalFile'dır: kimlik yerel dosyadan gelir.
 /// </summary>
 public sealed class ClaudeOAuthUsageSource : IUsageSource
 {

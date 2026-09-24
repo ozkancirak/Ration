@@ -6,7 +6,7 @@ namespace Ration.Tests;
 
 /// <summary>
 /// Tüm JSONL içerikleri SENTETİKTİR. Gerçek oturum loglarından kopyalanmış
-/// hiçbir şey repoya giremez (AGENTS.md §2.3).
+/// hiçbir şey repoya giremez.
 ///
 /// NOT: JSON şablonlarında interpolasyon KULLANILMIYOR. Raw string interpolasyonunda
 /// ($$"""...""") JSON'un kapanış süslü parantezleri ("}}}") hole kapatma dizisiyle

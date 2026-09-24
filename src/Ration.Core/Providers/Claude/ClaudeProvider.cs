@@ -13,7 +13,7 @@ public sealed record ClaudeCredentials(
 }
 
 /// <summary>
-/// ~/.claude/.credentials.json dosyasını SALT OKUNUR açar (AGENTS.md §2.1).
+/// ~/.claude/.credentials.json dosyasını SALT OKUNUR açar.
 ///
 /// FileShare.ReadWrite ile açılıp hemen kapatılır: Claude Code aynı anda bu dosyayı
 /// yazıyor olabilir, kilit tutmak onun oturumunu bozar. Token süresi dolmuşsa

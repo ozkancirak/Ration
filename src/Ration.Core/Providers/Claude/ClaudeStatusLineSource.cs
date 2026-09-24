@@ -15,7 +15,7 @@ namespace Ration.Core.Providers.Claude;
 ///
 /// GİZLİLİK: stdin'de konuşma bağlamı, çalışma dizini ve maliyet de vardır. Yalnızca
 /// dört sayı diske yazılır; geri kalan hiçbir alan okunmaz ya da saklanmaz.
-/// Kullanıcının ~/.claude/settings.json dosyasına Ration yazmaz (AGENTS.md §2.1);
+/// Kullanıcının ~/.claude/settings.json dosyasına Ration yazmaz;
 /// statusLine'ı kullanıcı kendisi bağlar.
 /// </summary>
 public static class ClaudeStatusLine

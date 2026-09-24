@@ -267,7 +267,7 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>
     /// ~/.claude/settings.json'a eklenecek statusLine satırını panoya koyar. Ration o dosyaya
-    /// kendisi yazmaz (AGENTS.md §2.1); kullanıcı yapıştırır.
+    /// kendisi yazmaz; kullanıcı yapıştırır.
     /// </summary>
     private async void CopyStatusLineSnippet()
     {

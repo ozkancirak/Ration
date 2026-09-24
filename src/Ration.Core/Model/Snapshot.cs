@@ -2,7 +2,7 @@ namespace Ration.Core.Model;
 
 /// <summary>
 /// UsageSnapshot üretmek için kısayollar.
-/// AGENTS.md §4: FetchAsync asla null dönmez ve asla exception sızdırmaz —
+/// FetchAsync asla null dönmez ve asla exception sızdırmaz —
 /// hata durumunda da dolu bir snapshot döner.
 /// </summary>
 public static class Snapshot

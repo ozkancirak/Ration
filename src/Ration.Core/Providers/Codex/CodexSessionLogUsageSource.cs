@@ -8,11 +8,11 @@ namespace Ration.Core.Providers.Codex;
 /// Ağsız ikinci kaynak: ~/.codex/sessions/**/*.jsonl içindeki rate_limits payload'ı.
 /// CodexProvider zincirinde OAuth'tan SONRA gelir; ağ başarısız olunca devreye girer.
 ///
-/// GİZLİLİK (AGENTS.md §2.3): satırlardan YALNIZCA payload.rate_limits (yüzdeler,
+/// GİZLİLİK: satırlardan YALNIZCA payload.rate_limits (yüzdeler,
 /// pencere süreleri) ve zaman damgası okunur. Mesaj metni, prompt, araç çıktısı
 /// hiçbir şekilde ayrıştırılmaz, saklanmaz, loglanmaz.
 /// Dosyalar Codex CLI tarafından yazılıyor olabilir: FileShare.ReadWrite ile açılır,
-/// satır satır akıtılır, kilit tutulmaz (AGENTS.md §2.1).
+/// satır satır akıtılır, kilit tutulmaz.
 /// </summary>
 public sealed class CodexSessionLogUsageSource : IUsageSource
 {

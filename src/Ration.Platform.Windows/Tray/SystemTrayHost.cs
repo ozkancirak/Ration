@@ -9,7 +9,7 @@ namespace Ration.Platform.Windows.Tray;
 /// bütün WinForms'u taşımamak için gizli pencere kendimiz açılır.
 ///
 /// Sahiplik: HICON çağıranındır. <see cref="UpdateIcon"/> yeni handle'ı kabuğa verir;
-/// çağıran ancak bundan SONRA önceki handle'ı yok eder (AGENTS.md §5, HICON ömrü).
+/// çağıran ancak bundan SONRA önceki handle'ı yok eder.
 /// Oluşturulduğu thread'de mesaj döngüsü olmalıdır (WinUI UI thread'i).
 /// </summary>
 public sealed class SystemTrayHost : IDisposable

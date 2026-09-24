@@ -6,7 +6,7 @@ namespace Ration.Tests;
 
 /// <summary>
 /// Buradaki JSON'lar TAMAMEN SENTETİKTİR. Gerçek .credentials.json / auth.json
-/// içeriğinden kopyalanmış hiçbir şey repoya giremez (AGENTS.md §2.3).
+/// içeriğinden kopyalanmış hiçbir şey repoya giremez.
 /// </summary>
 public class ProviderParsingTests
 {

@@ -3,7 +3,7 @@ namespace Ration.Core.Providers;
 /// <summary>
 /// Sağlayıcı dosyalarının diskteki yerleri.
 ///
-/// DİKKAT (AGENTS.md §2.1): buradaki sağlayıcı yolları SALT OKUNURDUR.
+/// DİKKAT: buradaki sağlayıcı yolları SALT OKUNURDUR.
 /// Bu dosyalar kullanıcının Claude Code / Codex CLI oturumlarının kendisidir;
 /// yazmak, taşımak veya kilitlemek kullanıcıyı kendi CLI'ından düşürür.
 /// Ration'ın yazabileceği tek yer <see cref="CacheDir"/>.

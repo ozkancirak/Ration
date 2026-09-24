@@ -9,7 +9,7 @@ namespace Ration.Core.Providers;
 /// Kota uç noktaları token döndürmez ama kimlik bilgisi döndürür: e-posta,
 /// kullanıcı ve hesap kimlikleri. Tanı çıktısı bir sohbete, bir issue'ya ya da
 /// bir log dosyasına yapıştırılacağı için bunlar maskelenmeden gösterilmez
-/// (AGENTS.md §2.3: diagnostics yalnızca metadata gösterir).
+/// Tanı çıktısı yalnızca metadata gösterir.
 /// </summary>
 public static class RawResponseRedactor
 {

@@ -6,7 +6,7 @@ namespace Ration.Tests;
 
 /// <summary>
 /// Oturum log kaynağı testleri. Tüm JSONL'lar SENTETİKTİR, temp dizinde üretilir;
-/// gerçek ~/.codex/sessions içeriği repoya giremez (AGENTS.md §2.3).
+/// gerçek ~/.codex/sessions içeriği repoya giremez.
 /// </summary>
 public class CodexSessionLogTests : IDisposable
 {

@@ -19,8 +19,8 @@ using Ration.Platform.Windows.Providers;
 using AppProcess = System.Diagnostics.Process;
 using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
-// Ration CLI — UI olmadan doğrulamanın birincil aracı (AGENTS.md §7).
-// Token değerleri hiçbir çıktıda gösterilmez (AGENTS.md §2.3).
+// Ration CLI — UI olmadan doğrulamanın birincil aracı.
+// Token değerleri hiçbir çıktıda gösterilmez.
 
 // Türkçe karakterler konsolun kod sayfasına göre bozuluyordu; çıktı her yerde UTF-8.
 Console.OutputEncoding = System.Text.Encoding.UTF8;

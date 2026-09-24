@@ -9,10 +9,10 @@ namespace Ration.Core.Refresh;
 /// Son başarılı snapshot'ları diske yazar.
 ///
 /// Amaç: uygulama açılır açılmaz dolu görünsün ve bir sağlayıcı hata verdiğinde
-/// boş kutu yerine "12 dk önceki veri" gösterilebilsin (AGENTS.md §4).
+/// boş kutu yerine "12 dk önceki veri" gösterilebilsin.
 ///
 /// Yazılabilir tek yer Ration'ın kendi cache dizinidir; sağlayıcı dosyalarına
-/// asla dokunulmaz (AGENTS.md §2.1).
+/// asla dokunulmaz.
 /// </summary>
 public sealed class SnapshotCache
 {
