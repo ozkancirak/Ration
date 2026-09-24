@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Velopack;
@@ -7,6 +8,11 @@ namespace Ration.App;
 
 internal static class Program
 {
+    private const int AttachParentProcess = -1;
+
+    [DllImport("kernel32.dll")]
+    private static extern bool AttachConsole(int processId);
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -18,6 +24,14 @@ internal static class Program
         {
             RunStatusLine();
             return;
+        }
+
+        // Pencere uygulamasıdır (WinExe), açılışta konsol penceresi çıkmaz. Terminale yazan
+        // kipler (--log, --selftest) çağıran terminalin konsoluna bağlanır.
+        if (args.Any(a => a.Equals("--log", StringComparison.OrdinalIgnoreCase) ||
+                          a.Equals("--selftest", StringComparison.OrdinalIgnoreCase)))
+        {
+            AttachConsole(AttachParentProcess);
         }
 
         Ration.Core.LegacySettingsMigration.Run();
