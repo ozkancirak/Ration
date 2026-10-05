@@ -17,6 +17,10 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
     public const string UsageEndpoint = "https://api.anthropic.com/api/oauth/usage";
     public const string OAuthBetaHeader = "oauth-2025-04-20";
 
+    // Saat kayması ya da bozuk dosya yüzünden sağlayıcı sonsuza dek susturulmasın:
+    // bundan uzak bekleme süreleri hem yazılırken kısılır hem okunurken yok sayılır.
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromHours(1);
+
     private readonly HttpClient _http;
     private readonly Func<ClaudeCredentials?> _credentials;
     private readonly string _retryAfterFile;
@@ -90,7 +94,8 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
         try
         {
             return File.Exists(_retryAfterFile) &&
-                   DateTimeOffset.TryParse(File.ReadAllText(_retryAfterFile), out var until)
+                   DateTimeOffset.TryParse(File.ReadAllText(_retryAfterFile), out var until) &&
+                   until <= DateTimeOffset.UtcNow + MaxRetryAfter + TimeSpan.FromMinutes(1)
                 ? until
                 : null;
         }
@@ -109,8 +114,12 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
         catch (UnauthorizedAccessException) { }
     }
 
-    private static DateTimeOffset? RetryAfterUntil(RetryConditionHeaderValue? header) =>
-        header?.Delta is { } delta ? DateTimeOffset.UtcNow + delta : header?.Date;
+    private static DateTimeOffset? RetryAfterUntil(RetryConditionHeaderValue? header)
+    {
+        var until = header?.Delta is { } delta ? DateTimeOffset.UtcNow + delta : header?.Date;
+        var latest = DateTimeOffset.UtcNow + MaxRetryAfter;
+        return until is { } u && u > latest ? latest : until;
+    }
 
     private async Task<UsageSnapshot> FetchUsageAsync(ClaudeCredentials credentials, CancellationToken ct)
     {
