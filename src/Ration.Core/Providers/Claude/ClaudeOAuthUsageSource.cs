@@ -201,7 +201,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
             RationTrace.Error("provider.http", $"provider=claude endpoint=usage error={ex.GetType().Name}");
             RationTrace.Info("provider.http", "provider=claude mapped-status=Error");
             return Snapshot.Empty("claude", ProviderStatus.Error,
-                L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}"), Kind);
+                NetworkErrors.Describe(ex), Kind);
         }
     }
 

@@ -101,7 +101,7 @@ public sealed class CodexOAuthUsageSource : IUsageSource
         {
             RationTrace.Error("provider.http", $"provider=codex endpoint=usage error={ex.GetType().Name}");
             return Snapshot.Empty("codex", ProviderStatus.Error,
-                L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}"), Kind);
+                NetworkErrors.Describe(ex), Kind);
         }
     }
 }
