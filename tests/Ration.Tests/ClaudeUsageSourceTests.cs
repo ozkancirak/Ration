@@ -80,6 +80,107 @@ public sealed class ClaudeUsageSourceTests
         }
     }
 
+    private const string GecerliKotaYaniti =
+        """{"five_hour":{"utilization":10,"resets_at":"2030-01-01T00:00:00Z"}}""";
+
+    [Theory]
+    [InlineData("bu bir tarih degil")]
+    [InlineData("")]
+    public async Task BozukRetryAfterDosyasi_YoksayilirVeAgaCikilir(string icerik)
+    {
+        var (source, handler, retryFile) = RetryAfterKaynagi(icerik);
+        try
+        {
+            var snapshot = await source.FetchAsync();
+
+            Assert.Single(handler.Calls);
+            Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        }
+        finally
+        {
+            File.Delete(retryFile);
+        }
+    }
+
+    [Fact]
+    public async Task SuresiGecmisRetryAfter_YoksayilirVeAgaCikilir()
+    {
+        var (source, handler, retryFile) = RetryAfterKaynagi(DateTimeOffset.UtcNow.AddMinutes(-5).ToString("O"));
+        try
+        {
+            var snapshot = await source.FetchAsync();
+
+            Assert.Single(handler.Calls);
+            Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        }
+        finally
+        {
+            File.Delete(retryFile);
+        }
+    }
+
+    [Fact]
+    public async Task CokUzakRetryAfter_YoksayilirVeAgaCikilir()
+    {
+        var (source, handler, retryFile) = RetryAfterKaynagi(DateTimeOffset.UtcNow.AddDays(30).ToString("O"));
+        try
+        {
+            var snapshot = await source.FetchAsync();
+
+            Assert.Single(handler.Calls);
+            Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        }
+        finally
+        {
+            File.Delete(retryFile);
+        }
+    }
+
+    [Fact]
+    public async Task Kota429_CokUzunRetryAfter_BirSaatleSinirlanir()
+    {
+        var handler = new RecordingHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+            };
+            response.Headers.TryAddWithoutValidation("Retry-After", "9999999");
+            return response;
+        });
+
+        var retryFile = Path.Combine(Path.GetTempPath(), $"ration-retry-{Guid.NewGuid():N}.txt");
+        try
+        {
+            var source = new ClaudeOAuthUsageSource(
+                new HttpClient(handler),
+                () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
+                retryFile);
+
+            await source.FetchAsync();
+
+            var saved = DateTimeOffset.Parse(File.ReadAllText(retryFile));
+            Assert.True(saved <= DateTimeOffset.UtcNow.AddHours(1).AddMinutes(1));
+            Assert.True(saved > DateTimeOffset.UtcNow.AddMinutes(30));
+        }
+        finally
+        {
+            File.Delete(retryFile);
+        }
+    }
+
+    private static (ClaudeOAuthUsageSource Source, RecordingHandler Handler, string RetryFile) RetryAfterKaynagi(string dosyaIcerigi)
+    {
+        var handler = new RecordingHandler((_, _) => JsonResponse(HttpStatusCode.OK, GecerliKotaYaniti));
+        var retryFile = Path.Combine(Path.GetTempPath(), $"ration-retry-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(retryFile, dosyaIcerigi);
+        var source = new ClaudeOAuthUsageSource(
+            new HttpClient(handler),
+            () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
+            retryFile);
+        return (source, handler, retryFile);
+    }
+
     private static HttpResponseMessage JsonResponse(HttpStatusCode status, string json) =>
         new(status)
         {
