@@ -42,6 +42,7 @@ public sealed partial class FlyoutWindow : Window
     private static readonly TimeSpan ManualRefreshMinimum = TimeSpan.FromSeconds(10);
     private DateTimeOffset _lastInteractiveRefresh = DateTimeOffset.MinValue;
     private DateTimeOffset _lastManualRefresh = DateTimeOffset.MinValue;
+    private int _resumeRefreshPending;
     private bool _isVisible;
     private double? _currentGaugePercent;
     private string _currentTooltip = L.T("Ration: No data", "Ration: Veri yok");
@@ -173,6 +174,7 @@ public sealed partial class FlyoutWindow : Window
         AppThemePreference.Changed += OnAppThemeChanged;
         RefreshIntervalPreference.Changed += OnRefreshIntervalChanged;
         EfficiencyModeManager.PauseChanged += OnEfficiencyPauseChanged;
+        EfficiencyModeManager.Resumed += OnSystemResumed;
         PricingTableUpdater.Updated += OnPricingUpdated;
         WindowsThemeListener.AccentChanged += OnAccentChanged;
         WindowsThemeListener.DisplayChanged += OnDisplayChanged;
@@ -266,9 +268,35 @@ public sealed partial class FlyoutWindow : Window
         else
         {
             _scheduler.Resume();
+            _ = RefreshAfterResumeAsync();
         }
 
         Trace.Info("provider.refresh", $"polling={(shouldPause ? "paused" : "resumed")}");
+    }
+
+    private void OnSystemResumed() => _ = RefreshAfterResumeAsync();
+
+    // Uykudan ya da kilitten dönünce bir sonraki tur gelene kadar (15 dk) bayat veri kalmasın.
+    // Ağ bağdaştırıcısı geç hazır olabildiği için kısa süre beklenir; uyku dönüşü ve kilit
+    // açılışı art arda gelirse tek yenileme yeter.
+    private async Task RefreshAfterResumeAsync()
+    {
+        if (Interlocked.Exchange(ref _resumeRefreshPending, 1) == 1) return;
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            if (EfficiencyModeManager.ShouldPause) return;
+
+            Trace.Info("provider.refresh", "resume status=started");
+            await _scheduler.RefreshAllAsync();
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+        finally
+        {
+            Volatile.Write(ref _resumeRefreshPending, 0);
+        }
     }
 
     private async Task RefreshManuallyAsync()
@@ -413,6 +441,7 @@ public sealed partial class FlyoutWindow : Window
         AppThemePreference.Changed -= OnAppThemeChanged;
         RefreshIntervalPreference.Changed -= OnRefreshIntervalChanged;
         EfficiencyModeManager.PauseChanged -= OnEfficiencyPauseChanged;
+        EfficiencyModeManager.Resumed -= OnSystemResumed;
         PricingTableUpdater.Updated -= OnPricingUpdated;
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));

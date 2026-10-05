@@ -30,7 +30,11 @@ public static class EfficiencyModeManager
                 NotifyPauseChanged();
             };
 
-            SystemEvents.PowerModeChanged += (_, _) => RefreshPowerSavingState();
+            SystemEvents.PowerModeChanged += (_, e) =>
+            {
+                RefreshPowerSavingState();
+                if (e.Mode == PowerModes.Resume) Resumed?.Invoke();
+            };
         }
         catch
         {
@@ -50,6 +54,9 @@ public static class EfficiencyModeManager
     }
 
     public static event Action<bool>? PauseChanged;
+
+    /// <summary>Bilgisayar uykudan döndü; ağ henüz hazır olmayabilir.</summary>
+    public static event Action? Resumed;
 
     // Yalnızca ekran kilidi ve Windows enerji tasarrufu ağ yenilemesini durdurur.
     // Gizli paneldeki verimlilik modu (EcoQoS) CPU önceliğini düşürür, yenilemeyi DURDURMAZ:
