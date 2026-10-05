@@ -14,6 +14,11 @@ public static class EfficiencyModeManager
 
     static EfficiencyModeManager()
     {
+        // SystemEvents olayları, dinleyicinin kurulduğu thread'in SynchronizationContext'ine Send ile
+        // iletir. WinUI UI thread'inde bu bağlam olayları yutuyordu: kilit ve güç olayları hiç gelmiyordu.
+        // Bağlamsız kurulunca olaylar SystemEvents thread'inde doğrudan çalışır; dinleyiciler thread-safe.
+        var previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
         try
         {
             SystemEvents.SessionSwitch += (_, e) =>
@@ -39,6 +44,10 @@ public static class EfficiencyModeManager
         catch
         {
             // SystemEvents may be unavailable in a restricted desktop context.
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
         }
 
         try
