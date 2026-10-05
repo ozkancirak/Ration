@@ -1,5 +1,5 @@
 # docs/brand/*.svg -> src/Ration.App/Assets altındaki PNG'ler ve AppIcon.ico.
-# Chrome ile 1024 px çizer, System.Drawing ile küçültür. 32 px ve altı icon-small.svg'den gelir.
+# Chrome ile 1024 px çizer, System.Drawing ile küçültür. Tüm boyutlar tek kaynaktan (icon.svg) gelir.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
@@ -24,15 +24,13 @@ function Render([string]$svg) {
 }
 
 $large = Render 'icon.svg'
-$small = Render 'icon-small.svg'
 
 function Scaled([int]$w, [int]$h, [int]$iconSize) {
-    $src = if ($iconSize -le 32) { $small } else { $large }
     $bmp = New-Object System.Drawing.Bitmap $w, $h
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.InterpolationMode = 'HighQualityBicubic'
     $g.PixelOffsetMode = 'HighQuality'
-    $g.DrawImage($src, [int](($w - $iconSize) / 2), [int](($h - $iconSize) / 2), $iconSize, $iconSize)
+    $g.DrawImage($large, [int](($w - $iconSize) / 2), [int](($h - $iconSize) / 2), $iconSize, $iconSize)
     $g.Dispose()
     $bmp
 }
@@ -74,5 +72,5 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 foreach ($b in $blobs) { $out.Write($b) }
 $out.Close()
 
-$large.Dispose(); $small.Dispose()
+$large.Dispose()
 Write-Host "Ikonlar yazildi: $assets"
