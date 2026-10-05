@@ -32,7 +32,7 @@
             <Grid x:Name="AppTitleBar"
                   Height="36">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                <FontIcon Glyph="&#xE713;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="16" Height="16" />
                 <TextBlock Text="Ration"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
