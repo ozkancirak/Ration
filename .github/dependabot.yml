@@ -7,6 +7,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    # vpk paketleme aracıdır, uygulamadaki Velopack kütüphanesiyle aynı sürümde olmalı;
+    # ikisi birlikte elle güncellenir.
+    ignore:
+      - dependency-name: "vpk"
     groups:
       nuget-minor-and-patch:
         update-types:
