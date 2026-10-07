@@ -192,6 +192,7 @@
                                                    FontWeight="SemiBold" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{x:Bind ResetText}"
+                                                   ToolTipService.ToolTip="{x:Bind ResetTip}"
                                                    HorizontalAlignment="Right"
                                                    HorizontalTextAlignment="Right"
                                                    Style="{StaticResource CaptionTextBlockStyle}"

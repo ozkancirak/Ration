@@ -17,7 +17,8 @@ public sealed record WindowRow(
     string RemainingText,
     string ResetText,
     string? PaceText,
-    string AutomationName)
+    string AutomationName,
+    string? ResetTip = null)
 {
     public Visibility HeadingVisibility => GroupHeading is null ? Visibility.Collapsed : Visibility.Visible;
     public Visibility PaceVisibility => PaceText is null ? Visibility.Collapsed : Visibility.Visible;
@@ -56,7 +57,9 @@ public sealed record WindowRow(
                         : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı"),
                     ResetTextFor(window.ResetsAt, stale),
                     pace,
-                    L.T($"{title}, {remaining:F0} percent left", $"{title}, yüzde {remaining:F0} kaldı")));
+                    L.T($"{title}, {remaining:F0} percent left", $"{title}, yüzde {remaining:F0} kaldı"),
+                    // Uygulama dili CurrentCulture'a yansıtılır; "f" yerel uzun tarih + kısa saattir.
+                    window.ResetsAt is { } resetsAt ? resetsAt.ToLocalTime().ToString("f") : null));
                 heading = null;
             }
         }
