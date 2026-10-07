@@ -40,6 +40,12 @@ jobs:
       - name: Test
         run: dotnet test -c Debug --no-build --no-restore
 
+      # Gerçek yayın yolu: trimmed self-contained publish ve Velopack paketi. Etiket atılmadan
+      # paketleme bozulursa burada görünür.
+      - name: Package
+        shell: pwsh
+        run: ./scripts/package.ps1 -Configuration Release
+
   secret-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 20
