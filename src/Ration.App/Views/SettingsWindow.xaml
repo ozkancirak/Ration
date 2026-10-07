@@ -323,7 +323,7 @@
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />
 
-            <controls:SettingsCard Description="Windows 11 Native System Tray Quota Tracker">
+            <controls:SettingsCard Description="{l:Loc En='AI coding quotas in your Windows tray.', Tr='Windows tepsisinde AI kodlama kotaların.'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE946;" />
                     </controls:SettingsCard.HeaderIcon>
