@@ -98,8 +98,8 @@
                              ~/.claude/settings.json dosyasına yazmaz; satırı kullanıcı ekler. -->
                         <controls:SettingsCard Header="{l:Loc En='Claude Code status line', Tr='Claude Code durum satırı'}"
                                                Description="{l:Loc En='While Claude Code is running, quota is read from here without a network request. Add the line to ~/.claude/settings.json; it replaces any existing statusLine.', Tr='Kota, Claude Code açıkken ağ isteği olmadan buradan okunur. Satırı ~/.claude/settings.json dosyasına ekleyin; mevcut bir statusLine varsa onun yerine geçer.'}">
-                            <StackPanel Spacing="8" HorizontalAlignment="Right">
-                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                            <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <InfoBadge x:Name="ClaudeStatusLineBadge"
                                                Style="{StaticResource AttentionDotInfoBadgeStyle}"
                                                VerticalAlignment="Center" />
@@ -111,7 +111,7 @@
                                 </StackPanel>
                                 <Button x:Name="CopyStatusLineButton"
                                         Content="{l:Loc En='Copy line', Tr='Satırı kopyala'}"
-                                        HorizontalAlignment="Right" />
+                                        VerticalAlignment="Center" />
                             </StackPanel>
                         </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
