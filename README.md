@@ -9,6 +9,14 @@
 <p align="center"><b>English</b> · <a href="README.tr.md">Türkçe</a></p>
 
 <p align="center">
+  <a href="https://github.com/ozkancirak/Ration/releases/latest"><img src="https://img.shields.io/github/v/release/ozkancirak/Ration?logo=github&style=flat" alt="Release"></a>
+  <a href="https://github.com/ozkancirak/Ration/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/ozkancirak/Ration/ci.yml?branch=master&logo=githubactions&logoColor=white&style=flat" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat" alt="Windows 10 and 11">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ozkancirak/Ration?style=flat" alt="License"></a>
+</p>
+
+
+<p align="center">
   <img src="docs/screenshots/flyout-en.png" width="380" alt="Ration flyout">
 </p>
 
