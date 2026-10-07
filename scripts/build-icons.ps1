@@ -1,5 +1,5 @@
 # docs/brand/*.svg -> src/Ration.App/Assets altındaki PNG'ler ve AppIcon.ico.
-# Chrome ile 1024 px çizer, System.Drawing ile küçültür. Tüm boyutlar tek kaynaktan (icon.svg) gelir.
+# Chrome, icon.svg'yi her boyutta doğrudan o boyutta rasterler (küçültme yok); System.Drawing ICO ve PNG'leri yazar.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
@@ -10,27 +10,35 @@ $chrome = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "ration-icons"
 New-Item -ItemType Directory -Force $tmp | Out-Null
 
-function Render([string]$svg) {
-    $html = Join-Path $tmp "$svg.html"
-    $png = Join-Path $tmp "$svg.png"
-    $src = ([Uri](Join-Path $brand $svg)).AbsoluteUri
-    "<html><body style='margin:0'><img src='$src' width=1024 height=1024 style='display:block'></body></html>" |
+$native = @{}
+
+# icon.svg'yi Chrome ile doğrudan hedef boyutta rasterler. 1024 px'lik bir resmi küçültmek
+# küçük ikonlarda bulanıklık ve koyu hale üretiyordu; vektörden çizilince temiz çıkar.
+function Native([int]$size) {
+    if ($native.ContainsKey($size)) { return $native[$size] }
+    $html = Join-Path $tmp "icon-$size.html"
+    $png = Join-Path $tmp "icon-$size.png"
+    $src = ([Uri](Join-Path $brand 'icon.svg')).AbsoluteUri
+    "<html><body style='margin:0'><img src='$src' width=$size height=$size style='display:block'></body></html>" |
         Set-Content -Encoding utf8 $html
+    if (Test-Path $png) { Remove-Item $png -Force }
+    $window = [Math]::Max($size, 300)
     # Chrome ilerlemeyi stderr'e yazar; Stop tercihinde bu hata sayılır.
     $ErrorActionPreference = 'Continue'
-    & $chrome --headless=new --disable-gpu --hide-scrollbars --default-background-color=00000000 `
-        --window-size=1024,1024 --screenshot="$png" ([Uri]$html).AbsoluteUri 2>$null | Out-Null
-    [System.Drawing.Bitmap]::FromFile($png)
+    & $chrome --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --default-background-color=00000000 `
+        --window-size="$window,$window" --screenshot="$png" ([Uri]$html).AbsoluteUri 2>$null | Out-Null
+    $full = [System.Drawing.Bitmap]::FromFile($png)
+    $rect = New-Object System.Drawing.Rectangle 0, 0, $size, $size
+    $bmp = $full.Clone($rect, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $full.Dispose()
+    $native[$size] = $bmp
+    $bmp
 }
-
-$large = Render 'icon.svg'
 
 function Scaled([int]$w, [int]$h, [int]$iconSize) {
     $bmp = New-Object System.Drawing.Bitmap $w, $h
     $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.InterpolationMode = 'HighQualityBicubic'
-    $g.PixelOffsetMode = 'HighQuality'
-    $g.DrawImage($large, [int](($w - $iconSize) / 2), [int](($h - $iconSize) / 2), $iconSize, $iconSize)
+    $g.DrawImage((Native $iconSize), [int](($w - $iconSize) / 2), [int](($h - $iconSize) / 2), $iconSize, $iconSize)
     $g.Dispose()
     $bmp
 }
@@ -72,5 +80,5 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 foreach ($b in $blobs) { $out.Write($b) }
 $out.Close()
 
-$large.Dispose()
+foreach ($b in $native.Values) { $b.Dispose() }
 Write-Host "Ikonlar yazildi: $assets"
