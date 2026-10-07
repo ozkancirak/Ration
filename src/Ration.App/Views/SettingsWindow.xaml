@@ -306,13 +306,16 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Diagnostics', Tr='Tanılama'}"
-                                       Description="{l:Loc En='Open the Ration log for troubleshooting', Tr='Sorun giderme için Ration günlüğünü aç'}">
+                                       Description="{l:Loc En='Open the log or copy a report with private paths removed', Tr='Günlüğü aç ya da kişisel yolları silinmiş bir rapor kopyala'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE9D9;" />
                     </controls:SettingsCard.HeaderIcon>
-                    <Button x:Name="OpenLogButton"
-                            Content="{l:Loc En='Open log', Tr='Günlüğü aç'}"
-                            HorizontalAlignment="Left" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
+                        <Button x:Name="CopyDiagnosticsButton"
+                                Content="{l:Loc En='Copy diagnostics', Tr='Tanılamayı kopyala'}" />
+                        <Button x:Name="OpenLogButton"
+                                Content="{l:Loc En='Open log', Tr='Günlüğü aç'}" />
+                    </StackPanel>
                 </controls:SettingsCard>
 
             <!-- Bölüm: Hakkında -->

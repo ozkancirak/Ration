@@ -110,6 +110,7 @@ public sealed partial class SettingsWindow : Window
 
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
+        CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = L.T($"Version {UpdateService.CurrentVersion}", $"Sürüm {UpdateService.CurrentVersion}");
         UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastResult);
@@ -367,6 +368,25 @@ public sealed partial class SettingsWindow : Window
         return result.Succeeded
             ? L.T($"Up to date · checked at {checkedAt:t}", $"Güncel · {checkedAt:HH:mm}'de denetlendi")
             : L.T($"Check failed · at {checkedAt:t}", $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi");
+    }
+
+    private async Task CopyDiagnosticsAsync()
+    {
+        var report = DiagnosticsReport.Build(
+            UpdateService.CurrentVersion,
+            $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}",
+            L.Turkish ? "tr" : "en",
+            Trace.ReadLastLines(100),
+            Ration.Core.Providers.KnownPaths.Home);
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(report);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Trace.Info("diagnostics", "report copied");
+
+        CopyDiagnosticsButton.Content = L.T("Copied", "Kopyalandı");
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        CopyDiagnosticsButton.Content = L.T("Copy diagnostics", "Tanılamayı kopyala");
     }
 
     private static void OpenLog()
