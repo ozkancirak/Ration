@@ -1056,9 +1056,13 @@ public sealed partial class FlyoutWindow : Window
             return L.T("Session needs renewal — run Claude Code once", "Oturum yenilenmeli — Claude Code'u bir kez çalıştır");
         }
 
-        return snapshot.ProviderId.Equals("claude", StringComparison.OrdinalIgnoreCase)
-            ? L.T("Sign in to Claude Code again.", "Claude Code'da tekrar giriş yapın.")
-            : L.T("Sign in to the provider again.", "Sağlayıcıda tekrar giriş yapın.");
+        return snapshot.ProviderId.ToLowerInvariant() switch
+        {
+            "claude" => L.T("Sign in to Claude Code again.", "Claude Code'da tekrar giriş yapın."),
+            "codex" => L.T("Run codex login in a terminal to sign in again.", "Yeniden giriş için bir terminalde codex login çalıştırın."),
+            "opencode" => L.T("Run opencode auth login in a terminal to sign in again.", "Yeniden giriş için bir terminalde opencode auth login çalıştırın."),
+            _ => L.T("Sign in to the provider again.", "Sağlayıcıda tekrar giriş yapın."),
+        };
     }
 
     private static string FormatOpenCodeNoQuota(UsageSnapshot snapshot)
