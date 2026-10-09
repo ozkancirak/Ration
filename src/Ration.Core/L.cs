@@ -1,7 +1,5 @@
 using System.Globalization;
-using System.Text.Json;
-using Ration.Core.Diagnostics;
-using Ration.Core.Providers;
+using Ration.Core.Settings;
 
 namespace Ration.Core;
 
@@ -22,38 +20,14 @@ public static class L
 
     public static string T(string en, string tr) => Turkish ? tr : en;
 
-    /// <summary>Kayıtlı seçim (language.json); yoksa Sistem.</summary>
+    /// <summary>Kayıtlı seçim (settings.json, "language"); yoksa Sistem.</summary>
     public static AppLanguage Preference
     {
-        get
-        {
-            try
-            {
-                if (!File.Exists(PreferencePath)) return AppLanguage.System;
-                using var document = JsonDocument.Parse(File.ReadAllText(PreferencePath));
-                return document.RootElement.TryGetProperty("language", out var value)
-                    ? FromTag(value.GetString())
-                    : AppLanguage.System;
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
-            {
-                Trace.Error("language", $"preference-read failed type={ex.GetType().Name}");
-                return AppLanguage.System;
-            }
-        }
-        set
-        {
-            try
-            {
-                Directory.CreateDirectory(KnownPaths.CacheDir);
-                File.WriteAllText(PreferencePath, $"{{\"language\":\"{ToTag(value)}\"}}");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Trace.Error("language", $"preference-write failed type={ex.GetType().Name}");
-            }
-        }
+        get => FromTag(SettingsStore.Default.GetString(SettingKey));
+        set => SettingsStore.Default.Set(SettingKey, ToTag(value));
     }
+
+    private const string SettingKey = "language";
 
     public static bool Resolve(AppLanguage language) => language switch
     {
@@ -91,5 +65,4 @@ public static class L
         _ => AppLanguage.System,
     };
 
-    private static string PreferencePath => Path.Combine(KnownPaths.CacheDir, "language.json");
 }
