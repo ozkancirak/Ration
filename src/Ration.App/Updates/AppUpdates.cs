@@ -1,3 +1,4 @@
+using Ration.Core.Settings;
 using Ration.Core.Updates;
 
 namespace Ration.App.Updates;
@@ -30,5 +31,5 @@ internal static class AppUpdates
         UpdateService.IsNewer(result.AvailableVersion, CurrentVersion);
 
     public static UpdateService Service { get; } =
-        new(new VelopackUpdateSource(RepositoryUrl), new RegistryUpdateStateStore());
+        new(new VelopackUpdateSource(RepositoryUrl), new SettingsUpdateStateStore(SettingsStore.Default));
 }
