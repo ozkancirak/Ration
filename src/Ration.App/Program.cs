@@ -42,6 +42,7 @@ internal static class Program
             // update is applied here; startup auto-apply is deliberately off.
             VelopackApp.Build()
                 .SetAutoApplyOnStartup(false)
+                .OnBeforeUninstallFastCallback(_ => Ration.Platform.Windows.App.UninstallCleanup.Run())
                 .Run();
         }
         catch (Exception ex)
