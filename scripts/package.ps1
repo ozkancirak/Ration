@@ -108,6 +108,20 @@ try {
         --channel win-x64 `
         --outputDir $releaseDir
 
+    # Paketlenen uygulama açılıyor mu ve csproj'daki sürümü mü bildiriyor? Yayından önce yakalanır.
+    $smokeOutput = Join-Path $outputRoot 'smoke-version.txt'
+    $smoke = Start-Process -FilePath $mainExe -ArgumentList '--version' -PassThru -RedirectStandardOutput $smokeOutput
+    $null = $smoke.Handle  # tutulmazsa ExitCode, çıkıştan sonra boş gelir
+    if (-not $smoke.WaitForExit(30000)) {
+        $smoke.Kill()
+        throw 'Paketlenen uygulama --version ile 30 saniyede kapanmadı.'
+    }
+    $reported = if (Test-Path -LiteralPath $smokeOutput) { (Get-Content -LiteralPath $smokeOutput -Raw).Trim() } else { '' }
+    if ($smoke.ExitCode -ne 0 -or $reported -ne "Ration $version") {
+        throw "Paketlenen uygulama sürüm testini geçemedi (çıkış kodu $($smoke.ExitCode), çıktı '$reported', beklenen 'Ration $version')."
+    }
+    Write-Host "Sürüm testi: $reported"
+
     $deltas = @(Get-ChildItem -LiteralPath $releaseDir -Filter '*-delta.nupkg' -File)
     if ($DeltaFromRepo) { Write-Host "Delta paketleri: $($deltas.Count)" }
 

@@ -16,6 +16,15 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Paketleme doğrulaması (scripts/package.ps1): uygulama açılıyor mu, sürüm doğru mu.
+        // Arayüz kurulmadan, hiçbir tercihe dokunmadan çıkar.
+        if (args.Length > 0 && args[0].Equals("--version", StringComparison.OrdinalIgnoreCase))
+        {
+            AttachConsole(AttachParentProcess);
+            Console.WriteLine($"Ration {Ration.App.Updates.AppUpdates.CurrentVersion}");
+            return;
+        }
+
         // Dil dahil her tercih SettingsStore'dan okunur; eski sürümlerin dosya ve kayıt defteri
         // değerleri L ilk kullanılmadan önce alınmalı, yoksa ilk açılışta dil kaybolur.
         Ration.Core.LegacySettingsMigration.Run();
