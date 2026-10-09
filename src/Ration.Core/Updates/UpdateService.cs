@@ -25,6 +25,8 @@ public sealed class UpdateService
     private readonly IUpdateSource _source;
     private readonly IUpdateStateStore _store;
     private readonly Func<DateTimeOffset> _clock;
+    private AvailableUpdate? _found;
+    private bool _downloading;
 
     public UpdateService(IUpdateSource source, IUpdateStateStore store, Func<DateTimeOffset>? clock = null)
     {
@@ -34,6 +36,9 @@ public sealed class UpdateService
     }
 
     public UpdateCheckResult? LastResult => _store.Load();
+
+    /// <summary>Bulunan güncelleme indirildi ve uygulanmaya hazır.</summary>
+    public bool IsDownloaded { get; private set; }
 
     public async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -48,6 +53,7 @@ public sealed class UpdateService
             else
             {
                 var update = await _source.CheckAsync(cancellationToken).ConfigureAwait(false);
+                Remember(update);
                 result = update is null
                     ? new(true, false, null, true, checkedAt)
                     : new(true, true, update.Version, true, checkedAt);
@@ -61,6 +67,63 @@ public sealed class UpdateService
 
         Save(result);
         return result;
+    }
+
+    /// <summary>
+    /// Bulunan güncellemeyi indirir. Önceki oturumdan kalma "güncelleme var" bilgisinde kaynak
+    /// nesnesi bellekte yoktur; o zaman önce yeniden bulunur. Başarısızlık uygulamayı etkilemez.
+    /// </summary>
+    public async Task<bool> DownloadAsync(CancellationToken cancellationToken = default)
+    {
+        if (_downloading) return false;
+        _downloading = true;
+        try
+        {
+            var update = _found ?? await _source.CheckAsync(cancellationToken).ConfigureAwait(false);
+            Remember(update);
+            if (update is null) return false;
+
+            await _source.DownloadAsync(update, cancellationToken).ConfigureAwait(false);
+            IsDownloaded = true;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Trace.Error("updates", $"download failed type={ex.GetType().Name}");
+            return false;
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    /// <summary>
+    /// Saklanan "güncelleme var" bilgisi güncellemeden sonra bayat kalır; sürüm şu anki sürümden
+    /// gerçekten yeni mi. Ön sürüm eki (-beta) aynı numaralı kararlı sürümden eski sayılır.
+    /// </summary>
+    public static bool IsNewer(string? available, string current)
+    {
+        if (!TryParse(available, out var a, out var aPre) || !TryParse(current, out var c, out var cPre)) return false;
+        var order = a.CompareTo(c);
+        return order > 0 || (order == 0 && aPre is null && cPre is not null);
+    }
+
+    private static bool TryParse(string? text, out Version version, out string? preRelease)
+    {
+        version = new Version();
+        preRelease = null;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var parts = text.Trim().TrimStart('v').Split('-', 2);
+        if (parts.Length == 2) preRelease = parts[1];
+        return Version.TryParse(parts[0], out version!);
+    }
+
+    private void Remember(AvailableUpdate? update)
+    {
+        if (update?.Version != _found?.Version) IsDownloaded = false;
+        _found = update;
     }
 
     private void Save(UpdateCheckResult result)

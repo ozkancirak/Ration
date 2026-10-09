@@ -24,4 +24,7 @@ internal sealed class VelopackUpdateSource : IUpdateSource
             ? null
             : new AvailableUpdate(update.TargetFullRelease.Version.ToString(), update);
     }
+
+    public Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken) =>
+        _manager.DownloadUpdatesAsync((UpdateInfo)update.Package!, cancelToken: cancellationToken);
 }

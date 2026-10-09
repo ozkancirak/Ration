@@ -111,11 +111,12 @@ public sealed partial class SettingsWindow : Window
         NotificationsToggle.Toggled += (_, _) => QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
 
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
+        InstallUpdateButton.Click += async (_, _) => await DownloadUpdateAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = L.T($"Version {AppUpdates.CurrentVersion}", $"Sürüm {AppUpdates.CurrentVersion}");
-        UpdateStatusText.Text = UpdateStatusTextFor(AppUpdates.Service.LastResult);
+        ShowUpdateState(AppUpdates.Service.LastResult);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -346,22 +347,54 @@ public sealed partial class SettingsWindow : Window
     private async Task CheckForUpdatesAsync()
     {
         CheckUpdatesButton.IsEnabled = false;
+        InstallUpdateButton.IsEnabled = false;
         UpdateStatusText.Text = L.T("Checking…", "Denetleniyor…");
         try
         {
-            var result = await AppUpdates.Service.CheckAsync();
-            UpdateStatusText.Text = UpdateStatusTextFor(result);
+            ShowUpdateState(await AppUpdates.Service.CheckAsync());
         }
         finally
         {
             CheckUpdatesButton.IsEnabled = true;
+            InstallUpdateButton.IsEnabled = true;
         }
     }
+
+    private async Task DownloadUpdateAsync()
+    {
+        var result = AppUpdates.Service.LastResult;
+        CheckUpdatesButton.IsEnabled = false;
+        InstallUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = L.T("Downloading…", "İndiriliyor…");
+        try
+        {
+            var downloaded = await AppUpdates.Service.DownloadAsync();
+            UpdateStatusText.Text = downloaded
+                ? L.T($"Version {result?.AvailableVersion} downloaded", $"Sürüm {result?.AvailableVersion} indirildi")
+                : L.T("Download failed", "İndirilemedi");
+        }
+        finally
+        {
+            CheckUpdatesButton.IsEnabled = true;
+            InstallUpdateButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Durum metnini yazar; indirme düğmesi yalnızca gerçekten yeni bir sürüm varken görünür.</summary>
+    private void ShowUpdateState(UpdateCheckResult? result)
+    {
+        UpdateStatusText.Text = UpdateStatusTextFor(result);
+        InstallUpdateButton.Visibility = HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static bool HasNewerUpdate(UpdateCheckResult? result) =>
+        result is { UpdateAvailable: true, IsInstalled: true } &&
+        UpdateService.IsNewer(result.AvailableVersion, AppUpdates.CurrentVersion);
 
     private static string UpdateStatusTextFor(UpdateCheckResult? result)
     {
         if (result is null) return L.T("Not checked yet", "Henüz denetlenmedi");
-        if (result.UpdateAvailable && !string.IsNullOrWhiteSpace(result.AvailableVersion))
+        if (HasNewerUpdate(result))
         {
             return L.T($"Version {result.AvailableVersion} available", $"Sürüm {result.AvailableVersion} hazır");
         }
