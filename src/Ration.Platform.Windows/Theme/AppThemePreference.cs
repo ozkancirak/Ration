@@ -1,5 +1,4 @@
-using System.Text.Json;
-using Ration.Core.Diagnostics;
+using Ration.Core.Settings;
 
 namespace Ration.Platform.Windows.Theme;
 
@@ -74,44 +73,7 @@ public static class AppThemePreference
         _ => AppThemeMode.System,
     };
 
-    private static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Ration",
-        "theme.json");
+    private static AppThemeMode Load() => FromTag(SettingsStore.Default.GetString(ThemeProperty));
 
-    private static AppThemeMode Load()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath)) return AppThemeMode.System;
-            using var stream = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var document = JsonDocument.Parse(stream);
-            if (document.RootElement.TryGetProperty(ThemeProperty, out var value) &&
-                value.ValueKind == JsonValueKind.String)
-            {
-                return FromTag(value.GetString());
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            Trace.Error("theme", $"preference-read failed type={ex.GetType().Name}");
-        }
-
-        return AppThemeMode.System;
-    }
-
-    private static void Save(AppThemeMode mode)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(SettingsPath)!;
-            Directory.CreateDirectory(directory);
-            var json = JsonSerializer.Serialize(new { theme = ToTag(mode) });
-            File.WriteAllText(SettingsPath, json);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Trace.Error("theme", $"preference-write failed type={ex.GetType().Name}");
-        }
-    }
+    private static void Save(AppThemeMode mode) => SettingsStore.Default.Set(ThemeProperty, ToTag(mode));
 }
