@@ -69,6 +69,21 @@ public sealed class SystemTrayHost : IDisposable
         if (_added) Apply();
     }
 
+    /// <summary>Simgenin ekran dikdörtgeni; kabuk henüz eklemediyse false.</summary>
+    public bool TryGetBounds(out NativeMethods.RECT bounds)
+    {
+        bounds = default;
+        if (_disposed || !_added) return false;
+
+        var identifier = new NativeMethods.NOTIFYICONIDENTIFIER
+        {
+            cbSize = (uint)Marshal.SizeOf<NativeMethods.NOTIFYICONIDENTIFIER>(),
+            hWnd = _hwnd,
+            uID = IconId,
+        };
+        return NativeMethods.Shell_NotifyIconGetRect(ref identifier, out bounds) == 0 && bounds.Width > 0;
+    }
+
     private void Apply()
     {
         if (_hwnd == IntPtr.Zero || _icon == IntPtr.Zero) return;

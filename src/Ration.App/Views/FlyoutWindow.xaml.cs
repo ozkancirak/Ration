@@ -1267,9 +1267,11 @@ public sealed partial class FlyoutWindow : Window
     {
         bool isLightTheme = AppThemePreference.IsTaskbarLightTheme();
 
-        uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
-        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
-        if (dpi == 0) dpi = 96;
+        // Simge, görev çubuğunun bulunduğu ekranın ölçeğinde çizilir; pencerenin DPI'ı
+        // başka bir ekrandan geliyorsa ikon yanlış boyda üretilip kabuk tarafından yeniden ölçeklenirdi.
+        uint dpi = _tray.TryGetBounds(out var trayBounds) && FlyoutPositioner.ForRect(trayBounds) is { } trayAnchor
+            ? trayAnchor.Dpi
+            : WindowDpi();
 
         int iconSize = NativeMethods.GetSystemMetricsForDpi(NativeMethods.SM_CXSMICON, dpi);
         if (iconSize <= 0) iconSize = (int)Math.Round(16 * (dpi / 96.0));

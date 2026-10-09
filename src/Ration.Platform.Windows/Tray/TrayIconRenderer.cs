@@ -114,9 +114,14 @@ public static class TrayIconRenderer
                 g.FillRectangle(dashBrush, dashX, dashY, dashWidth, borderWidth);
             }
 
-            // Konturu en son çiz: dolgu hiçbir zaman 1px çerçeveyi yutamaz.
-            using var borderPen = new Pen(borderColor, borderWidth);
-            g.DrawRectangle(borderPen, tankX, tankY, tankW - 1, tankH - 1);
+            // Konturu en son çiz: dolgu hiçbir zaman çerçeveyi yutamaz. Kalem çizgiyi
+            // ortalayıp 2px ve üstünde bir tarafı taşırdığı için çerçeve tam piksel
+            // dikdörtgenlerle çizilir.
+            using var borderBrush = new SolidBrush(borderColor);
+            g.FillRectangle(borderBrush, tankX, tankY, tankW, borderWidth);
+            g.FillRectangle(borderBrush, tankX, tankY + tankH - borderWidth, tankW, borderWidth);
+            g.FillRectangle(borderBrush, tankX, tankY, borderWidth, tankH);
+            g.FillRectangle(borderBrush, tankX + tankW - borderWidth, tankY, borderWidth, tankH);
         }
 
         return bitmap;
