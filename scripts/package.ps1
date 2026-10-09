@@ -2,7 +2,10 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$OutputRoot
+    [string]$OutputRoot,
+    # Önceki sürümün tam paketi bu depodan indirilir; vpk pack bununla fark (delta) paketi üretir.
+    # Kullanıcı yalnızca değişen kısmı indirir. Önceki sürüm yoksa ya da inmezse yalnızca tam paket çıkar.
+    [string]$DeltaFromRepo
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,6 +72,17 @@ Push-Location $repoRoot
 try {
     dotnet restore Ration.slnx
     dotnet tool restore
+
+    if ($DeltaFromRepo) {
+        $download = @('download', 'github', '--repoUrl', $DeltaFromRepo, '--outputDir', $releaseDir, '--channel', 'win-x64')
+        if ($env:GITHUB_TOKEN) { $download += @('--token', $env:GITHUB_TOKEN) }
+        dotnet tool run vpk @download
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Önceki sürüm indirilemedi; yalnızca tam paket üretilecek.'
+            $global:LASTEXITCODE = 0
+        }
+    }
+
     dotnet publish $project `
         -c $Configuration `
         -r win-x64 `
@@ -93,6 +107,9 @@ try {
         --icon $icon `
         --channel win-x64 `
         --outputDir $releaseDir
+
+    $deltas = @(Get-ChildItem -LiteralPath $releaseDir -Filter '*-delta.nupkg' -File)
+    if ($DeltaFromRepo) { Write-Host "Delta paketleri: $($deltas.Count)" }
 
     $setup = Get-ChildItem -LiteralPath $releaseDir -Filter '*-Setup.exe' -File
     $portable = Get-ChildItem -LiteralPath $releaseDir -Filter '*-Portable.zip' -File

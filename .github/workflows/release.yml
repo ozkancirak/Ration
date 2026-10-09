@@ -27,9 +27,12 @@ jobs:
           $version = ([xml](Get-Content src/Ration.App/Ration.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
           if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match version $version" }
 
+      # Önceki yayından fark (delta) paketi üretilir; güncelleme yalnızca değişeni indirir.
       - name: Package
         shell: pwsh
-        run: ./scripts/package.ps1 -Configuration Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/package.ps1 -Configuration Release -DeltaFromRepo https://github.com/${{ github.repository }}
 
       # Taslak olarak yüklenir; notlar eklendikten sonra elle yayınlanır.
       - name: Upload draft release
