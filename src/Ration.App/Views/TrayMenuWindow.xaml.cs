@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Graphics;
 using Ration.Core.Diagnostics;
+using Ration.Core.Layout;
 using Ration.Platform.Windows.Interop;
 using Ration.Platform.Windows.Theme;
 
@@ -108,13 +109,16 @@ public sealed partial class TrayMenuWindow : Window
     public void ShowAtCursor()
     {
         AppTheme.Apply(RootLayout);
-        var (physW, physH) = MeasureMenu(out int dipW, out int dipH);
+        // DPI hedef ekrandan alınır: pencere şu an başka ölçekli bir ekranda durabilir.
+        var anchor = FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
+        var (physW, physH) = MeasureMenu(anchor?.Dpi ?? WindowDpi(), out _, out _);
 
-        var placement = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, physW, physH);
-        var (x, y, edge) = (placement.X, placement.Y, placement.Edge);
+        var placement = anchor?.Place(physW, physH) ?? new FlyoutPlacement(100, 100, FlyoutEdge.Bottom);
+        var bounds = new RectInt32(placement.X, placement.Y, physW, physH);
 
-        _appWindow.MoveAndResize(new RectInt32(x, y, physW, physH));
-        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
+        _appWindow.MoveAndResize(bounds);
+        if (anchor is { } known && NativeMethods.GetDpiForWindow(_hwnd) != known.Dpi) _appWindow.MoveAndResize(bounds);
+        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, placement.Edge);
         _isVisible = true;
         RefreshButton.Focus(FocusState.Programmatic);
         Trace.Info("menu", "show");
@@ -126,15 +130,20 @@ public sealed partial class TrayMenuWindow : Window
             () =>
             {
                 if (!_isVisible) return;
-                var (w2, h2) = MeasureMenu(out _, out _);
+                var (w2, h2) = MeasureMenu(WindowDpi(), out _, out _);
                 _appWindow.ResizeClient(new SizeInt32(w2, h2));
             });
     }
 
-    private (int PhysW, int PhysH) MeasureMenu(out int dipW, out int dipH)
+    private uint WindowDpi()
     {
-        uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
+        var dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
+        return dpi == 0 ? 96 : dpi;
+    }
+
+    private (int PhysW, int PhysH) MeasureMenu(uint dpi, out int dipW, out int dipH)
+    {
         double scale = dpi / 96.0;
 
         RootLayout.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));

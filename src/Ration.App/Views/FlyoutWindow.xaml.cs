@@ -1337,8 +1337,9 @@ public sealed partial class FlyoutWindow : Window
 
     public void ShowFlyout()
     {
-        uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
-        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
+        // DPI hedef ekrandan alınır: gizli pencere şu an başka bir ekranda, başka ölçekte durabilir.
+        var anchor = FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
+        uint dpi = anchor?.Dpi ?? WindowDpi();
         double scale = dpi / 96.0;
 
         int targetWidth = (int)Math.Round(FlyoutWidthDip * scale);
@@ -1348,40 +1349,34 @@ public sealed partial class FlyoutWindow : Window
         double desiredHeightDip = MeasureSelectedContentDip();
         if (desiredHeightDip <= 0) desiredHeightDip = 390;
 
-        // Imlec konumuna dus: tiklamayla acarken zaten dogru sonucu verir.
-        // GUID ile Shell_NotifyIconGetRect denemeye gerek yok.
-        var provisional = FlyoutPositioner.CalculatePosition(
-            Guid.Empty,
-            _hwnd,
-            0,
-            targetWidth,
-            (int)Math.Round(desiredHeightDip * scale));
-        var pt = new NativeMethods.POINT { X = provisional.X, Y = provisional.Y };
-        IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
-        NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo);
+        int maxHeight = anchor is { } known ? (int)Math.Round(known.Work.Height * 0.85) : int.MaxValue;
+        int targetHeight = Math.Min((int)Math.Round((desiredHeightDip + 12) * scale), maxHeight);
 
-        int maxHeight = (int)Math.Round(monitorInfo.rcWork.Height * 0.85);
-
-        int targetHeight = Math.Min(
-            (int)Math.Round((desiredHeightDip + 12) * scale),
-            maxHeight);
-
-        // 1 & 4d: imlec konumundan hizala, calisma alanina kirp
-        var placement = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, targetWidth, targetHeight);
-        var (x, y, edge) = (placement.X, placement.Y, placement.Edge);
+        // İmleç konumundan hizala, çalışma alanına kırp.
+        var placement = anchor?.Place(targetWidth, targetHeight) ?? new FlyoutPlacement(100, 100, FlyoutEdge.Bottom);
+        var bounds = new RectInt32(placement.X, placement.Y, targetWidth, targetHeight);
 
         EfficiencyModeManager.SetEfficiencyMode(false);
-        _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
-        _edge = edge;
-        _anchorBottom = y + targetHeight;
-        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);
+        _appWindow.MoveAndResize(bounds);
+        // Pencere başka ölçekli bir ekrana taşınınca Windows kendi önerdiği boyutu uygulayabilir;
+        // bizim hesapladığımız fiziksel boyut geri konur.
+        if (NativeMethods.GetDpiForWindow(_hwnd) != dpi) _appWindow.MoveAndResize(bounds);
+        _edge = placement.Edge;
+        _anchorBottom = placement.Y + targetHeight;
+        PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, placement.Edge);
 
         _isVisible = true;
-        Trace.Info("window", "flyout.show");
+        Trace.Info("window", $"flyout.show dpi={dpi}");
 
         _ = RefreshOnFlyoutShownAsync();
         RefreshCost(force: false);
+    }
+
+    private uint WindowDpi()
+    {
+        var dpi = NativeMethods.GetDpiForWindow(_hwnd);
+        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
+        return dpi == 0 ? 96 : dpi;
     }
 
     /// <summary>
@@ -1401,21 +1396,19 @@ public sealed partial class FlyoutWindow : Window
         var desiredHeightDip = MeasureSelectedContentDip();
         if (desiredHeightDip <= 0) return;
 
-        var dpi = NativeMethods.GetDpiForWindow(_hwnd);
-        if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
-        if (dpi == 0) dpi = 96;
-        var scale = dpi / 96.0;
+        var scale = WindowDpi() / 96.0;
 
-        int targetHeight = Math.Min(
-            (int)Math.Round((desiredHeightDip + 12) * scale),
-            PopoverHelper.WorkAreaMaxHeight());
-        if (targetHeight <= 0) return;
-
+        // Tavan, imlecin değil pencerenin bulunduğu ekranın çalışma alanıdır.
         var position = _appWindow.Position;
         var pt = new NativeMethods.POINT { X = position.X, Y = position.Y };
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
         NativeMethods.GetMonitorInfo(
             NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST), ref monitorInfo);
+
+        int targetHeight = Math.Min(
+            (int)Math.Round((desiredHeightDip + 12) * scale),
+            (int)Math.Round(monitorInfo.rcWork.Height * 0.85));
+        if (targetHeight <= 0) return;
 
         // Alt görev çubuğu: alt kenar sabit, pencere yukarı büyür. Üst/yan: üst kenar sabit,
         // alttan taşarsa yukarı itilir. Her durumda çalışma alanının içinde kalır.

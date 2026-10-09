@@ -120,4 +120,23 @@ public class FlyoutGeometryTests
         Assert.Equal(FlyoutEdge.Bottom, FlyoutGeometry.DetectEdge(IconAt(1000, 1056), Monitor, work));
         Assert.Equal(FlyoutEdge.Right, FlyoutGeometry.DetectEdge(IconAt(1910, 400), Monitor, work));
     }
+
+    [Theory]
+    [InlineData(1920, 0)]      // birincil ekranın sağında
+    [InlineData(-2560, 0)]     // solunda (negatif koordinat)
+    [InlineData(300, -1080)]   // üstünde
+    public void SecondaryMonitor_PlacesInsideItsOwnWorkArea(int originX, int originY)
+    {
+        // 150% ölçekli ikinci ekran: 2560x1440 fiziksel piksel, alt görev çubuğu 72 px.
+        var monitor = new Bounds(originX, originY, originX + 2560, originY + 1440);
+        var work = new Bounds(originX, originY, originX + 2560, originY + 1368);
+        var icon = IconAt(originX + 2400, originY + 1404, 36);
+        var margin = FlyoutGeometry.ScaledMargin(144);
+
+        var placement = FlyoutGeometry.Place(icon, monitor, work, 570, 630, margin);
+
+        Assert.Equal(FlyoutEdge.Bottom, placement.Edge);
+        Assert.InRange(placement.X, work.Left + margin, work.Right - margin - 570);
+        Assert.Equal(work.Bottom - margin - 630, placement.Y);
+    }
 }
