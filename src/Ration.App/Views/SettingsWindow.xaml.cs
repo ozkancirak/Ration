@@ -116,6 +116,7 @@ public sealed partial class SettingsWindow : Window
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         InstallUpdateButton.Click += async (_, _) => await DownloadUpdateAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
+        OpenDataFolderButton.Click += (_, _) => OpenDataFolder();
         CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = L.T($"Version {AppUpdates.CurrentVersion}", $"Sürüm {AppUpdates.CurrentVersion}");
@@ -454,6 +455,24 @@ public sealed partial class SettingsWindow : Window
         CopyDiagnosticsButton.Content = L.T("Copied", "Kopyalandı");
         await Task.Delay(TimeSpan.FromSeconds(2));
         CopyDiagnosticsButton.Content = L.T("Copy diagnostics", "Tanılamayı kopyala");
+    }
+
+    private static void OpenDataFolder()
+    {
+        try
+        {
+            Trace.Info("settings", "data-folder-open");
+            Directory.CreateDirectory(KnownPaths.CacheDir);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = KnownPaths.CacheDir,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            Trace.Error("settings", $"data-folder-open failed type={ex.GetType().Name}");
+        }
     }
 
     private static void OpenLog()
