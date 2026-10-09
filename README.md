@@ -49,7 +49,20 @@ The two hashes must match (PowerShell prints upper case, the file lower case). W
 
 ## Privacy
 
-Credential files are read-only. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged.
+Credential files are read-only. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
+
+## Data
+
+Ration keeps its files in `%LOCALAPPDATA%\Ration` (the installer lives there too):
+
+- `settings.json`: your preferences (language, theme, refresh interval, tray provider, notifications, last update check)
+- `pricing.json`: cached model prices
+- `snapshots\`: last quota readings
+- `ration.log`: diagnostic log with secrets redacted
+
+Settings has buttons to open this folder and to reset the settings.
+
+To remove Ration, uninstall it from Windows Settings > Apps. That removes the app, its start-with-Windows entry, its notification registration and the whole folder above, settings included. If you use the portable zip, turn off *Start with Windows* first, then delete the zip folder and `%LOCALAPPDATA%\Ration`.
 
 ## Development
 

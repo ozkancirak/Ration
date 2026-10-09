@@ -49,7 +49,20 @@ Select-String Setup .\SHA256SUMS.txt
 
 ## Gizlilik
 
-Kimlik dosyaları salt okunur açılır. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir.
+Kimlik dosyaları salt okunur açılır. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
+
+## Veriler
+
+Ration dosyalarını `%LOCALAPPDATA%\Ration` altında tutar (kurulum da burada durur):
+
+- `settings.json`: tercihlerin (dil, tema, yenileme aralığı, tepsi sağlayıcısı, bildirimler, son güncelleme denetimi)
+- `pricing.json`: önbelleğe alınmış model fiyatları
+- `snapshots\`: son kota okumaları
+- `ration.log`: sırları maskelenmiş tanılama günlüğü
+
+Ayarlar'da bu klasörü açan ve ayarları sıfırlayan düğmeler var.
+
+Ration'ı kaldırmak için Windows Ayarlar > Uygulamalar'dan kaldır. Bu işlem uygulamayı, Windows ile Başlat girdisini, bildirim kaydını ve yukarıdaki klasörün tamamını (ayarlar dahil) siler. Taşınabilir zip kullanıyorsan önce *Windows ile Başlat*'ı kapat, sonra zip klasörünü ve `%LOCALAPPDATA%\Ration`'ı sil.
 
 ## Geliştirme
 
