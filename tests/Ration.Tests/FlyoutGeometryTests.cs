@@ -60,4 +60,64 @@ public class FlyoutGeometryTests
 
         Assert.Equal(WorkBottom.Top + 8, placement.Y);
     }
+
+    [Fact]
+    public void TopTaskbar_PlacesBelowIcon()
+    {
+        var work = new Bounds(0, 48, 1920, 1080);
+        var icon = IconAt(1700, 24);
+
+        var placement = FlyoutGeometry.Place(icon, Monitor, work, 380, 420, 8);
+
+        Assert.Equal(FlyoutEdge.Top, placement.Edge);
+        Assert.Equal(work.Top + 8, placement.Y);
+        Assert.Equal(icon.CenterX - 190, placement.X);
+    }
+
+    [Fact]
+    public void LeftTaskbar_PlacesToTheRightAndCentersOnIcon()
+    {
+        var work = new Bounds(64, 0, 1920, 1080);
+        var icon = IconAt(32, 600);
+
+        var placement = FlyoutGeometry.Place(icon, Monitor, work, 380, 420, 8);
+
+        Assert.Equal(FlyoutEdge.Left, placement.Edge);
+        Assert.Equal(work.Left + 8, placement.X);
+        Assert.Equal(icon.CenterY - 210, placement.Y);
+    }
+
+    [Fact]
+    public void RightTaskbar_PlacesToTheLeftAndCentersOnIcon()
+    {
+        var work = new Bounds(0, 0, 1856, 1080);
+        var icon = IconAt(1888, 600);
+
+        var placement = FlyoutGeometry.Place(icon, Monitor, work, 380, 420, 8);
+
+        Assert.Equal(FlyoutEdge.Right, placement.Edge);
+        Assert.Equal(work.Right - 8 - 380, placement.X);
+        Assert.Equal(icon.CenterY - 210, placement.Y);
+    }
+
+    [Theory]
+    [InlineData(1700, 1056, FlyoutEdge.Bottom)]
+    [InlineData(1700, 24, FlyoutEdge.Top)]
+    [InlineData(24, 600, FlyoutEdge.Left)]
+    [InlineData(1896, 600, FlyoutEdge.Right)]
+    public void AutoHiddenTaskbar_UsesTheEdgeNearestTheIcon(int x, int y, FlyoutEdge expected)
+    {
+        // Otomatik gizlemede çalışma alanı ekranın tamamıdır; kenar simgenin yerinden bulunur.
+        Assert.Equal(expected, FlyoutGeometry.DetectEdge(IconAt(x, y), Monitor, Monitor));
+    }
+
+    [Fact]
+    public void SeveralShrunkEdges_PickTheOneNearestTheIcon()
+    {
+        // Alt görev çubuğu + sağda yan çubuk: iki kenar da kısalmış.
+        var work = new Bounds(0, 0, 1600, 1032);
+
+        Assert.Equal(FlyoutEdge.Bottom, FlyoutGeometry.DetectEdge(IconAt(1000, 1056), Monitor, work));
+        Assert.Equal(FlyoutEdge.Right, FlyoutGeometry.DetectEdge(IconAt(1910, 400), Monitor, work));
+    }
 }

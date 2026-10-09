@@ -30,13 +30,44 @@ public static class FlyoutGeometry
     /// <summary>Boşluk fiziksel piksele çevrilir; 200% ölçekte 8 piksel sıkışık görünüyordu.</summary>
     public static int ScaledMargin(uint dpi) => (int)Math.Round(MarginDip * (dpi == 0 ? 96 : dpi) / 96.0);
 
-    /// <summary>Görev çubuğunun kenarı: çalışma alanının kısaldığı kenar (üst, sol, sağ, yoksa alt).</summary>
+    /// <summary>
+    /// Görev çubuğunun hangi kenarda olduğunu bulur. Çalışma alanı bir kenardan kısalmışsa
+    /// o kenardır; birden çok kenar kısalmışsa (yan çubuk, bağlı pencere) simgeye en yakın
+    /// olan seçilir. Hiçbiri kısalmamışsa (otomatik gizle) yine simgeye en yakın kenar.
+    /// </summary>
     public static FlyoutEdge DetectEdge(Bounds icon, Bounds monitor, Bounds work)
     {
-        if (work.Top > monitor.Top) return FlyoutEdge.Top;
-        if (work.Left > monitor.Left) return FlyoutEdge.Left;
-        if (work.Right < monitor.Right) return FlyoutEdge.Right;
-        return FlyoutEdge.Bottom;
+        var shrunk = new List<FlyoutEdge>(4);
+        if (work.Bottom < monitor.Bottom) shrunk.Add(FlyoutEdge.Bottom);
+        if (work.Top > monitor.Top) shrunk.Add(FlyoutEdge.Top);
+        if (work.Left > monitor.Left) shrunk.Add(FlyoutEdge.Left);
+        if (work.Right < monitor.Right) shrunk.Add(FlyoutEdge.Right);
+        if (shrunk.Count == 1) return shrunk[0];
+
+        var candidates = shrunk.Count > 1
+            ? shrunk
+            : [FlyoutEdge.Bottom, FlyoutEdge.Top, FlyoutEdge.Left, FlyoutEdge.Right];
+
+        // Eşitlikte listedeki ilk (Bottom öncelikli) kazanır.
+        var best = candidates[0];
+        var bestDistance = int.MaxValue;
+        foreach (var edge in candidates)
+        {
+            var distance = edge switch
+            {
+                FlyoutEdge.Bottom => Math.Abs(monitor.Bottom - icon.CenterY),
+                FlyoutEdge.Top => Math.Abs(icon.CenterY - monitor.Top),
+                FlyoutEdge.Left => Math.Abs(icon.CenterX - monitor.Left),
+                _ => Math.Abs(monitor.Right - icon.CenterX),
+            };
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = edge;
+            }
+        }
+
+        return best;
     }
 
     public static FlyoutPlacement Place(Bounds icon, Bounds monitor, Bounds work, int width, int height, int margin)
