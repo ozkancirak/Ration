@@ -85,7 +85,7 @@ public sealed class SettingsStoreTests : IDisposable
         store.Set("a", "1");
         store.Set("a", "2");
 
-        Assert.Equal(["settings.json"], Directory.GetFiles(_dir).Select(Path.GetFileName).ToArray());
+        Assert.Equal(["settings.json"], Directory.GetFiles(_dir).Select(file => Path.GetFileName(file)).ToArray());
     }
 
     [Fact]
