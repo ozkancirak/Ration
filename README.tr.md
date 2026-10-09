@@ -36,6 +36,17 @@ Claude Code · Codex · Antigravity · OpenCode
 
 [Releases](https://github.com/ozkancirak/Ration/releases) sayfasından `Ration-win-x64-Setup.exe` veya taşınabilir zip'i indir. Windows 10 1809 ve üstü gerekir; Windows 11 için tasarlandı. İmzasız sürümlerde SmartScreen uyarı verebilir.
 
+### İndirmeyi doğrula
+
+Her sürümde, dosyaların SHA-256 özetlerini listeleyen bir `SHA256SUMS.txt` bulunur. Kurulum dosyasının yanına indirip karşılaştır:
+
+```powershell
+Get-FileHash .\Ration-win-x64-Setup.exe -Algorithm SHA256
+Select-String Setup .\SHA256SUMS.txt
+```
+
+İki özet aynı olmalı (PowerShell büyük, dosya küçük harfle yazar). Unix tarzı kabukta: `sha256sum -c SHA256SUMS.txt --ignore-missing`. Uygulama içi güncelleme kendi indirmelerini kendisi denetler; dosya elle yapılan indirmeler içindir.
+
 ## Gizlilik
 
 Kimlik dosyaları salt okunur açılır. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir.

@@ -36,6 +36,17 @@ Claude Code · Codex · Antigravity · OpenCode
 
 Download `Ration-win-x64-Setup.exe` or the portable zip from [Releases](https://github.com/ozkancirak/Ration/releases). Requires Windows 10 1809 or later; designed for Windows 11. Unsigned builds may trigger a SmartScreen warning.
 
+### Verify a download
+
+Every release has a `SHA256SUMS.txt` file listing the SHA-256 hash of each file. Download it next to the installer and compare:
+
+```powershell
+Get-FileHash .\Ration-win-x64-Setup.exe -Algorithm SHA256
+Select-String Setup .\SHA256SUMS.txt
+```
+
+The two hashes must match (PowerShell prints upper case, the file lower case). With a Unix-style shell: `sha256sum -c SHA256SUMS.txt --ignore-missing`. The built-in updater checks its own downloads; the file is for manual downloads.
+
 ## Privacy
 
 Credential files are read-only. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged.
