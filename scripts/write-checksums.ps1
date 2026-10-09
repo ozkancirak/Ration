@@ -13,17 +13,16 @@ $ErrorActionPreference = 'Stop'
 $Directory = [IO.Path]::GetFullPath($Directory)
 $output = Join-Path $Directory 'SHA256SUMS.txt'
 
-# Yalnızca bu sürümün yüklenecek dosyaları: delta için indirilen önceki sürüm tam paketi
-# bu sürümün varlığı değildir.
+# Yalnızca kullanıcının indirdiği dosyalar: bu sürümün paketleri, kurulum ve taşınabilir zip.
+# Delta için indirilen önceki sürüm paketi bu sürümün varlığı değildir; feed dosyalarını
+# (releases.*.json, assets.*.json, RELEASES*) vpk yüklerken yeniden yazar ya da yüklemez,
+# bu yüzden özetleri sürümdekiyle tutmazdı.
 $assets = Get-ChildItem -LiteralPath $Directory -File |
     Where-Object {
         $_.Name -ne 'SHA256SUMS.txt' -and (
-            $_.Name -like "*-$Version-*" -or
+            $_.Name -like "*-$Version-*.nupkg" -or
             $_.Name -like '*-Setup.exe' -or
-            $_.Name -like '*-Portable.zip' -or
-            $_.Name -like 'releases.*.json' -or
-            $_.Name -like 'assets.*.json' -or
-            $_.Name -like 'RELEASES*')
+            $_.Name -like '*-Portable.zip')
     } |
     Sort-Object Name
 
