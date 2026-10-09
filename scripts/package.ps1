@@ -125,6 +125,8 @@ try {
     $deltas = @(Get-ChildItem -LiteralPath $releaseDir -Filter '*-delta.nupkg' -File)
     if ($DeltaFromRepo) { Write-Host "Delta paketleri: $($deltas.Count)" }
 
+    & (Join-Path $PSScriptRoot 'write-checksums.ps1') -Directory $releaseDir -Version $version
+
     $setup = Get-ChildItem -LiteralPath $releaseDir -Filter '*-Setup.exe' -File
     $portable = Get-ChildItem -LiteralPath $releaseDir -Filter '*-Portable.zip' -File
     if (-not $setup -or -not $portable) {

@@ -44,3 +44,18 @@ jobs:
           --token ${{ secrets.GITHUB_TOKEN }}
           --tag ${{ github.ref_name }}
           --releaseName "Ration ${{ github.ref_name }}"
+
+      # Sağlama toplamları, vpk'nın yüklediği dosyalarla aynı taslağa eklenir. Taslaklar etiket
+      # adıyla bulunamadığı için sürüm kimliği API'den alınır.
+      - name: Attach checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $repo = '${{ github.repository }}'
+          $filter = '.[] | select(.tag_name == "' + $tag + '") | .id'
+          $id = gh api "repos/$repo/releases" --paginate --jq $filter
+          if (-not $id) { throw "Taslak sürüm bulunamadı: $tag" }
+          gh api --method POST "https://uploads.github.com/repos/$repo/releases/$id/assets?name=SHA256SUMS.txt" -H 'Content-Type: text/plain' --input artifacts/release/releases/SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { throw 'SHA256SUMS.txt yüklenemedi.' }
