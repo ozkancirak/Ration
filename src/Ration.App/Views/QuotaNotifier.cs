@@ -1,9 +1,8 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.Win32;
 using Windows.UI.Notifications;
 using Ration.Core.Diagnostics;
 using Ration.Core.Model;
+using Ration.Core.Settings;
 using Ration.Core.Usage;
 
 namespace Ration.App.Views;
@@ -18,9 +17,6 @@ internal static class QuotaNotifier
 {
     private const int MaxRemembered = 200;
 
-    private static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ration", "notifications.json");
-
     // Paketsiz uygulamanın bildirim kimliği; HKCU\Software\Classes\AppUserModelId altında.
     // Windows App SDK AppNotificationManager self-contained/paketsiz yapıda 0x8007007E
     // (modül bulunamadı) veriyordu; SDK'dan bağımsız Windows toast API'si kullanılır.
@@ -32,15 +28,19 @@ internal static class QuotaNotifier
 
     public static bool Enabled { get; private set; }
 
+    private const string EnabledKey = "notificationsEnabled";
+    private const string FiredKey = "firedAlerts";
+
     static QuotaNotifier()
     {
-        (Enabled, _fired) = Load();
+        Enabled = SettingsStore.Default.GetBool(EnabledKey, true);
+        _fired = SettingsStore.Default.GetStrings(FiredKey).ToList();
     }
 
     public static void SetEnabled(bool enabled)
     {
         Enabled = enabled;
-        Save();
+        SettingsStore.Default.Set(EnabledKey, enabled);
     }
 
     /// <summary>Bildirime tıklanınca paneli açmak için; kayıt tek sefer yapılır.</summary>
@@ -93,43 +93,6 @@ internal static class QuotaNotifier
         }
 
         if (_fired.Count > MaxRemembered) _fired.RemoveRange(0, _fired.Count - MaxRemembered);
-        Save();
-    }
-
-    private static (bool Enabled, List<string> Fired) Load()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath)) return (true, new List<string>());
-            var root = JsonNode.Parse(File.ReadAllText(SettingsPath)) as JsonObject;
-            var enabled = root?["enabled"]?.GetValue<bool>() ?? true;
-            var fired = root?["fired"] is JsonArray array
-                ? array.Select(item => item?.GetValue<string>()).OfType<string>().ToList()
-                : new List<string>();
-            return (enabled, fired);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
-        {
-            Trace.Error("notify", $"settings-read failed type={ex.GetType().Name}");
-            return (true, new List<string>());
-        }
-    }
-
-    private static void Save()
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            var root = new JsonObject
-            {
-                ["enabled"] = Enabled,
-                ["fired"] = new JsonArray(_fired.Select(key => (JsonNode?)JsonValue.Create(key)).ToArray()),
-            };
-            File.WriteAllText(SettingsPath, root.ToJsonString());
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Trace.Error("notify", $"settings-write failed type={ex.GetType().Name}");
-        }
+        SettingsStore.Default.Set(FiredKey, _fired);
     }
 }
