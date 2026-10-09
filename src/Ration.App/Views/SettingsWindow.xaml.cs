@@ -404,6 +404,10 @@ public sealed partial class SettingsWindow : Window
     {
         UpdateStatusText.Text = UpdateStatusTextFor(result);
         InstallUpdateButton.Visibility = HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
+
+        var notes = HasNewerUpdate(result) ? UpdateLinks.ReleaseNotes(AppUpdates.RepositoryUrl, result!.AvailableVersion) : null;
+        ReleaseNotesLink.NavigateUri = notes;
+        ReleaseNotesLink.Visibility = notes is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private static bool HasNewerUpdate(UpdateCheckResult? result) =>

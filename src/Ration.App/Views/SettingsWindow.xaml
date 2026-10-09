@@ -298,6 +298,10 @@
                                        Style="{StaticResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" />
+                            <HyperlinkButton x:Name="ReleaseNotesLink"
+                                             Content="{l:Loc En='Release notes', Tr='Sürüm notları'}"
+                                             Padding="0"
+                                             Visibility="Collapsed" />
                             <ProgressBar x:Name="UpdateProgress"
                                          Maximum="100"
                                          Visibility="Collapsed" />
