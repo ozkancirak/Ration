@@ -99,7 +99,7 @@ public class UpdateServiceTests
 
         var downloaded = await service.DownloadAsync();
 
-        Assert.True(downloaded);
+        Assert.Equal(UpdateDownloadResult.Downloaded, downloaded);
         Assert.True(service.IsDownloaded);
         Assert.Equal(1, source.DownloadCalls);
         Assert.Equal(1, source.CheckCalls);
@@ -112,7 +112,7 @@ public class UpdateServiceTests
         var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
         var service = new UpdateService(source, new MemoryStore(), () => Now);
 
-        Assert.True(await service.DownloadAsync());
+        Assert.Equal(UpdateDownloadResult.Downloaded, await service.DownloadAsync());
         Assert.Equal(1, source.CheckCalls);
         Assert.Equal(1, source.DownloadCalls);
     }
@@ -123,7 +123,7 @@ public class UpdateServiceTests
         var source = new FakeSource();
         var service = new UpdateService(source, new MemoryStore(), () => Now);
 
-        Assert.False(await service.DownloadAsync());
+        Assert.Equal(UpdateDownloadResult.NothingToDownload, await service.DownloadAsync());
         Assert.False(service.IsDownloaded);
         Assert.Equal(0, source.DownloadCalls);
     }
@@ -135,11 +135,28 @@ public class UpdateServiceTests
         var service = new UpdateService(source, new MemoryStore(), () => Now);
         await service.CheckAsync();
 
-        Assert.False(await service.DownloadAsync());
+        Assert.Equal(UpdateDownloadResult.Failed, await service.DownloadAsync());
         Assert.False(service.IsDownloaded);
 
         source.DownloadFailure = null;
-        Assert.True(await service.DownloadAsync());
+        Assert.Equal(UpdateDownloadResult.Downloaded, await service.DownloadAsync());
+    }
+
+    [Fact]
+    public async Task Download_WhileAnotherDownloadRuns_IsBusy()
+    {
+        var gate = new TaskCompletionSource();
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0"), DownloadGate = gate.Task };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+
+        var first = service.DownloadAsync();
+        var second = await service.DownloadAsync();
+        gate.SetResult();
+
+        Assert.Equal(UpdateDownloadResult.Busy, second);
+        Assert.Equal(UpdateDownloadResult.Downloaded, await first);
+        Assert.Equal(1, source.DownloadCalls);
     }
 
     [Fact]
@@ -234,6 +251,7 @@ public class UpdateServiceTests
         public int DownloadCalls { get; private set; }
         public AvailableUpdate? Applied { get; private set; }
         public Exception? ApplyFailure { get; set; }
+        public Task? DownloadGate { get; set; }
         public Exception? DownloadFailure { get; set; }
 
         public bool IsInstalled => Installed;
@@ -258,7 +276,7 @@ public class UpdateServiceTests
             DownloadCalls++;
             foreach (var percent in ReportedProgress) progress(percent);
             if (DownloadFailure is not null) throw DownloadFailure;
-            return Task.CompletedTask;
+            return DownloadGate ?? Task.CompletedTask;
         }
     }
 

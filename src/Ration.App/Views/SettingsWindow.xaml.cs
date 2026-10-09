@@ -379,17 +379,29 @@ public sealed partial class SettingsWindow : Window
         });
         try
         {
-            var downloaded = await AppUpdates.Service.DownloadAsync(progress);
-            if (downloaded && AppUpdates.Service.ApplyOnExitAndRestart())
+            var outcome = await AppUpdates.Service.DownloadAsync(progress);
+            if (outcome == UpdateDownloadResult.Downloaded && AppUpdates.Service.ApplyOnExitAndRestart())
             {
                 UpdateStatusText.Text = L.T("Restarting to finish the update…", "Güncellemeyi bitirmek için yeniden başlatılıyor…");
                 UpdateRestartRequested?.Invoke();
                 return;
             }
 
-            UpdateStatusText.Text = downloaded
-                ? L.T($"Version {result?.AvailableVersion} downloaded — restart Ration to finish", $"Sürüm {result?.AvailableVersion} indirildi — bitirmek için Ration'ı yeniden başlatın")
-                : L.T("Download failed", "İndirilemedi");
+            // Hata uygulamayı etkilemez: düğme açık kalır, aynı eylem yeniden denenebilir.
+            UpdateStatusText.Text = outcome switch
+            {
+                UpdateDownloadResult.Downloaded =>
+                    L.T($"Version {result?.AvailableVersion} downloaded — restart Ration to finish", $"Sürüm {result?.AvailableVersion} indirildi — bitirmek için Ration'ı yeniden başlatın"),
+                UpdateDownloadResult.NothingToDownload =>
+                    L.T("No newer version found", "Daha yeni bir sürüm bulunamadı"),
+                UpdateDownloadResult.Busy =>
+                    L.T("A download is already running", "Bir indirme zaten sürüyor"),
+                _ => L.T("Download failed — check your connection and try again", "İndirilemedi — bağlantını denetleyip yeniden dene"),
+            };
+            if (outcome == UpdateDownloadResult.Failed)
+            {
+                InstallUpdateButton.Content = L.T("Try again", "Yeniden dene");
+            }
         }
         finally
         {
@@ -403,6 +415,7 @@ public sealed partial class SettingsWindow : Window
     private void ShowUpdateState(UpdateCheckResult? result)
     {
         UpdateStatusText.Text = UpdateStatusTextFor(result);
+        InstallUpdateButton.Content = L.T("Download and install update", "Güncellemeyi indir ve kur");
         InstallUpdateButton.Visibility = HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
 
         var notes = HasNewerUpdate(result) ? UpdateLinks.ReleaseNotes(AppUpdates.RepositoryUrl, result!.AvailableVersion) : null;

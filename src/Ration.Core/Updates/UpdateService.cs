@@ -9,6 +9,17 @@ public sealed record UpdateCheckResult(
     bool Succeeded,
     DateTimeOffset CheckedAt);
 
+public enum UpdateDownloadResult
+{
+    Downloaded,
+    /// <summary>Denetim yeni sürüm bulamadı (ya da kaynak artık sunmuyor).</summary>
+    NothingToDownload,
+    /// <summary>Ağ, disk ya da doğrulama hatası; uygulama etkilenmez, yeniden denenebilir.</summary>
+    Failed,
+    /// <summary>Başka bir indirme sürüyor.</summary>
+    Busy,
+}
+
 /// <summary>Son denetimin sonucunun saklandığı yer.</summary>
 public interface IUpdateStateStore
 {
@@ -73,27 +84,28 @@ public sealed class UpdateService
     /// Bulunan güncellemeyi indirir. Önceki oturumdan kalma "güncelleme var" bilgisinde kaynak
     /// nesnesi bellekte yoktur; o zaman önce yeniden bulunur. Başarısızlık uygulamayı etkilemez.
     /// </summary>
-    public async Task<bool> DownloadAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
+    public async Task<UpdateDownloadResult> DownloadAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
-        if (_downloading) return false;
+        if (_downloading) return UpdateDownloadResult.Busy;
         _downloading = true;
         try
         {
             var update = _found ?? await _source.CheckAsync(cancellationToken).ConfigureAwait(false);
             Remember(update);
-            if (update is null) return false;
+            if (update is null) return UpdateDownloadResult.NothingToDownload;
 
             // Kaynak yüzdeyi 0-100 dışında verebilir; arayüze hep geçerli bir değer gider.
             await _source.DownloadAsync(update, percent => progress?.Report(Math.Clamp(percent, 0, 100)), cancellationToken)
                 .ConfigureAwait(false);
             progress?.Report(100);
             IsDownloaded = true;
-            return true;
+            return UpdateDownloadResult.Downloaded;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Trace.Error("updates", $"download failed type={ex.GetType().Name}");
-            return false;
+            IsDownloaded = false;
+            return UpdateDownloadResult.Failed;
         }
         finally
         {
