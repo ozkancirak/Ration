@@ -189,7 +189,8 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{x:Bind RemainingText}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
-                                                   FontWeight="SemiBold" />
+                                                   FontWeight="SemiBold"
+                                                   Typography.NumeralAlignment="Tabular" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{x:Bind ResetText}"
                                                    ToolTipService.ToolTip="{x:Bind ResetTip}"
@@ -197,7 +198,8 @@
                                                    HorizontalTextAlignment="Right"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   TextWrapping="Wrap" />
+                                                   TextWrapping="Wrap"
+                                                   Typography.NumeralAlignment="Tabular" />
                                     </Grid>
                                     <TextBlock Text="{x:Bind PaceText}"
                                                Visibility="{x:Bind PaceVisibility}"
@@ -238,7 +240,8 @@
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         <TextBlock Text="{x:Bind Value}"
-                                                   Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                   Typography.NumeralAlignment="Tabular" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -249,7 +252,9 @@
                                     Orientation="Horizontal"
                                     Spacing="4"
                                     Visibility="Collapsed">
-                            <TextBlock x:Name="FreeUsageText" Style="{StaticResource CaptionTextBlockStyle}" />
+                            <TextBlock x:Name="FreeUsageText"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       Typography.NumeralAlignment="Tabular" />
                             <FontIcon Glyph="&#xE946;"
                                       FontSize="12"
                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
