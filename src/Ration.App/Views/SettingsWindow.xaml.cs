@@ -366,15 +366,24 @@ public sealed partial class SettingsWindow : Window
         CheckUpdatesButton.IsEnabled = false;
         InstallUpdateButton.IsEnabled = false;
         UpdateStatusText.Text = L.T("Downloading…", "İndiriliyor…");
+        UpdateProgress.Value = 0;
+        UpdateProgress.Visibility = Visibility.Visible;
+        // Progress<T> arayüz iş parçacığının bağlamını yakalar; Velopack başka iş parçacığından bildirir.
+        var progress = new Progress<int>(percent =>
+        {
+            UpdateProgress.Value = percent;
+            UpdateStatusText.Text = L.T($"Downloading… {percent}%", $"İndiriliyor… %{percent}");
+        });
         try
         {
-            var downloaded = await AppUpdates.Service.DownloadAsync();
+            var downloaded = await AppUpdates.Service.DownloadAsync(progress);
             UpdateStatusText.Text = downloaded
                 ? L.T($"Version {result?.AvailableVersion} downloaded", $"Sürüm {result?.AvailableVersion} indirildi")
                 : L.T("Download failed", "İndirilemedi");
         }
         finally
         {
+            UpdateProgress.Visibility = Visibility.Collapsed;
             CheckUpdatesButton.IsEnabled = true;
             InstallUpdateButton.IsEnabled = true;
         }

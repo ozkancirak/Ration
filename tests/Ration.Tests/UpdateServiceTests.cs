@@ -143,6 +143,18 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public async Task Download_ReportsClampedProgressAndFinishesAtHundred()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0"), ReportedProgress = [-5, 0, 40, 100, 140] };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        var seen = new List<int>();
+
+        await service.DownloadAsync(new ImmediateProgress(seen));
+
+        Assert.Equal([0, 0, 40, 100, 100, 100], seen);
+    }
+
+    [Fact]
     public async Task NewerVersionFound_ClearsTheDownloadedFlag()
     {
         var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
@@ -172,6 +184,12 @@ public class UpdateServiceTests
         Assert.Equal(expected, UpdateService.IsNewer(available, current));
     }
 
+    // Progress<T> eşzamansız gönderir; testte sıra değişmesin diye doğrudan çağıran.
+    private sealed class ImmediateProgress(List<int> seen) : IProgress<int>
+    {
+        public void Report(int value) => seen.Add(value);
+    }
+
     private sealed class FakeSource : IUpdateSource
     {
         public bool Installed { get; set; } = true;
@@ -190,9 +208,12 @@ public class UpdateServiceTests
             return Task.FromResult(Next);
         }
 
-        public Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken)
+        public int[] ReportedProgress { get; set; } = [];
+
+        public Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken)
         {
             DownloadCalls++;
+            foreach (var percent in ReportedProgress) progress(percent);
             if (DownloadFailure is not null) throw DownloadFailure;
             return Task.CompletedTask;
         }

@@ -15,6 +15,6 @@ public interface IUpdateSource
     /// <summary>Yeni sürüm yoksa null.</summary>
     Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken);
 
-    /// <summary>Paketi indirir ve doğrular; uygulamaya dokunmaz.</summary>
-    Task DownloadAsync(AvailableUpdate update, CancellationToken cancellationToken);
+    /// <summary>Paketi indirir ve doğrular; uygulamaya dokunmaz. <paramref name="progress"/> yüzde bildirir.</summary>
+    Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken);
 }

@@ -73,7 +73,7 @@ public sealed class UpdateService
     /// Bulunan güncellemeyi indirir. Önceki oturumdan kalma "güncelleme var" bilgisinde kaynak
     /// nesnesi bellekte yoktur; o zaman önce yeniden bulunur. Başarısızlık uygulamayı etkilemez.
     /// </summary>
-    public async Task<bool> DownloadAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> DownloadAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
         if (_downloading) return false;
         _downloading = true;
@@ -83,7 +83,10 @@ public sealed class UpdateService
             Remember(update);
             if (update is null) return false;
 
-            await _source.DownloadAsync(update, cancellationToken).ConfigureAwait(false);
+            // Kaynak yüzdeyi 0-100 dışında verebilir; arayüze hep geçerli bir değer gider.
+            await _source.DownloadAsync(update, percent => progress?.Report(Math.Clamp(percent, 0, 100)), cancellationToken)
+                .ConfigureAwait(false);
+            progress?.Report(100);
             IsDownloaded = true;
             return true;
         }
