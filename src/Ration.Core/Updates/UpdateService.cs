@@ -48,6 +48,9 @@ public sealed class UpdateService
 
     public UpdateCheckResult? LastResult => _store.Load();
 
+    /// <summary>Kurulumdan çalışıyor mu; değilse denetimin anlamı yoktur.</summary>
+    public bool IsInstalled => _source.IsInstalled;
+
     /// <summary>Bulunan güncelleme indirildi ve uygulanmaya hazır.</summary>
     public bool IsDownloaded { get; private set; }
 

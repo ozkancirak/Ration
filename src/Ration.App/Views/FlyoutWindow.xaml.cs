@@ -18,6 +18,7 @@ using Ration.Core.Layout;
 using Ration.Core.Model;
 using Ration.Core.Providers;
 using Ration.Core.Refresh;
+using Ration.App.Updates;
 using Ration.Core.Usage;
 using Ration.Platform.Windows.Interop;
 using Ration.Platform.Windows.Power;
@@ -33,6 +34,7 @@ public sealed partial class FlyoutWindow : Window
     private readonly AppWindow _appWindow;
     private readonly IntPtr _hwnd;
     private readonly SystemTrayHost _tray;
+    private readonly UpdateAutoCheck _updateAutoCheck;
     private readonly TrayMenuWindow _menu;
     private readonly HttpClient _http;
     private readonly IReadOnlyList<IUsageProvider> _providers;
@@ -189,6 +191,12 @@ public sealed partial class FlyoutWindow : Window
 
         // Start scheduler loop
         _scheduler.Start();
+
+        // Günde bir sessiz güncelleme denetimi; bir pencere açıkken ya da ekran kilitliyken bekler.
+        _updateAutoCheck = new UpdateAutoCheck(
+            this.DispatcherQueue,
+            AppUpdates.Service,
+            () => _isVisible || _menu.IsMenuVisible || _settingsWindow?.IsShown == true || EfficiencyModeManager.ShouldPause);
     }
 
     private IntPtr WindowSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
@@ -452,6 +460,7 @@ public sealed partial class FlyoutWindow : Window
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
 
+        _updateAutoCheck.Dispose();
         _tray.Dispose();
         if (_currentIconHandle != IntPtr.Zero)
         {
