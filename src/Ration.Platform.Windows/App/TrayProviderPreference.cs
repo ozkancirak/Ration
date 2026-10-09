@@ -1,5 +1,4 @@
-using System.Text.Json;
-using Ration.Core.Diagnostics;
+using Ration.Core.Settings;
 
 namespace Ration.Platform.Windows.App;
 
@@ -41,41 +40,9 @@ public static class TrayProviderPreference
         }
     }
 
-    private static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Ration",
-        "tray.json");
+    private const string SettingKey = "trayProvider";
 
-    private static string? Load()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath)) return null;
+    private static string? Load() => SettingsStore.Default.GetString(SettingKey);
 
-            using var stream = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var document = JsonDocument.Parse(stream);
-            return document.RootElement.TryGetProperty("provider", out var value) &&
-                   value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
-        {
-            Trace.Error("settings", $"tray-read failed type={ex.GetType().Name}");
-            return null;
-        }
-    }
-
-    private static void Save(string? providerId)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new { provider = providerId }));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Trace.Error("settings", $"tray-write failed type={ex.GetType().Name}");
-        }
-    }
+    private static void Save(string? providerId) => SettingsStore.Default.Set(SettingKey, providerId);
 }
