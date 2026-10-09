@@ -31,6 +31,9 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Etkin dil değişti; uygulama yeniden başlamalı (FlyoutWindow yapar).</summary>
     public event Action? LanguageChanged;
 
+    /// <summary>Güncelleme çıkışta uygulanmak üzere zamanlandı; uygulama kapanmalı (FlyoutWindow yapar).</summary>
+    public event Action? UpdateRestartRequested;
+
     public SettingsWindow()
     {
         InitializeComponent();
@@ -377,8 +380,15 @@ public sealed partial class SettingsWindow : Window
         try
         {
             var downloaded = await AppUpdates.Service.DownloadAsync(progress);
+            if (downloaded && AppUpdates.Service.ApplyOnExitAndRestart())
+            {
+                UpdateStatusText.Text = L.T("Restarting to finish the update…", "Güncellemeyi bitirmek için yeniden başlatılıyor…");
+                UpdateRestartRequested?.Invoke();
+                return;
+            }
+
             UpdateStatusText.Text = downloaded
-                ? L.T($"Version {result?.AvailableVersion} downloaded", $"Sürüm {result?.AvailableVersion} indirildi")
+                ? L.T($"Version {result?.AvailableVersion} downloaded — restart Ration to finish", $"Sürüm {result?.AvailableVersion} indirildi — bitirmek için Ration'ı yeniden başlatın")
                 : L.T("Download failed", "İndirilemedi");
         }
         finally

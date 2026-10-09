@@ -250,6 +250,11 @@ public sealed partial class FlyoutWindow : Window
             _settingsWindow = new SettingsWindow();
             _settingsWindow.TrayProviderChanged += OnTrayProviderChanged;
             _settingsWindow.LanguageChanged += () => this.DispatcherQueue.TryEnqueue(() => RestartApp("language"));
+            _settingsWindow.UpdateRestartRequested += () => this.DispatcherQueue.TryEnqueue(() =>
+            {
+                Trace.Info("app", "exit for update");
+                ExitApplicationCore();
+            });
         }
         _settingsWindow.ShowAndFocus();
     }

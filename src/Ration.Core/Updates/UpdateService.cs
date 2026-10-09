@@ -102,6 +102,26 @@ public sealed class UpdateService
     }
 
     /// <summary>
+    /// İndirilmiş güncellemeyi çıkışta uygulanacak şekilde zamanlar. True dönerse çağıran
+    /// uygulamadan çıkmalıdır; güncelleme çıkıştan sonra kurulur ve uygulama yeniden açılır.
+    /// </summary>
+    public bool ApplyOnExitAndRestart()
+    {
+        if (!IsDownloaded || _found is null) return false;
+
+        try
+        {
+            _source.ApplyOnExitAndRestart(_found);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Trace.Error("updates", $"apply failed type={ex.GetType().Name}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Saklanan "güncelleme var" bilgisi güncellemeden sonra bayat kalır; sürüm şu anki sürümden
     /// gerçekten yeni mi. Ön sürüm eki (-beta) aynı numaralı kararlı sürümden eski sayılır.
     /// </summary>

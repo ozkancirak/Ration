@@ -155,6 +155,41 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public async Task Apply_BeforeDownload_DoesNothing()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+
+        Assert.False(service.ApplyOnExitAndRestart());
+        Assert.Null(source.Applied);
+    }
+
+    [Fact]
+    public async Task Apply_AfterDownload_SchedulesTheDownloadedUpdate()
+    {
+        var update = new AvailableUpdate("0.3.0");
+        var source = new FakeSource { Next = update };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+        await service.DownloadAsync();
+
+        Assert.True(service.ApplyOnExitAndRestart());
+        Assert.Same(update, source.Applied);
+    }
+
+    [Fact]
+    public async Task Apply_Failure_ReturnsFalseSoTheAppKeepsRunning()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0"), ApplyFailure = new InvalidOperationException("locked") };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+        await service.DownloadAsync();
+
+        Assert.False(service.ApplyOnExitAndRestart());
+    }
+
+    [Fact]
     public async Task NewerVersionFound_ClearsTheDownloadedFlag()
     {
         var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
@@ -197,6 +232,8 @@ public class UpdateServiceTests
         public Exception? Failure { get; set; }
         public int CheckCalls { get; private set; }
         public int DownloadCalls { get; private set; }
+        public AvailableUpdate? Applied { get; private set; }
+        public Exception? ApplyFailure { get; set; }
         public Exception? DownloadFailure { get; set; }
 
         public bool IsInstalled => Installed;
@@ -209,6 +246,12 @@ public class UpdateServiceTests
         }
 
         public int[] ReportedProgress { get; set; } = [];
+
+        public void ApplyOnExitAndRestart(AvailableUpdate update)
+        {
+            if (ApplyFailure is not null) throw ApplyFailure;
+            Applied = update;
+        }
 
         public Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken)
         {

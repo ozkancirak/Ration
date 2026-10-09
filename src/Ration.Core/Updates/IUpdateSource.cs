@@ -17,4 +17,10 @@ public interface IUpdateSource
 
     /// <summary>Paketi indirir ve doğrular; uygulamaya dokunmaz. <paramref name="progress"/> yüzde bildirir.</summary>
     Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// İndirilmiş paketi, bu süreç çıkınca uygulanacak ve uygulama yeniden açılacak şekilde
+    /// zamanlar. Süreci kendisi kapatmaz; çıkışı çağıran yapar ki tepsi simgesi düzgün temizlensin.
+    /// </summary>
+    void ApplyOnExitAndRestart(AvailableUpdate update);
 }
