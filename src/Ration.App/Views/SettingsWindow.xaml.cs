@@ -416,21 +416,17 @@ public sealed partial class SettingsWindow : Window
     {
         UpdateStatusText.Text = UpdateStatusTextFor(result);
         InstallUpdateButton.Content = L.T("Download and install update", "Güncellemeyi indir ve kur");
-        InstallUpdateButton.Visibility = HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
+        InstallUpdateButton.Visibility = AppUpdates.HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
 
-        var notes = HasNewerUpdate(result) ? UpdateLinks.ReleaseNotes(AppUpdates.RepositoryUrl, result!.AvailableVersion) : null;
+        var notes = AppUpdates.HasNewerUpdate(result) ? UpdateLinks.ReleaseNotes(AppUpdates.RepositoryUrl, result!.AvailableVersion) : null;
         ReleaseNotesLink.NavigateUri = notes;
         ReleaseNotesLink.Visibility = notes is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private static bool HasNewerUpdate(UpdateCheckResult? result) =>
-        result is { UpdateAvailable: true, IsInstalled: true } &&
-        UpdateService.IsNewer(result.AvailableVersion, AppUpdates.CurrentVersion);
-
     private static string UpdateStatusTextFor(UpdateCheckResult? result)
     {
         if (result is null) return L.T("Not checked yet", "Henüz denetlenmedi");
-        if (HasNewerUpdate(result))
+        if (AppUpdates.HasNewerUpdate(result))
         {
             return L.T($"Version {result.AvailableVersion} available", $"Sürüm {result.AvailableVersion} hazır");
         }

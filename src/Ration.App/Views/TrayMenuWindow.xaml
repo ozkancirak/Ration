@@ -66,6 +66,13 @@
                     <TextBlock Text="{l:Loc En='Settings', Tr='Ayarlar'}"
                                Style="{StaticResource BodyTextBlockStyle}"
                                VerticalAlignment="Center" />
+                    <Ellipse x:Name="SettingsUpdateDot"
+                             Width="8"
+                             Height="8"
+                             Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                             VerticalAlignment="Center"
+                             Visibility="Collapsed"
+                             ToolTipService.ToolTip="{l:Loc En='An update is available', Tr='Güncelleme var'}" />
                 </StackPanel>
             </Button>
 

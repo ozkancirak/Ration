@@ -21,6 +21,14 @@ internal static class AppUpdates
         }
     }
 
+    /// <summary>
+    /// Saklanan sonuç yeni bir sürüm bildiriyor mu. Güncellemeden sonra bayat kalan kayıt
+    /// (bildirilen sürüm zaten çalışan sürüm) yeni sayılmaz.
+    /// </summary>
+    public static bool HasNewerUpdate(UpdateCheckResult? result) =>
+        result is { UpdateAvailable: true, IsInstalled: true } &&
+        UpdateService.IsNewer(result.AvailableVersion, CurrentVersion);
+
     public static UpdateService Service { get; } =
         new(new VelopackUpdateSource(RepositoryUrl), new RegistryUpdateStateStore());
 }

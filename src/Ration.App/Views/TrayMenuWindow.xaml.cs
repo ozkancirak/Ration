@@ -106,6 +106,17 @@ public sealed partial class TrayMenuWindow : Window
         MenuSeparator.Background = QuotaVisuals.Fill("CardStrokeColorDefaultBrush");
     }
 
+    /// <summary>Ayarlar satırındaki küçük nokta: yeni sürüm var.</summary>
+    public void SetUpdateAvailable(bool available)
+    {
+        SettingsUpdateDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        AutomationProperties.SetName(
+            SettingsButton,
+            available
+                ? L.T("Settings, an update is available", "Ayarlar, güncelleme var")
+                : L.T("Settings", "Ayarlar"));
+    }
+
     public void ShowAtCursor()
     {
         AppTheme.Apply(RootLayout);

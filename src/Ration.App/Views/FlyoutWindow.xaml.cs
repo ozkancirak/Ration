@@ -19,6 +19,7 @@ using Ration.Core.Model;
 using Ration.Core.Providers;
 using Ration.Core.Refresh;
 using Ration.App.Updates;
+using Ration.Core.Updates;
 using Ration.Core.Usage;
 using Ration.Platform.Windows.Interop;
 using Ration.Platform.Windows.Power;
@@ -191,6 +192,10 @@ public sealed partial class FlyoutWindow : Window
 
         // Start scheduler loop
         _scheduler.Start();
+
+        // Yeni sürüm varsa tepsi menüsünde Ayarlar'ın yanında nokta görünür.
+        _menu.SetUpdateAvailable(AppUpdates.HasNewerUpdate(AppUpdates.Service.LastResult));
+        AppUpdates.Service.ResultChanged += OnUpdateResultChanged;
 
         // Günde bir sessiz güncelleme denetimi; bir pencere açıkken ya da ekran kilitliyken bekler.
         _updateAutoCheck = new UpdateAutoCheck(
@@ -460,6 +465,7 @@ public sealed partial class FlyoutWindow : Window
 
         NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1));
 
+        AppUpdates.Service.ResultChanged -= OnUpdateResultChanged;
         _updateAutoCheck.Dispose();
         _tray.Dispose();
         if (_currentIconHandle != IntPtr.Zero)
@@ -483,6 +489,9 @@ public sealed partial class FlyoutWindow : Window
 
         Application.Current.Exit();
     }
+
+    private void OnUpdateResultChanged(UpdateCheckResult result) =>
+        this.DispatcherQueue.TryEnqueue(() => _menu.SetUpdateAvailable(AppUpdates.HasNewerUpdate(result)));
 
     private void OnDisplayChanged()
     {

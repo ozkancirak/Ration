@@ -48,6 +48,9 @@ public sealed class UpdateService
 
     public UpdateCheckResult? LastResult => _store.Load();
 
+    /// <summary>Her denetimden sonra (başarılı ya da değil) tetiklenir; herhangi bir iş parçacığından gelebilir.</summary>
+    public event Action<UpdateCheckResult>? ResultChanged;
+
     /// <summary>Kurulumdan çalışıyor mu; değilse denetimin anlamı yoktur.</summary>
     public bool IsInstalled => _source.IsInstalled;
 
@@ -80,6 +83,7 @@ public sealed class UpdateService
         }
 
         Save(result);
+        ResultChanged?.Invoke(result);
         return result;
     }
 
