@@ -13,6 +13,8 @@ using Ration.Core.Diagnostics;
 using Ration.Core.Providers;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Updates;
+using Ration.App.Updates;
 using Ration.Platform.Windows.Interop;
 using Ration.Platform.Windows.App;
 using Ration.Platform.Windows.Theme;
@@ -112,8 +114,8 @@ public sealed partial class SettingsWindow : Window
         OpenLogButton.Click += (_, _) => OpenLog();
         CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
-        VersionText.Text = L.T($"Version {UpdateService.CurrentVersion}", $"Sürüm {UpdateService.CurrentVersion}");
-        UpdateStatusText.Text = UpdateStatusTextFor(UpdateService.LastResult);
+        VersionText.Text = L.T($"Version {AppUpdates.CurrentVersion}", $"Sürüm {AppUpdates.CurrentVersion}");
+        UpdateStatusText.Text = UpdateStatusTextFor(AppUpdates.Service.LastResult);
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -347,7 +349,7 @@ public sealed partial class SettingsWindow : Window
         UpdateStatusText.Text = L.T("Checking…", "Denetleniyor…");
         try
         {
-            var result = await UpdateService.CheckAsync();
+            var result = await AppUpdates.Service.CheckAsync();
             UpdateStatusText.Text = UpdateStatusTextFor(result);
         }
         finally
@@ -373,7 +375,7 @@ public sealed partial class SettingsWindow : Window
     private async Task CopyDiagnosticsAsync()
     {
         var report = DiagnosticsReport.Build(
-            UpdateService.CurrentVersion,
+            AppUpdates.CurrentVersion,
             $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}",
             L.Turkish ? "tr" : "en",
             Trace.ReadLastLines(100),
