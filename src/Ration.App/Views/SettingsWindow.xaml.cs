@@ -117,6 +117,13 @@ public sealed partial class SettingsWindow : Window
         NotificationsToggle.IsOn = QuotaNotifier.Enabled;
         NotificationsToggle.Toggled += (_, _) => QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
 
+        PrereleaseToggle.IsOn = AppUpdates.IncludePrerelease;
+        PrereleaseToggle.Toggled += async (_, _) =>
+        {
+            AppUpdates.IncludePrerelease = PrereleaseToggle.IsOn;
+            // Kanal değişince önceki sonuç (ör. bir beta) artık geçerli olmayabilir.
+            await CheckForUpdatesAsync();
+        };
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
         InstallUpdateButton.Click += async (_, _) => await DownloadUpdateAsync();
         OpenLogButton.Click += (_, _) => OpenLog();

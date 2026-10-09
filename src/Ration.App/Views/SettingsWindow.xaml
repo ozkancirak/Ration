@@ -317,6 +317,16 @@
                     </StackPanel>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="{l:Loc En='Pre-release versions', Tr='Ön sürümler'}"
+                                       Description="{l:Loc En='Also look for test versions (beta) before they are released. They can be less stable.', Tr='Yayınlanmadan önce test sürümlerini (beta) de ara. Daha az kararlı olabilirler.'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE7C1;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="PrereleaseToggle"
+                                  OnContent="{l:Loc En='On', Tr='Açık'}"
+                                  OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Diagnostics', Tr='Tanılama'}"
                                        Description="{l:Loc En='Open the log or copy a report with private paths removed', Tr='Günlüğü aç ya da kişisel yolları silinmiş bir rapor kopyala'}">
                     <controls:SettingsCard.HeaderIcon>

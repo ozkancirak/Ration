@@ -30,6 +30,15 @@ internal static class AppUpdates
         result is { UpdateAvailable: true, IsInstalled: true } &&
         UpdateService.IsNewer(result.AvailableVersion, CurrentVersion);
 
+    private const string PrereleaseKey = "updatePrerelease";
+
+    /// <summary>Ön sürümler (beta) de aranır; varsayılan kapalı, kullanıcı açar.</summary>
+    public static bool IncludePrerelease
+    {
+        get => SettingsStore.Default.GetBool(PrereleaseKey, false);
+        set => SettingsStore.Default.Set(PrereleaseKey, value);
+    }
+
     public static UpdateService Service { get; } =
-        new(new VelopackUpdateSource(RepositoryUrl), new SettingsUpdateStateStore(SettingsStore.Default));
+        new(new VelopackUpdateSource(RepositoryUrl, () => IncludePrerelease), new SettingsUpdateStateStore(SettingsStore.Default));
 }

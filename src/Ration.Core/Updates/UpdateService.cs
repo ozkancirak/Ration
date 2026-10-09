@@ -142,13 +142,34 @@ public sealed class UpdateService
 
     /// <summary>
     /// Saklanan "güncelleme var" bilgisi güncellemeden sonra bayat kalır; sürüm şu anki sürümden
-    /// gerçekten yeni mi. Ön sürüm eki (-beta) aynı numaralı kararlı sürümden eski sayılır.
+    /// gerçekten yeni mi. SemVer sırası: ön sürüm eki (-beta.2) aynı numaralı kararlı sürümden eski,
+    /// ön sürümler kendi aralarında tanımlayıcı tanımlayıcı karşılaştırılır (beta.2 &gt; beta.1).
     /// </summary>
     public static bool IsNewer(string? available, string current)
     {
         if (!TryParse(available, out var a, out var aPre) || !TryParse(current, out var c, out var cPre)) return false;
         var order = a.CompareTo(c);
-        return order > 0 || (order == 0 && aPre is null && cPre is not null);
+        if (order != 0) return order > 0;
+        if (aPre is null) return cPre is not null;
+        return cPre is not null && ComparePreRelease(aPre, cPre) > 0;
+    }
+
+    private static int ComparePreRelease(string left, string right)
+    {
+        var l = left.Split('.');
+        var r = right.Split('.');
+        for (var i = 0; i < Math.Min(l.Length, r.Length); i++)
+        {
+            var leftNumeric = int.TryParse(l[i], out var ln);
+            var rightNumeric = int.TryParse(r[i], out var rn);
+            int order = leftNumeric && rightNumeric ? ln.CompareTo(rn)
+                : leftNumeric ? -1   // sayısal tanımlayıcı harfliden düşüktür
+                : rightNumeric ? 1
+                : string.CompareOrdinal(l[i], r[i]);
+            if (order != 0) return order;
+        }
+
+        return l.Length.CompareTo(r.Length);
     }
 
     private static bool TryParse(string? text, out Version version, out string? preRelease)
