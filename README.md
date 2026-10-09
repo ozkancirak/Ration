@@ -62,6 +62,8 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1
 
 Log file: `%LOCALAPPDATA%\Ration\ration.log`.
 
+To try the update path without GitHub, pack two versions with `vpk pack` into one folder, install the older one and start it with `RATION_UPDATE_REPOSITORY` set to that folder.
+
 ## License
 
 MIT. Provider marks from [Simple Icons](https://simpleicons.org) (CC0), [lobe-icons](https://github.com/lobehub/lobe-icons) (MIT) and the official OpenAI logo.

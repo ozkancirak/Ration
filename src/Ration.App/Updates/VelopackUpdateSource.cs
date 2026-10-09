@@ -44,6 +44,12 @@ internal sealed class VelopackUpdateSource : IUpdateSource
         found.Manager.WaitExitThenApplyUpdates(found.Info.TargetFullRelease, silent: true, restart: true);
     }
 
+    /// <summary>
+    /// RATION_UPDATE_REPOSITORY bir klasör gösteriyorsa (vpk pack çıktısı) güncellemeler oradan gelir;
+    /// güncelleme yolunu GitHub'a çıkmadan sınamak için.
+    /// </summary>
     private UpdateManager CreateManager(bool prerelease) =>
-        new(new GithubSource(_repositoryUrl, accessToken: null, prerelease: prerelease));
+        Directory.Exists(_repositoryUrl)
+            ? new(new SimpleFileSource(new DirectoryInfo(_repositoryUrl)))
+            : new(new GithubSource(_repositoryUrl, accessToken: null, prerelease: prerelease));
 }

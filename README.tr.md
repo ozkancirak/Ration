@@ -62,6 +62,8 @@ powershell -ExecutionPolicy Bypass -File scripts\package.ps1
 
 Günlük dosyası: `%LOCALAPPDATA%\Ration\ration.log`.
 
+Güncelleme yolunu GitHub'a çıkmadan denemek için iki sürümü `vpk pack` ile aynı klasöre paketle, eskisini kur ve `RATION_UPDATE_REPOSITORY` o klasörü gösterirken başlat.
+
 ## Lisans
 
 MIT. Sağlayıcı işaretleri [Simple Icons](https://simpleicons.org) (CC0), [lobe-icons](https://github.com/lobehub/lobe-icons) (MIT) ve resmi OpenAI logosundan.
