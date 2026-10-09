@@ -24,9 +24,14 @@ using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
 // Türkçe karakterler konsolun kod sayfasına göre bozuluyordu; çıktı her yerde UTF-8.
 Console.OutputEncoding = System.Text.Encoding.UTF8;
+// Tercihler (dil dahil) L ilk kullanılmadan önce eski konumlardan alınır.
+Ration.Core.LegacySettingsMigration.Run();
+Ration.Core.Settings.LegacyPreferenceImport.Run(
+    Ration.Core.Settings.SettingsStore.Default,
+    Ration.Core.Providers.KnownPaths.CacheDir,
+    new Ration.Platform.Windows.App.LegacyRegistryValues());
 L.ApplyCulture();
 
-Ration.Core.LegacySettingsMigration.Run();
 Ration.Platform.Windows.App.StartupRegistration.MigrateLegacyEntry();
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };

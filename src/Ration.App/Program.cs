@@ -16,6 +16,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        // Dil dahil her tercih SettingsStore'dan okunur; eski sürümlerin dosya ve kayıt defteri
+        // değerleri L ilk kullanılmadan önce alınmalı, yoksa ilk açılışta dil kaybolur.
+        Ration.Core.LegacySettingsMigration.Run();
+        Ration.Core.Settings.LegacyPreferenceImport.Run(
+            Ration.Core.Settings.SettingsStore.Default,
+            Ration.Core.Providers.KnownPaths.CacheDir,
+            new Ration.Platform.Windows.App.LegacyRegistryValues());
         Ration.Core.L.ApplyCulture();
 
         // Claude Code statusLine köprüsü: durum satırı her yenilendiğinde çağrılır, bu yüzden
@@ -34,7 +41,6 @@ internal static class Program
             AttachConsole(AttachParentProcess);
         }
 
-        Ration.Core.LegacySettingsMigration.Run();
         Ration.Platform.Windows.App.StartupRegistration.MigrateLegacyEntry();
         try
         {
