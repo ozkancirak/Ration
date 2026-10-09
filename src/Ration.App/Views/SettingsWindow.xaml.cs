@@ -13,6 +13,7 @@ using Ration.Core.Diagnostics;
 using Ration.Core.Providers;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Settings;
 using Ration.Core.Updates;
 using Ration.App.Updates;
 using Ration.Platform.Windows.Interop;
@@ -33,6 +34,9 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>Güncelleme çıkışta uygulanmak üzere zamanlandı; uygulama kapanmalı (FlyoutWindow yapar).</summary>
     public event Action? UpdateRestartRequested;
+
+    /// <summary>Ayarlar silindi; tema ve dil açılışta uygulandığı için uygulama yeniden başlamalı.</summary>
+    public event Action? SettingsReset;
 
     public SettingsWindow()
     {
@@ -117,6 +121,7 @@ public sealed partial class SettingsWindow : Window
         InstallUpdateButton.Click += async (_, _) => await DownloadUpdateAsync();
         OpenLogButton.Click += (_, _) => OpenLog();
         OpenDataFolderButton.Click += (_, _) => OpenDataFolder();
+        ResetSettingsButton.Click += async (_, _) => await ResetSettingsAsync();
         CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = L.T($"Version {AppUpdates.CurrentVersion}", $"Sürüm {AppUpdates.CurrentVersion}");
@@ -455,6 +460,32 @@ public sealed partial class SettingsWindow : Window
         CopyDiagnosticsButton.Content = L.T("Copied", "Kopyalandı");
         await Task.Delay(TimeSpan.FromSeconds(2));
         CopyDiagnosticsButton.Content = L.T("Copy diagnostics", "Tanılamayı kopyala");
+    }
+
+    /// <summary>
+    /// Yalnızca settings.json silinir: dil, tema, yenileme aralığı, tepsi sağlayıcısı, bildirimler
+    /// ve güncelleme durumu. Windows ile Başlat, fiyat tablosu ve günlük yerinde kalır.
+    /// </summary>
+    private async Task ResetSettingsAsync()
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = SettingsScrollViewer.XamlRoot,
+            Title = L.T("Reset settings?", "Ayarlar sıfırlansın mı?"),
+            Content = L.T(
+                "Language, theme, refresh interval, tray provider and notification settings go back to their defaults. Ration restarts.",
+                "Dil, tema, yenileme aralığı, tepsi sağlayıcısı ve bildirim ayarları varsayılana döner. Ration yeniden başlar."),
+            PrimaryButtonText = L.T("Reset", "Sıfırla"),
+            CloseButtonText = L.T("Cancel", "Vazgeç"),
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = SettingsScrollViewer.ActualTheme,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        SettingsStore.Default.Clear();
+        Trace.Info("settings", "reset");
+        SettingsReset?.Invoke();
     }
 
     private static void OpenDataFolder()

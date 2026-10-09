@@ -338,6 +338,8 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                         <Button x:Name="OpenDataFolderButton"
                                 Content="{l:Loc En='Open data folder', Tr='Veri klasörünü aç'}" />
+                        <Button x:Name="ResetSettingsButton"
+                                Content="{l:Loc En='Reset settings', Tr='Ayarları sıfırla'}" />
                     </StackPanel>
                 </controls:SettingsCard>
 
