@@ -110,13 +110,8 @@ public sealed partial class TrayMenuWindow : Window
         AppTheme.Apply(RootLayout);
         var (physW, physH) = MeasureMenu(out int dipW, out int dipH);
 
-        var (x, y) = FlyoutPositioner.CalculatePosition(
-            Guid.Empty,
-            _hwnd,
-            0,
-            physW,
-            physH,
-            out var edge);
+        var placement = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, physW, physH);
+        var (x, y, edge) = (placement.X, placement.Y, placement.Edge);
 
         _appWindow.MoveAndResize(new RectInt32(x, y, physW, physH));
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, edge);

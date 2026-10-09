@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Ration.Core.Diagnostics;
+using Ration.Core.Layout;
 using Ration.Platform.Windows.Interop;
 
 namespace Ration.App.Views;

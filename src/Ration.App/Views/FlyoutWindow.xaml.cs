@@ -14,6 +14,7 @@ using Windows.System;
 using Ration.Core.Abstractions;
 using Ration.Core.Cost;
 using Ration.Core.Diagnostics;
+using Ration.Core.Layout;
 using Ration.Core.Model;
 using Ration.Core.Providers;
 using Ration.Core.Refresh;
@@ -1349,13 +1350,13 @@ public sealed partial class FlyoutWindow : Window
 
         // Imlec konumuna dus: tiklamayla acarken zaten dogru sonucu verir.
         // GUID ile Shell_NotifyIconGetRect denemeye gerek yok.
-        var (tempX, tempY) = FlyoutPositioner.CalculatePosition(
+        var provisional = FlyoutPositioner.CalculatePosition(
             Guid.Empty,
             _hwnd,
             0,
             targetWidth,
             (int)Math.Round(desiredHeightDip * scale));
-        var pt = new NativeMethods.POINT { X = tempX, Y = tempY };
+        var pt = new NativeMethods.POINT { X = provisional.X, Y = provisional.Y };
         IntPtr hMonitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
         NativeMethods.GetMonitorInfo(hMonitor, ref monitorInfo);
@@ -1367,13 +1368,8 @@ public sealed partial class FlyoutWindow : Window
             maxHeight);
 
         // 1 & 4d: imlec konumundan hizala, calisma alanina kirp
-        var (x, y) = FlyoutPositioner.CalculatePosition(
-            Guid.Empty,
-            _hwnd,
-            0,
-            targetWidth,
-            targetHeight,
-            out var edge);
+        var placement = FlyoutPositioner.CalculatePosition(Guid.Empty, _hwnd, 0, targetWidth, targetHeight);
+        var (x, y, edge) = (placement.X, placement.Y, placement.Edge);
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(new RectInt32(x, y, targetWidth, targetHeight));
