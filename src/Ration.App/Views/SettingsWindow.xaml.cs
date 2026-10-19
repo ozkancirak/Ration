@@ -166,7 +166,7 @@ public sealed partial class SettingsWindow : Window
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
         double scale = dpi / 96.0;
 
-        int width = (int)Math.Round(520 * scale);
+        int width = (int)Math.Round(680 * scale);
         int height = (int)Math.Round(640 * scale);
 
         if (_appWindow.Presenter is OverlappedPresenter presenter)
