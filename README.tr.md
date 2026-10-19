@@ -24,7 +24,7 @@
 
 - Oturum ve haftalık kalan kota, sıfırlanma zamanı ve tempo tahmini
 - Kalan kotaya göre dolan tepsi ikonu
-- Yerel loglardan son 30 günün token ve maliyet toplamı
+- Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
 - Kota %20'nin altına inince ve bitince bildirim
 - Açık ve koyu tema; Türkçe ve İngilizce arayüz
 

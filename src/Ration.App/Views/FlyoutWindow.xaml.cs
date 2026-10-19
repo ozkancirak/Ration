@@ -1238,7 +1238,7 @@ public sealed partial class FlyoutWindow : Window
             var hasPriced = models.Any(m => !unknown.Contains(m.Model, StringComparer.OrdinalIgnoreCase));
             return allFree || !hasPriced
                 ? null
-                : UsageFormat.Money(report.TotalCost, pricing.Currency) + (unknown.Count > 0 ? "*" : string.Empty);
+                : "~" + UsageFormat.Money(report.TotalCost, pricing.Currency) + (unknown.Count > 0 ? "*" : string.Empty);
         }
 
         var monthLabel = month is { PeriodKnown: false } ? L.T("Total", "Toplam") : L.T("Last 30 days", "Son 30 gün");
@@ -1273,7 +1273,7 @@ public sealed partial class FlyoutWindow : Window
                 .Count();
         var tooltipLines = new List<string>
         {
-            L.T("Tokens are read from local session logs. Cost is not what your subscription charges: it's what the same usage would cost at API prices.", "Tokenlar yerel oturum loglarından okunur. Maliyet, aboneliğinle ödediğin tutar değil: aynı kullanım API fiyatlarıyla bu kadar tutardı."),
+            L.T("Tokens are read from local session logs. Cost is an estimate: not what your subscription charges, but what the same usage would cost at API prices.", "Tokenlar yerel oturum loglarından okunur. Maliyet bir tahmindir: aboneliğinle ödediğin tutar değil, aynı kullanım API fiyatlarıyla bu kadar tutardı."),
         };
         if (_selectedId.Equals("codex", StringComparison.OrdinalIgnoreCase))
         {
