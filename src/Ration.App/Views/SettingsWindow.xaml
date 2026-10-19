@@ -54,7 +54,7 @@
             <controls:SettingsExpander x:Name="ClaudeProviderExpander"
                                        Header="Claude Code"
                                        Description="{l:Loc En='Local credentials and usage quota tracking', Tr='Yerel kimlik bilgileri ve kullanım kotası takibi'}"
-                                       IsExpanded="true">
+                                       IsExpanded="false">
                 <controls:SettingsExpander.Items>
                         <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
                                                Description="{l:Loc En='~/.claude/.credentials.json session', Tr='~/.claude/.credentials.json oturumu'}">
@@ -120,7 +120,7 @@
             <controls:SettingsExpander x:Name="CodexProviderExpander"
                                        Header="Codex"
                                        Description="{l:Loc En='Local credentials and usage quota tracking', Tr='Yerel kimlik bilgileri ve kullanım kotası takibi'}"
-                                       IsExpanded="true">
+                                       IsExpanded="false">
                 <controls:SettingsExpander.Items>
                         <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
                                                Description="{l:Loc En='~/.codex/auth.json session', Tr='~/.codex/auth.json oturumu'}">
@@ -164,7 +164,7 @@
             <controls:SettingsExpander x:Name="AntigravityProviderExpander"
                                        Header="Antigravity"
                                        Description="{l:Loc En='Quota and token usage are read from the app’s local language server', Tr='Kota ve token kullanımı uygulamanın yerel dil sunucusundan okunur'}"
-                                       IsExpanded="true">
+                                       IsExpanded="false">
                 <controls:SettingsExpander.Items>
                     <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
                                            Description="{l:Loc En='Data only updates while Antigravity is running', Tr='Veri yalnızca Antigravity açıkken güncellenir'}">
@@ -185,7 +185,7 @@
             <controls:SettingsExpander x:Name="OpenCodeProviderExpander"
                                        Header="OpenCode"
                                        Description="{l:Loc En='No quota of its own; local usage and free model counter', Tr='Kendi kotası yok; yerel kullanım ve ücretsiz model sayacı'}"
-                                       IsExpanded="true">
+                                       IsExpanded="false">
                 <controls:SettingsExpander.Items>
                     <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
                                            Description="{l:Loc En='~/.local/share/opencode/opencode.db local database', Tr='~/.local/share/opencode/opencode.db yerel veritabanı'}">
