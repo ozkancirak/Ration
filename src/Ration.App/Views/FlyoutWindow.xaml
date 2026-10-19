@@ -202,6 +202,7 @@
                                                    Typography.NumeralAlignment="Tabular" />
                                     </Grid>
                                     <TextBlock Text="{x:Bind PaceText}"
+                                               ToolTipService.ToolTip="{l:Loc En='Compares your usage so far with the share of the window that has passed. Running hot means you are using it faster than time is passing.', Tr='Şu ana kadarki kullanımını, pencerenin geçen süresiyle karşılaştırır. Hızlı gidiyorsun, kotayı zamandan hızlı tükettiğin anlamına gelir.'}"
                                                Visibility="{x:Bind PaceVisibility}"
                                                Style="{StaticResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
