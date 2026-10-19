@@ -31,6 +31,19 @@ public sealed class QuotaAlertsTests
     }
 
     [Fact]
+    public void OzelEsik_OncedenUyarir_VeFarkliEsikFarkliAnahtarUretir()
+    {
+        var snapshot = Snap(ProviderStatus.Ok, Window(WindowKind.Session, 75, Now.AddHours(2)));
+
+        Assert.Empty(QuotaAlerts.Evaluate(snapshot, "Claude", new HashSet<string>(), Now));
+
+        var atThirty = QuotaAlerts.Evaluate(snapshot, "Claude", new HashSet<string>(), Now, lowRemaining: 30);
+        var alert = Assert.Single(atThirty);
+        Assert.EndsWith("|30", alert.Key);
+        Assert.Equal("%25 kaldı · 2 sa 0 dk sonra sıfırlanır.", alert.Body);
+    }
+
+    [Fact]
     public void AyniDongudeTekrarlanmaz_KayanSifirlanmaZamanindaBile()
     {
         var first = QuotaAlerts.Evaluate(

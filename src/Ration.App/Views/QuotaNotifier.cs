@@ -30,10 +30,18 @@ internal static class QuotaNotifier
 
     private const string EnabledKey = "notificationsEnabled";
     private const string FiredKey = "firedAlerts";
+    private const string ThresholdKey = "lowQuotaThreshold";
+
+    public static readonly int[] Thresholds = [10, 20, 30, 50];
+
+    /// <summary>"Azaldı" bildirimi için kalan kota eşiği (%); geçersiz kayıt varsayılana döner.</summary>
+    public static int LowThreshold { get; private set; }
 
     static QuotaNotifier()
     {
         Enabled = SettingsStore.Default.GetBool(EnabledKey, true);
+        var stored = SettingsStore.Default.GetInt(ThresholdKey, (int)QuotaAlerts.LowRemaining);
+        LowThreshold = Array.IndexOf(Thresholds, stored) >= 0 ? stored : (int)QuotaAlerts.LowRemaining;
         _fired = SettingsStore.Default.GetStrings(FiredKey).ToList();
     }
 
@@ -41,6 +49,12 @@ internal static class QuotaNotifier
     {
         Enabled = enabled;
         SettingsStore.Default.Set(EnabledKey, enabled);
+    }
+
+    public static void SetLowThreshold(int percent)
+    {
+        LowThreshold = percent;
+        SettingsStore.Default.Set(ThresholdKey, percent);
     }
 
     /// <summary>Bildirime tıklanınca paneli açmak için; kayıt tek sefer yapılır.</summary>
@@ -66,7 +80,7 @@ internal static class QuotaNotifier
     {
         if (!Enabled || !_registered) return;
 
-        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow);
+        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold);
         if (alerts.Count == 0) return;
 
         foreach (var alert in alerts)

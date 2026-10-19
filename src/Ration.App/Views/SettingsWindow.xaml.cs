@@ -115,7 +115,24 @@ public sealed partial class SettingsWindow : Window
         };
 
         NotificationsToggle.IsOn = QuotaNotifier.Enabled;
-        NotificationsToggle.Toggled += (_, _) => QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
+        NotificationsToggle.Toggled += (_, _) =>
+        {
+            QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
+            LowThresholdSelection.IsEnabled = NotificationsToggle.IsOn;
+        };
+
+        LowThresholdSelection.IsEnabled = QuotaNotifier.Enabled;
+        LowThresholdSelection.SelectedItem = LowThresholdSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag as string == QuotaNotifier.LowThreshold.ToString());
+        LowThresholdSelection.SelectionChanged += (_, _) =>
+        {
+            if (LowThresholdSelection.SelectedItem is ComboBoxItem { Tag: string value } &&
+                int.TryParse(value, out var percent))
+            {
+                QuotaNotifier.SetLowThreshold(percent);
+            }
+        };
 
         PrereleaseToggle.IsOn = AppUpdates.IncludePrerelease;
         PrereleaseToggle.Toggled += async (_, _) =>

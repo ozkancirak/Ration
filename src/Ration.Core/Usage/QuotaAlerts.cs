@@ -6,7 +6,7 @@ public sealed record QuotaAlert(string Key, string Title, string Body);
 
 /// <summary>
 /// Kota bildirimi kararı (saf; gösterim App katmanında). Ana pencerelerde (oturum/haftalık)
-/// kalan kota %20'nin altına inince "azaldı", bitince "doldu" bildirilir. Her eşik her
+/// kalan kota eşiğin (varsayılan %20) altına inince "azaldı", bitince "doldu" bildirilir. Her eşik her
 /// pencere döngüsünde bir kez: anahtar sıfırlanma zamanını içerir, yeni döngü yeni anahtar.
 /// Bayat (Degraded) veride bildirim üretilmez; eski veriye göre alarm çalmak yanlıştır.
 /// </summary>
@@ -18,7 +18,8 @@ public static class QuotaAlerts
         UsageSnapshot snapshot,
         string providerName,
         IReadOnlySet<string> alreadyFired,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        double lowRemaining = LowRemaining)
     {
         if (snapshot.Status != ProviderStatus.Ok) return Array.Empty<QuotaAlert>();
 
@@ -30,7 +31,7 @@ public static class QuotaAlerts
             if (window.Label?.Contains("gpt-", StringComparison.OrdinalIgnoreCase) == true) continue;
 
             var remaining = Math.Clamp(100 - window.Percent, 0, 100);
-            var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= LowRemaining ? (L.T("running low", "azaldı"), "20") : (null, null);
+            var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= lowRemaining ? (L.T("running low", "azaldı"), lowRemaining.ToString("0", System.Globalization.CultureInfo.InvariantCulture)) : (null, null);
             if (level is null) continue;
 
             // Claude'da Haftalık, Haftalık · Opus, Haftalık · Sonnet aynı türdedir; etiket ayırır.
