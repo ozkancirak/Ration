@@ -136,6 +136,7 @@ public sealed partial class FlyoutWindow : Window
         RefreshButton.Click += (s, e) => _ = RefreshManuallyAsync();
 
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
+        TabStrip.KeyDown += OnTabStripKeyDown;
 
         BuildTabs();
         UpdateWelcomeState();
@@ -660,6 +661,20 @@ public sealed partial class FlyoutWindow : Window
         TabStrip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(button, TabStrip.ColumnDefinitions.Count - 1);
         TabStrip.Children.Add(button);
+    }
+
+    // Sol/Sağ ok sekmeyi değiştirir ve odağı yeni sekmeye taşır; uçlarda başa/sona sarar.
+    private void OnTabStripKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        var step = e.Key switch { VirtualKey.Left => -1, VirtualKey.Right => 1, _ => 0 };
+        if (step == 0 || _tabs.Count < 2) return;
+
+        var ids = _tabs.Keys.ToList();
+        var index = ids.FindIndex(id => id.Equals(_selectedId, StringComparison.OrdinalIgnoreCase));
+        var next = ids[(index + step + ids.Count) % ids.Count];
+        SelectProvider(next);
+        _tabs[next].Button.Focus(FocusState.Keyboard);
+        e.Handled = true;
     }
 
     private void SelectProvider(string id)
