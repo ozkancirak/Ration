@@ -25,12 +25,12 @@
 - Session and weekly quota left, with reset times and a pace hint
 - Tray icon that fills with your remaining quota
 - Token totals and estimated cost for the last 30 days from local logs
-- Notifications when a quota drops below 20% and when it runs out
+- Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider
 - Light and dark theme; English and Turkish interface
 
 ## Providers
 
-Claude Code · Codex · Antigravity · OpenCode
+Claude Code · Codex · Antigravity · OpenCode · Cursor
 
 ## Install
 
@@ -49,7 +49,7 @@ The two hashes must match (PowerShell prints upper case, the file lower case). W
 
 ## Privacy
 
-Credential files are read-only. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
+Credential files are read-only; Ration never refreshes or stores them. For Cursor, the session token in Cursor's local storage is sent only to cursor.com. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
 
 ## Data
 

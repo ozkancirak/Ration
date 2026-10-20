@@ -25,12 +25,12 @@
 - Oturum ve haftalık kalan kota, sıfırlanma zamanı ve tempo tahmini
 - Kalan kotaya göre dolan tepsi ikonu
 - Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
-- Kota %20'nin altına inince ve bitince bildirim
+- Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır
 - Açık ve koyu tema; Türkçe ve İngilizce arayüz
 
 ## Sağlayıcılar
 
-Claude Code · Codex · Antigravity · OpenCode
+Claude Code · Codex · Antigravity · OpenCode · Cursor
 
 ## Kurulum
 
@@ -49,7 +49,7 @@ Select-String Setup .\SHA256SUMS.txt
 
 ## Gizlilik
 
-Kimlik dosyaları salt okunur açılır. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
+Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. Cursor için, Cursor'ın yerel deposundaki oturum belirteci yalnızca cursor.com adresine gönderilir. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
 
 ## Veriler
 
