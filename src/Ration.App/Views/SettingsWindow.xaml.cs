@@ -355,8 +355,7 @@ public sealed partial class SettingsWindow : Window
             L.T("No credentials found", "Kimlik bulunamadı"));
 
         // Antigravity verisi yerel dil sunucusundan gelir; uygulama kapalıyken güncellenmez.
-        var antigravityRunning = System.Diagnostics.Process.GetProcessesByName("Antigravity").Length > 0 ||
-            System.Diagnostics.Process.GetProcessesByName("language_server").Length > 0;
+        var antigravityRunning = IsProcessRunning("Antigravity") || IsProcessRunning("language_server");
         SetProviderStatus(
             AntigravityProviderBadge,
             AntigravityProviderStatus,
@@ -461,6 +460,14 @@ public sealed partial class SettingsWindow : Window
         return result.Succeeded
             ? L.T($"Up to date · checked at {checkedAt:t}", $"Güncel · {checkedAt:HH:mm}'de denetlendi")
             : L.T($"Check failed · at {checkedAt:t}", $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi");
+    }
+
+    /// <summary>GetProcessesByName her sonuç için bir tanıtıcı açar; Dispose edilmezse sonlandırıcıyı bekler.</summary>
+    private static bool IsProcessRunning(string name)
+    {
+        var processes = System.Diagnostics.Process.GetProcessesByName(name);
+        try { return processes.Length > 0; }
+        finally { foreach (var process in processes) process.Dispose(); }
     }
 
     /// <summary>
