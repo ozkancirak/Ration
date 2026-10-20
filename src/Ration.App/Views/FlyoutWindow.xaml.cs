@@ -1524,8 +1524,12 @@ public sealed partial class FlyoutWindow : Window
         }
 
         double? gaugePercent = selected?.Percent;
+        // İkonun gösterdiği sağlayıcı ilk satır; diğerleri en az kalan kotadan başlayarak sıralanır.
         string tooltip = selected is { } value
-            ? L.T($"{value.Name} · {100 - value.Percent:F0}% left", $"{value.Name} · %{100 - value.Percent:F0} kaldı")
+            ? string.Join("\n", available.Values
+                .OrderBy(entry => entry.Equals(value) ? 0 : 1)
+                .ThenByDescending(entry => entry.Percent)
+                .Select(entry => L.T($"{entry.Name} · {100 - entry.Percent:F0}% left", $"{entry.Name} · %{100 - entry.Percent:F0} kaldı")))
             : _trayProviderId is { } missing
                 ? L.T($"{TabDisplayName(missing)}: No data", $"{TabDisplayName(missing)}: Veri yok")
                 : L.T("Ration: No data", "Ration: Veri yok");

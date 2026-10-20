@@ -64,8 +64,8 @@ public sealed class SystemTrayHost : IDisposable
     {
         if (_disposed) return;
 
-        // szTip 128 karakter; eski kabuklar 63'te kesiyor.
-        _tooltip = tooltip.Length > 63 ? tooltip[..60] + "…" : tooltip;
+        // szTip 128 karakter (sonuncusu null); desteklenen Windows sürümleri tamamını gösterir.
+        _tooltip = tooltip.Length > 127 ? tooltip[..124] + "…" : tooltip;
         if (_added) Apply();
     }
 
