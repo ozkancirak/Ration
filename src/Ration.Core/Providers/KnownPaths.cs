@@ -129,6 +129,13 @@ public static class KnownPaths
 
     public static string OpenCodeDatabaseCacheDir => Path.Combine(CacheDir, "cache", "opencode");
 
+    // --- Cursor (salt okunur) ---
+
+    /// <summary>Cursor uygulamasının VS Code tarzı durum veritabanı; oturum belirteci burada durur.</summary>
+    public static string CursorStateDatabaseFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Cursor", "User", "globalStorage", "state.vscdb");
+
     public static string ModelAliasesFile => Path.Combine(CacheDir, "model-aliases.json");
 
     public static string OpenCodeFreeModelsFile => Path.Combine(CacheDir, "free-models.json");
