@@ -341,6 +341,7 @@ public sealed partial class FlyoutWindow : Window
         _lastManualRefresh = now;
         _lastInteractiveRefresh = now;
         RefreshButton.IsEnabled = false;
+        BeginRefreshIndicator();
         try
         {
             Trace.Info("provider.refresh", "manual status=started");
@@ -366,6 +367,7 @@ public sealed partial class FlyoutWindow : Window
         finally
         {
             RefreshButton.IsEnabled = true;
+            EndRefreshIndicator();
         }
 
         RefreshCost(force: true);
@@ -387,6 +389,7 @@ public sealed partial class FlyoutWindow : Window
         }
 
         _lastInteractiveRefresh = now;
+        BeginRefreshIndicator();
         try
         {
             Trace.Info("provider.refresh", "flyout status=started");
@@ -405,6 +408,32 @@ public sealed partial class FlyoutWindow : Window
         {
             Trace.Error("provider.refresh", $"flyout status=exception type={ex.GetType().Name}");
         }
+        finally
+        {
+            EndRefreshIndicator();
+        }
+    }
+
+    // Üst üste binen yenilemelerde (düğme + panel açılışı) halka sonuncu bitene kadar döner.
+    private int _refreshesInFlight;
+
+    private void BeginRefreshIndicator()
+    {
+        if (++_refreshesInFlight != 1) return;
+
+        RefreshIcon.Visibility = Visibility.Collapsed;
+        RefreshRing.Visibility = Visibility.Visible;
+        RefreshRing.IsActive = true;
+    }
+
+    private void EndRefreshIndicator()
+    {
+        if (--_refreshesInFlight > 0) return;
+
+        _refreshesInFlight = 0;
+        RefreshRing.IsActive = false;
+        RefreshRing.Visibility = Visibility.Collapsed;
+        RefreshIcon.Visibility = Visibility.Visible;
     }
 
     private void OnTrayProviderChanged(string? providerId)

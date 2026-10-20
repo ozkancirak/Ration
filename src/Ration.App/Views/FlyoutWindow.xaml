@@ -347,7 +347,15 @@
                         Padding="0"
                         ToolTipService.ToolTip="{l:Loc En='Refresh', Tr='Yenile'}"
                         AutomationProperties.Name="{l:Loc En='Refresh quotas now', Tr='Kotaları Şimdi Yenile'}">
-                    <FontIcon Glyph="&#xE72C;" FontSize="16" />
+                    <!--  Yenilerken ikonun yerine dönen halka; düğme boyutu ve düzen değişmez  -->
+                    <Grid>
+                        <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="16" />
+                        <ProgressRing x:Name="RefreshRing"
+                                      Width="16"
+                                      Height="16"
+                                      IsActive="False"
+                                      Visibility="Collapsed" />
+                    </Grid>
                 </Button>
                 <Button x:Name="SettingsButton"
                         Style="{StaticResource SubtleButtonStyle}"
