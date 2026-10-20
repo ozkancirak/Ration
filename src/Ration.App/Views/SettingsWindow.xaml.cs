@@ -322,7 +322,7 @@ public sealed partial class SettingsWindow : Window
             ["command"] = $"\"{exe}\" --statusline",
         }.ToJsonString(options);
 
-        var copied = TryCopyToClipboard(snippet);
+        var copied = ClipboardHelper.TryCopy(snippet);
         if (copied) Trace.Info("settings", "statusline snippet copied");
 
         await ShowCopyResultAsync(CopyStatusLineButton, copied, L.T("Copy line", "Satırı kopyala"));
@@ -484,26 +484,6 @@ public sealed partial class SettingsWindow : Window
         finally { foreach (var process in processes) process.Dispose(); }
     }
 
-    /// <summary>
-    /// Pano başka bir uygulama tarafından tutuluyorsa SetContent COM hatası verir; bu, olay
-    /// işleyicisinden sızıp uygulamayı kapatmasın diye yakalanır.
-    /// </summary>
-    private static bool TryCopyToClipboard(string text)
-    {
-        try
-        {
-            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            package.SetText(text);
-            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Trace.Error("settings", $"clipboard failed type={ex.GetType().Name}");
-            return false;
-        }
-    }
-
     private static async Task ShowCopyResultAsync(Button button, bool copied, string idleText)
     {
         button.Content = copied ? L.T("Copied", "Kopyalandı") : L.T("Could not copy", "Kopyalanamadı");
@@ -520,7 +500,7 @@ public sealed partial class SettingsWindow : Window
             Trace.ReadLastLines(100),
             Ration.Core.Providers.KnownPaths.Home);
 
-        var copied = TryCopyToClipboard(report);
+        var copied = ClipboardHelper.TryCopy(report);
         if (copied) Trace.Info("diagnostics", "report copied");
 
         await ShowCopyResultAsync(CopyDiagnosticsButton, copied, L.T("Copy diagnostics", "Tanılamayı kopyala"));

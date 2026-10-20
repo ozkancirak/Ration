@@ -106,31 +106,17 @@
                     </Grid>
 
 
-                    <!--  Hata / bayat veri bildirimi. Metin sütunu '*': yoksa sarmalanmaz.  -->
-                    <Grid x:Name="DetailError"
-                          ColumnSpacing="8"
-                          Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <FontIcon Glyph="&#xE7BA;"
-                                  FontSize="16"
-                                  Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                                  VerticalAlignment="Top" />
-                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                            <TextBlock x:Name="DetailErrorTitle"
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap" />
-                            <TextBlock x:Name="DetailErrorDetail"
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap"
-                                       MaxLines="3"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </Grid>
+                    <!--  Hata / bayat veri bildirimi: Fluent InfoBar; "Kopyala" ayrıntıyı panoya alır.  -->
+                    <InfoBar x:Name="DetailError"
+                             IsOpen="False"
+                             IsClosable="False"
+                             Severity="Warning">
+                        <InfoBar.ActionButton>
+                            <Button x:Name="CopyErrorButton"
+                                    Content="{l:Loc En='Copy', Tr='Kopyala'}"
+                                    HorizontalAlignment="Right" />
+                        </InfoBar.ActionButton>
+                    </InfoBar>
 
                     <!--  Kurulu değil / veri yok: hata sarısı kullanmaz.  -->
                     <Grid x:Name="DetailUnavailable"

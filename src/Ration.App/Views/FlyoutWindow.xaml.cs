@@ -138,6 +138,7 @@ public sealed partial class FlyoutWindow : Window
 
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
         TabStrip.KeyDown += OnTabStripKeyDown;
+        CopyErrorButton.Click += OnCopyErrorClicked;
 
         BuildTabs();
         UpdateWelcomeState();
@@ -921,7 +922,7 @@ public sealed partial class FlyoutWindow : Window
             DetailUpdated.Text = L.T("Waiting…", "Bekleniyor…");
             DetailUpdated.Visibility = Visibility.Visible;
             DetailPlanBadge.Visibility = Visibility.Collapsed;
-            DetailError.Visibility = Visibility.Collapsed;
+            DetailError.IsOpen = false;
             DetailUnavailable.Visibility = Visibility.Collapsed;
             SetWindows(null);
             ClearCostSection();
@@ -960,8 +961,7 @@ public sealed partial class FlyoutWindow : Window
         }
         else
         {
-            DetailError.Visibility = Visibility.Collapsed;
-            ToolTipService.SetToolTip(DetailError, null);
+            DetailError.IsOpen = false;
         }
 
         SetFreeUsage(snapshot.Cost?.FreeUsage);
@@ -970,13 +970,12 @@ public sealed partial class FlyoutWindow : Window
         if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
         {
             DetailUnavailable.Visibility = Visibility.Collapsed;
-            DetailErrorTitle.Text = snapshot.Status == ProviderStatus.AuthRequired ? L.T("Session expired", "Oturum Süresi Doldu") : L.T("Couldn't get quota", "Kota Alınamadı");
-            DetailErrorDetail.Text = snapshot.Status == ProviderStatus.AuthRequired
-                ? UserErrorDetail(snapshot)
-                : snapshot.StaleReason ?? L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek.");
-            DetailErrorDetail.Visibility = Visibility.Visible;
-            DetailError.Visibility = Visibility.Visible;
-            ToolTipService.SetToolTip(DetailError, null);
+            ShowErrorBar(
+                snapshot.Status == ProviderStatus.AuthRequired ? InfoBarSeverity.Warning : InfoBarSeverity.Error,
+                snapshot.Status == ProviderStatus.AuthRequired ? L.T("Session expired", "Oturum Süresi Doldu") : L.T("Couldn't get quota", "Kota Alınamadı"),
+                snapshot.Status == ProviderStatus.AuthRequired
+                    ? UserErrorDetail(snapshot)
+                    : snapshot.StaleReason ?? L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek."));
             SetWindows(null);
         }
         else if (isOpenCode && snapshot.Windows.Count == 0 &&
@@ -1101,15 +1100,28 @@ public sealed partial class FlyoutWindow : Window
 
     private void ShowStaleNotice(DateTimeOffset fetchedAt, bool sessionRenewalRequired)
     {
-        DetailErrorTitle.Text = sessionRenewalRequired
-            ? L.T("Session needs renewal", "Oturum yenilenmeli")
-            : FormatStaleAge(fetchedAt);
-        DetailErrorDetail.Text = string.Empty;
-        DetailErrorDetail.Visibility = Visibility.Collapsed; // boş satır uyarının altında boşluk bırakıyordu
-        DetailError.Visibility = Visibility.Visible;
-        ToolTipService.SetToolTip(
-            DetailError,
+        ShowErrorBar(
+            InfoBarSeverity.Warning,
+            sessionRenewalRequired
+                ? L.T("Session needs renewal", "Oturum yenilenmeli")
+                : FormatStaleAge(fetchedAt),
             L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek."));
+    }
+
+    private void ShowErrorBar(InfoBarSeverity severity, string title, string message)
+    {
+        DetailError.Severity = severity;
+        DetailError.Title = title;
+        DetailError.Message = message;
+        DetailError.IsOpen = true;
+    }
+
+    private async void OnCopyErrorClicked(object sender, RoutedEventArgs e)
+    {
+        var copied = ClipboardHelper.TryCopy($"{DetailName.Text}: {DetailError.Title}. {DetailError.Message}");
+        CopyErrorButton.Content = copied ? L.T("Copied", "Kopyalandı") : L.T("Could not copy", "Kopyalanamadı");
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        CopyErrorButton.Content = L.T("Copy", "Kopyala");
     }
 
     private static string FormatStaleAge(DateTimeOffset fetchedAt)
