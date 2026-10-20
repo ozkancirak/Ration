@@ -343,7 +343,7 @@ public sealed partial class FlyoutWindow : Window
         try
         {
             Trace.Info("provider.refresh", "manual status=started");
-            await _scheduler.RefreshAllAsync(bypassCircuitBreaker: true);
+            await _scheduler.RefreshAllAsync(bypassCircuitBreaker: true, skipJitter: true);
             Trace.Info("provider.refresh", "manual status=completed");
         }
         catch (OperationCanceledException)
@@ -389,7 +389,7 @@ public sealed partial class FlyoutWindow : Window
         try
         {
             Trace.Info("provider.refresh", "flyout status=started");
-            await _scheduler.RefreshAllAsync();
+            await _scheduler.RefreshAllAsync(skipJitter: true);
             Trace.Info("provider.refresh", "flyout status=completed");
         }
         catch (OperationCanceledException)

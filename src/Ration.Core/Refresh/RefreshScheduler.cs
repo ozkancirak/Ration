@@ -125,15 +125,22 @@ public sealed class RefreshScheduler : IAsyncDisposable
         }
     }
 
-    public async Task RefreshAllAsync(CancellationToken ct = default, bool bypassCircuitBreaker = false)
+    /// <param name="skipJitter">
+    /// Kullanıcı sonucu bekliyorsa (Yenile düğmesi, panel açılışı) rastgele bekleme atlanır;
+    /// jitter yalnızca arka plan turlarının aynı saniyede ateşlememesi içindir.
+    /// </param>
+    public async Task RefreshAllAsync(
+        CancellationToken ct = default,
+        bool bypassCircuitBreaker = false,
+        bool skipJitter = false)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _stopping.Token);
 
-        var tasks = _providers.Select(p => RefreshOneAsync(p, linked.Token, bypassCircuitBreaker));
+        var tasks = _providers.Select(p => RefreshOneAsync(p, linked.Token, bypassCircuitBreaker, skipJitter));
         await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
-    private async Task RefreshOneAsync(IUsageProvider provider, CancellationToken ct, bool bypassCircuitBreaker)
+    private async Task RefreshOneAsync(IUsageProvider provider, CancellationToken ct, bool bypassCircuitBreaker, bool skipJitter)
     {
         var breaker = _breakers[provider.Id];
         var now = DateTimeOffset.UtcNow;
@@ -155,7 +162,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
         try
         {
             // Jitter: tüm sağlayıcılar aynı saniyede ateşlerse hem ağ hem UI dalgalanır.
-            if (_options.MaxJitter > TimeSpan.Zero)
+            if (!skipJitter && _options.MaxJitter > TimeSpan.Zero)
             {
                 var jitterMs = Random.Shared.Next(0, (int)_options.MaxJitter.TotalMilliseconds + 1);
                 await Task.Delay(jitterMs, ct).ConfigureAwait(false);

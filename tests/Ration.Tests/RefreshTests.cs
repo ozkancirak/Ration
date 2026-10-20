@@ -196,6 +196,21 @@ public sealed class RefreshSchedulerTests : IDisposable
         StaleReason: null);
 
     [Fact]
+    public async Task KullaniciYenilemesi_JitterBeklemez()
+    {
+        var provider = new FakeProvider("ornek", () => Ok("ornek", 30));
+        var options = NoJitter with { MaxJitter = TimeSpan.FromSeconds(30) };
+
+        await using var scheduler = new RefreshScheduler(new[] { provider }, new SnapshotCache(_dir), options);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await scheduler.RefreshAllAsync(skipJitter: true);
+
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"beklendi: {stopwatch.Elapsed}");
+        Assert.Equal(ProviderStatus.Ok, scheduler.Current["ornek"].Status);
+    }
+
+    [Fact]
     public async Task BasariliSonucYayinlanirVeCachelenir()
     {
         var cache = new SnapshotCache(_dir);
