@@ -320,14 +320,10 @@ public sealed partial class SettingsWindow : Window
             ["command"] = $"\"{exe}\" --statusline",
         }.ToJsonString(options);
 
-        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(snippet);
-        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        Trace.Info("settings", "statusline snippet copied");
+        var copied = TryCopyToClipboard(snippet);
+        if (copied) Trace.Info("settings", "statusline snippet copied");
 
-        CopyStatusLineButton.Content = L.T("Copied", "Kopyalandı");
-        await Task.Delay(TimeSpan.FromSeconds(2));
-        CopyStatusLineButton.Content = L.T("Copy line", "Satırı kopyala");
+        await ShowCopyResultAsync(CopyStatusLineButton, copied, L.T("Copy line", "Satırı kopyala"));
     }
 
     private void RefreshProviderStatus()
@@ -467,6 +463,33 @@ public sealed partial class SettingsWindow : Window
             : L.T($"Check failed · at {checkedAt:t}", $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi");
     }
 
+    /// <summary>
+    /// Pano başka bir uygulama tarafından tutuluyorsa SetContent COM hatası verir; bu, olay
+    /// işleyicisinden sızıp uygulamayı kapatmasın diye yakalanır.
+    /// </summary>
+    private static bool TryCopyToClipboard(string text)
+    {
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Trace.Error("settings", $"clipboard failed type={ex.GetType().Name}");
+            return false;
+        }
+    }
+
+    private static async Task ShowCopyResultAsync(Button button, bool copied, string idleText)
+    {
+        button.Content = copied ? L.T("Copied", "Kopyalandı") : L.T("Could not copy", "Kopyalanamadı");
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        button.Content = idleText;
+    }
+
     private async Task CopyDiagnosticsAsync()
     {
         var report = DiagnosticsReport.Build(
@@ -476,14 +499,10 @@ public sealed partial class SettingsWindow : Window
             Trace.ReadLastLines(100),
             Ration.Core.Providers.KnownPaths.Home);
 
-        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(report);
-        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
-        Trace.Info("diagnostics", "report copied");
+        var copied = TryCopyToClipboard(report);
+        if (copied) Trace.Info("diagnostics", "report copied");
 
-        CopyDiagnosticsButton.Content = L.T("Copied", "Kopyalandı");
-        await Task.Delay(TimeSpan.FromSeconds(2));
-        CopyDiagnosticsButton.Content = L.T("Copy diagnostics", "Tanılamayı kopyala");
+        await ShowCopyResultAsync(CopyDiagnosticsButton, copied, L.T("Copy diagnostics", "Tanılamayı kopyala"));
     }
 
     /// <summary>
