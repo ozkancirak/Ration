@@ -34,8 +34,24 @@ public static class NetworkErrors
         return false;
     }
 
+    /// <summary>
+    /// HttpClient zaman aşımı, iç istisnası <see cref="TimeoutException"/> olan bir
+    /// <see cref="TaskCanceledException"/> olarak gelir; kullanıcı iptali bunu taşımaz.
+    /// </summary>
+    public static bool IsTimeout(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException) return true;
+        }
+
+        return false;
+    }
+
     public static string Describe(Exception ex) =>
         IsOffline(ex)
             ? L.T("No internet connection", "İnternet bağlantısı yok")
-            : L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}");
+            : IsTimeout(ex)
+                ? L.T("The server did not respond in time", "Sunucu zamanında yanıt vermedi")
+                : L.T($"Network error: {ex.GetType().Name}", $"Ağ hatası: {ex.GetType().Name}");
 }

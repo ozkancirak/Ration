@@ -39,4 +39,35 @@ public class NetworkErrorsTests
     {
         Assert.False(NetworkErrors.IsOffline(new TaskCanceledException()));
     }
+
+    [Fact]
+    public void HttpClientTimeout_IsTimeout_ButPlainCancellationIsNot()
+    {
+        Assert.True(NetworkErrors.IsTimeout(new TaskCanceledException("t", new TimeoutException())));
+        Assert.False(NetworkErrors.IsTimeout(new TaskCanceledException()));
+    }
+
+    [Fact]
+    public async Task RealHttpClientTimeout_IsRecognizedAsTimeout()
+    {
+        // Yanıt vermeyen yerel bir sunucu: gerçek HttpClient zaman aşımının istisna zincirini doğrular.
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(300) };
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(
+            () => http.GetAsync($"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/"));
+
+        Assert.True(NetworkErrors.IsTimeout(ex));
+        Assert.False(NetworkErrors.IsOffline(ex));
+    }
+
+    [Fact]
+    public void Describe_Timeout_DoesNotShowTheExceptionName()
+    {
+        var text = NetworkErrors.Describe(new TaskCanceledException("t", new TimeoutException()));
+
+        Assert.Equal("Sunucu zamanında yanıt vermedi", text);
+        Assert.DoesNotContain("TaskCanceledException", text);
+    }
 }
