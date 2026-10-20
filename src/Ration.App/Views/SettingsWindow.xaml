@@ -392,25 +392,21 @@
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />
 
-            <controls:SettingsCard Description="{l:Loc En='AI coding quotas in your Windows tray.', Tr='Windows tepsisinde AI kodlama kotaların.'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE946;" />
-                    </controls:SettingsCard.HeaderIcon>
-                    <controls:SettingsCard.Header>
-                        <StackPanel Spacing="2">
-                            <TextBlock Text="Ration"
-                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
-                            <TextBlock x:Name="VersionText"
-                                       Style="{StaticResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </controls:SettingsCard.Header>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="{l:Loc En='Provider marks: Simple Icons (CC0), lobe-icons (MIT), official OpenAI SVG.', Tr='Sağlayıcı işaretleri: Simple Icons (CC0), lobe-icons (MIT), OpenAI resmi SVG.'}"
-                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
+            <controls:SettingsCard Header="Ration"
+                                   Description="{l:Loc En='AI coding quotas in your Windows tray.', Tr='Windows tepsisinde AI kodlama kotaların.'}">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE946;" />
+                </controls:SettingsCard.HeaderIcon>
+                <TextBlock x:Name="VersionText"
+                           Style="{StaticResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </controls:SettingsCard>
+
+            <controls:SettingsCard Header="{l:Loc En='Provider marks', Tr='Sağlayıcı işaretleri'}"
+                                   Description="{l:Loc En='Simple Icons (CC0), lobe-icons (MIT), official OpenAI SVG.', Tr='Simple Icons (CC0), lobe-icons (MIT), OpenAI resmi SVG.'}">
+                <controls:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE790;" />
+                </controls:SettingsCard.HeaderIcon>
             </controls:SettingsCard>
 
         </StackPanel>
