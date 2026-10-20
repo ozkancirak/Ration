@@ -31,6 +31,7 @@ internal static class QuotaNotifier
     private const string EnabledKey = "notificationsEnabled";
     private const string FiredKey = "firedAlerts";
     private const string ThresholdKey = "lowQuotaThreshold";
+    private const string DisabledProvidersKey = "notificationsDisabledProviders";
 
     public static readonly int[] Thresholds = [10, 20, 30, 50];
 
@@ -49,6 +50,21 @@ internal static class QuotaNotifier
     {
         Enabled = enabled;
         SettingsStore.Default.Set(EnabledKey, enabled);
+    }
+
+    /// <summary>Sağlayıcı bildirimi varsayılan olarak açıktır; kapatılanlar ayrı bir listede tutulur.</summary>
+    public static bool IsProviderEnabled(string providerId) =>
+        !SettingsStore.Default.GetStrings(DisabledProvidersKey)
+            .Contains(providerId, StringComparer.OrdinalIgnoreCase);
+
+    public static void SetProviderEnabled(string providerId, bool enabled)
+    {
+        var disabled = SettingsStore.Default.GetStrings(DisabledProvidersKey)
+            .Where(id => !id.Equals(providerId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (!enabled) disabled.Add(providerId);
+
+        SettingsStore.Default.Set(DisabledProvidersKey, disabled);
     }
 
     public static void SetLowThreshold(int percent)
@@ -78,7 +94,7 @@ internal static class QuotaNotifier
 
     public static void Evaluate(UsageSnapshot snapshot, string providerName)
     {
-        if (!Enabled || !_registered) return;
+        if (!Enabled || !_registered || !IsProviderEnabled(snapshot.ProviderId)) return;
 
         var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold);
         if (alerts.Count == 0) return;

@@ -119,10 +119,16 @@ public sealed partial class SettingsWindow : Window
         NotificationsToggle.Toggled += (_, _) =>
         {
             QuotaNotifier.SetEnabled(NotificationsToggle.IsOn);
-            LowThresholdSelection.IsEnabled = NotificationsToggle.IsOn;
+            SetNotificationOptionsEnabled(NotificationsToggle.IsOn);
         };
 
-        LowThresholdSelection.IsEnabled = QuotaNotifier.Enabled;
+        foreach (var (toggle, providerId) in NotificationProviderToggles())
+        {
+            toggle.IsOn = QuotaNotifier.IsProviderEnabled(providerId);
+            toggle.Toggled += (_, _) => QuotaNotifier.SetProviderEnabled(providerId, toggle.IsOn);
+        }
+
+        SetNotificationOptionsEnabled(QuotaNotifier.Enabled);
         LowThresholdSelection.SelectedItem = LowThresholdSelection.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item => item.Tag as string == QuotaNotifier.LowThreshold.ToString());
@@ -384,6 +390,20 @@ public sealed partial class SettingsWindow : Window
                 : File.Exists(KnownPaths.CursorStateDatabaseFile)
                     ? L.T("Not signed in", "Giriş yapılmamış")
                     : L.T("Cursor not found", "Cursor bulunamadı"));
+    }
+
+    private IEnumerable<(ToggleSwitch Toggle, string ProviderId)> NotificationProviderToggles()
+    {
+        yield return (ClaudeNotifyToggle, "claude");
+        yield return (CodexNotifyToggle, "codex");
+        yield return (AntigravityNotifyToggle, "antigravity");
+    }
+
+    // Genel anahtar kapalıyken eşik ve sağlayıcı seçenekleri etkisizdir.
+    private void SetNotificationOptionsEnabled(bool enabled)
+    {
+        LowThresholdSelection.IsEnabled = enabled;
+        foreach (var (toggle, _) in NotificationProviderToggles()) toggle.IsEnabled = enabled;
     }
 
     private async Task CheckForUpdatesAsync()

@@ -297,28 +297,43 @@
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                 </controls:SettingsCard>
 
-                <controls:SettingsCard Header="{l:Loc En='Quota notifications', Tr='Kota bildirimleri'}"
-                                       Description="{l:Loc En='Notify when session or weekly quota runs low and when it runs out', Tr='Oturum veya haftalık kota azalınca ve dolunca bildir'}">
-                    <controls:SettingsCard.HeaderIcon>
+                <controls:SettingsExpander x:Name="NotificationsExpander"
+                                           Header="{l:Loc En='Quota notifications', Tr='Kota bildirimleri'}"
+                                           Description="{l:Loc En='Notify when session or weekly quota runs low and when it runs out', Tr='Oturum veya haftalık kota azalınca ve dolunca bildir'}"
+                                           IsExpanded="false">
+                    <controls:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xEA8F;" />
-                    </controls:SettingsCard.HeaderIcon>
+                    </controls:SettingsExpander.HeaderIcon>
                     <ToggleSwitch x:Name="NotificationsToggle"
                                   OnContent="{l:Loc En='On', Tr='Açık'}"
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
-                </controls:SettingsCard>
-
-                <controls:SettingsCard Header="{l:Loc En='Low quota alert', Tr='Azalan kota uyarısı'}"
-                                       Description="{l:Loc En='Notify when the remaining quota drops to this level', Tr='Kalan kota bu seviyeye inince bildir'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE7BA;" />
-                    </controls:SettingsCard.HeaderIcon>
-                    <ComboBox x:Name="LowThresholdSelection" MinWidth="140">
-                        <ComboBoxItem Content="{l:Loc En='10% left', Tr='%10 kaldı'}" Tag="10" />
-                        <ComboBoxItem Content="{l:Loc En='20% left', Tr='%20 kaldı'}" Tag="20" />
-                        <ComboBoxItem Content="{l:Loc En='30% left', Tr='%30 kaldı'}" Tag="30" />
-                        <ComboBoxItem Content="{l:Loc En='50% left', Tr='%50 kaldı'}" Tag="50" />
-                    </ComboBox>
-                </controls:SettingsCard>
+                    <controls:SettingsExpander.Items>
+                        <controls:SettingsCard Header="{l:Loc En='Low quota alert', Tr='Azalan kota uyarısı'}"
+                                               Description="{l:Loc En='Notify when the remaining quota drops to this level', Tr='Kalan kota bu seviyeye inince bildir'}">
+                            <ComboBox x:Name="LowThresholdSelection" MinWidth="140">
+                                <ComboBoxItem Content="{l:Loc En='10% left', Tr='%10 kaldı'}" Tag="10" />
+                                <ComboBoxItem Content="{l:Loc En='20% left', Tr='%20 kaldı'}" Tag="20" />
+                                <ComboBoxItem Content="{l:Loc En='30% left', Tr='%30 kaldı'}" Tag="30" />
+                                <ComboBoxItem Content="{l:Loc En='50% left', Tr='%50 kaldı'}" Tag="50" />
+                            </ComboBox>
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="Claude Code">
+                            <ToggleSwitch x:Name="ClaudeNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="Codex">
+                            <ToggleSwitch x:Name="CodexNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="Antigravity">
+                            <ToggleSwitch x:Name="AntigravityNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander.Items>
+                </controls:SettingsExpander>
 
                 <controls:SettingsCard x:Name="UpdatesCard">
                     <controls:SettingsCard.HeaderIcon>
