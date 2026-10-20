@@ -13,6 +13,7 @@ using Ration.Core.Diagnostics;
 using Ration.Core.Providers;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Providers.Cursor;
 using Ration.Core.Settings;
 using Ration.Core.Updates;
 using Ration.App.Updates;
@@ -240,6 +241,7 @@ public sealed partial class SettingsWindow : Window
         SetProviderHeader(CodexProviderExpander, "codex", "Codex");
         SetProviderHeader(AntigravityProviderExpander, "antigravity", "Antigravity");
         SetProviderHeader(OpenCodeProviderExpander, "opencode", "OpenCode");
+        SetProviderHeader(CursorProviderExpander, "cursor", "Cursor");
     }
 
     /// <summary>
@@ -370,6 +372,18 @@ public sealed partial class SettingsWindow : Window
             File.Exists(KnownPaths.OpenCodeDatabaseFile),
             L.T("Data found", "Veri bulundu"),
             L.T("Database not found", "Veritabanı bulunamadı"));
+
+        var cursor = CursorSessionStore.TryRead();
+        SetProviderStatus(
+            CursorProviderBadge,
+            CursorProviderStatus,
+            cursor?.IsUsable(DateTimeOffset.UtcNow) == true,
+            L.T("Session found", "Oturum bulundu"),
+            cursor is not null
+                ? L.T("Session expired — open Cursor", "Oturum süresi geçmiş — Cursor'ı açın")
+                : File.Exists(KnownPaths.CursorStateDatabaseFile)
+                    ? L.T("Not signed in", "Giriş yapılmamış")
+                    : L.T("Cursor not found", "Cursor bulunamadı"));
     }
 
     private async Task CheckForUpdatesAsync()

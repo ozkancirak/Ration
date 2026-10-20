@@ -75,8 +75,9 @@ public sealed partial class FlyoutWindow : Window
     private readonly HashSet<string> _modelDiagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private bool _allModelDiagnosticsStarted;
 
-    // Flyout genişliği sabit 380 DIP; yükseklik bütün sekmelerin en uzunu olur.
-    private const double FlyoutWidthDip = 380;
+    // Flyout genişliği sabit 420 DIP (beş sekme, Antigravity gibi uzun adlar dahil, kırpılmadan
+    // sığsın); yükseklik bütün sekmelerin en uzunu olur.
+    private const double FlyoutWidthDip = 420;
     private int _targetWidth;
 
     // Açılıştaki yerleşim: görev çubuğu alttaysa alt kenar sabit tutulur ki içerik
@@ -124,9 +125,9 @@ public sealed partial class FlyoutWindow : Window
         {
             Interval = RefreshIntervalPreference.Current,
             MaxJitter = TimeSpan.FromSeconds(5),
-            // Dört sağlayıcı aynı anda: 3 sınırında sonuncu sırada bekliyor ve panel
-            // açılışında eski veriyle kalıyordu.
-            MaxConcurrency = 4,
+            // Tüm sağlayıcılar aynı anda: sınır sağlayıcı sayısından azsa sonuncu sırada bekliyor
+            // ve panel açılışında eski veriyle kalıyordu.
+            MaxConcurrency = _providers.Count,
             EmitCachedOnStart = true,
         });
 
@@ -851,6 +852,7 @@ public sealed partial class FlyoutWindow : Window
         "codex" => "%USERPROFILE%\\.codex\\auth.json",
         "antigravity" => L.T("language_server.exe or %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log", "language_server.exe veya %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log"),
         "opencode" => L.T("%USERPROFILE%\\.local\\share\\opencode\\auth.json or opencode.db", "%USERPROFILE%\\.local\\share\\opencode\\auth.json veya opencode.db"),
+        "cursor" => "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb",
         _ => L.T("local provider sources", "yerel sağlayıcı kaynakları"),
     };
 
@@ -977,7 +979,8 @@ public sealed partial class FlyoutWindow : Window
         else if (snapshot.Windows.Count == 0)
         {
             DetailUnavailableTitle.Text = L.T("No data", "Veri yok");
-            DetailUnavailableDetail.Text = L.T("No usable quota received from the provider.", "Sağlayıcıdan kullanılabilir kota alınamadı.");
+            DetailUnavailableDetail.Text = snapshot.StaleReason
+                ?? L.T("No usable quota received from the provider.", "Sağlayıcıdan kullanılabilir kota alınamadı.");
             DetailUnavailable.Visibility = Visibility.Visible;
             SetWindows(null);
         }
@@ -1006,6 +1009,7 @@ public sealed partial class FlyoutWindow : Window
     {
         "claude" => ("https://claude.ai/settings/usage", "https://status.anthropic.com"),
         "codex" => ("https://chatgpt.com/codex/settings/usage", "https://status.openai.com"),
+        "cursor" => ("https://cursor.com/dashboard", "https://status.cursor.com"),
         _ => (null, null),
     };
 
@@ -1101,6 +1105,7 @@ public sealed partial class FlyoutWindow : Window
             "claude" => L.T("Sign in to Claude Code again.", "Claude Code'da tekrar giriş yapın."),
             "codex" => L.T("Run codex login in a terminal to sign in again.", "Yeniden giriş için bir terminalde codex login çalıştırın."),
             "opencode" => L.T("Run opencode auth login in a terminal to sign in again.", "Yeniden giriş için bir terminalde opencode auth login çalıştırın."),
+            "cursor" => L.T("Open Cursor and sign in again.", "Cursor'ı açıp tekrar giriş yapın."),
             _ => L.T("Sign in to the provider again.", "Sağlayıcıda tekrar giriş yapın."),
         };
     }

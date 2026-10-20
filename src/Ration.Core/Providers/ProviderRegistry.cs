@@ -2,6 +2,7 @@ using Ration.Core.Abstractions;
 using Ration.Core.Providers.Antigravity;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Providers.Cursor;
 using Ration.Core.Providers.OpenCode;
 
 namespace Ration.Core.Providers;
@@ -21,5 +22,6 @@ public static class ProviderRegistry
         new CodexProvider(http),
         new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
         new OpenCodeProvider(http),
+        new CursorProvider(),
     ];
 }

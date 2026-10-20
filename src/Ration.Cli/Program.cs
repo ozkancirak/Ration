@@ -124,7 +124,7 @@ async Task<int> RunUsageAsync(string which, bool asJson, bool showRaw)
     }
     else
     {
-        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, antigravity, opencode, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all"));
+        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, antigravity, opencode, cursor, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, cursor, all"));
         return 2;
     }
 
@@ -1006,7 +1006,7 @@ void PrintHelp()
     Console.WriteLine(L.T("Ration — AI quota monitor", "Ration — AI kota göstergesi"));
     Console.WriteLine();
     Console.WriteLine(L.T("Usage:", "Kullanım:"));
-    Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|all] [--json] [--raw]");
+    Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|cursor|all] [--json] [--raw]");
     Console.WriteLine("  ration cost  [-p claude|codex|all] [--days N] [--json]");
     Console.WriteLine("  ration --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  " + L.T("# discovery/schema; never prints values", "# keşif/şema; değer yazmaz"));
     Console.WriteLine("  ration icon-preview [--out contact-sheet.png]  " + L.T("# renders the DPI/theme contact sheet", "# DPI/tema temas levhası üretir"));

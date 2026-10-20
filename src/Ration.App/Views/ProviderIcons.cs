@@ -45,6 +45,11 @@ internal static class ProviderIcons
     private const string OpenCodePathData =
         "M16 6H8v12h8V6zm4 16H4V2h16v20z";
 
+    // Simple Icons "cursor" (CC0, https://simpleicons.org); açık temada #000000, koyu temada
+    // birincil metin (beyaz).
+    private const string CursorPathData =
+        "M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23";
+
     private const string FallbackPathData =
         "M4,12 L12,4 L20,12 L12,20 Z M8,12 H16 V15 H8 Z";
 
@@ -55,6 +60,7 @@ internal static class ProviderIcons
             ["codex"] = new("codex", ChatGptPathData, null),
             ["antigravity"] = new("antigravity", AntigravityPathData, "000000", UsePrimaryBrushInDarkTheme: true),
             ["opencode"] = new("opencode", OpenCodePathData, "000000", UsePrimaryBrushInDarkTheme: true),
+            ["cursor"] = new("cursor", CursorPathData, "000000", UsePrimaryBrushInDarkTheme: true),
         };
 
     public static ProviderIconDefinition Get(string providerId) =>

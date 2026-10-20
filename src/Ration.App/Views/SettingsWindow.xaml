@@ -203,6 +203,27 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
+            <controls:SettingsExpander x:Name="CursorProviderExpander"
+                                       Header="Cursor"
+                                       Description="{l:Loc En='Plan usage from the Cursor app’s local session', Tr='Cursor uygulamasının yerel oturumundan plan kullanımı'}"
+                                       IsExpanded="false">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
+                                           Description="{l:Loc En='Session in the Cursor app (state.vscdb); read-only, never refreshed', Tr='Cursor uygulamasındaki oturum (state.vscdb); salt okunur, yenilenmez'}">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <InfoBadge x:Name="CursorProviderBadge"
+                                       Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="CursorProviderStatus"
+                                       Text="{l:Loc En='Checking…', Tr='Denetleniyor…'}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
             <!-- Bölüm: Genel Tercihler -->
             <TextBlock Text="{l:Loc En='General', Tr='Genel Tercihler'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"
