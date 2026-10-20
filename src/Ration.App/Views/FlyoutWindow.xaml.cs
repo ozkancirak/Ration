@@ -112,7 +112,7 @@ public sealed partial class FlyoutWindow : Window
 
         // Initialize HTTP Client and RefreshScheduler
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Ration/0.1");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd($"Ration/{AppUpdates.CurrentVersion}");
 
         _providers = ProviderRegistry.CreateAll(
             _http,
