@@ -1452,6 +1452,10 @@ public sealed partial class FlyoutWindow : Window
         _anchorBottom = placement.Y + targetHeight;
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, placement.Edge);
 
+        // Ok tuşları sekme şeridinde dinlenir; odak seçili sekmede açılmazsa önce Tab'a basmak
+        // gerekir. Programmatic: fareyle açılışta odak halkası çizilmez, ok tuşuna basınca görünür.
+        if (_tabs.TryGetValue(_selectedId, out var selectedTab)) selectedTab.Button.Focus(FocusState.Programmatic);
+
         _isVisible = true;
         Trace.Info("window", $"flyout.show dpi={dpi}");
 
