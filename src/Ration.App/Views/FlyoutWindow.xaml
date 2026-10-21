@@ -331,8 +331,14 @@
                         Width="32"
                         Height="32"
                         Padding="0"
-                        ToolTipService.ToolTip="{l:Loc En='Refresh', Tr='Yenile'}"
+                        KeyboardAcceleratorPlacementMode="Hidden"
+                        ToolTipService.ToolTip="{l:Loc En='Refresh (F5)', Tr='Yenile (F5)'}"
                         AutomationProperties.Name="{l:Loc En='Refresh quotas now', Tr='Kotaları Şimdi Yenile'}">
+                    <!--  F5 ve Ctrl+R düğmeyi tıklar; yenilerken düğme pasif olduğu için art arda basış etkisiz  -->
+                    <Button.KeyboardAccelerators>
+                        <KeyboardAccelerator Key="F5" />
+                        <KeyboardAccelerator Key="R" Modifiers="Control" />
+                    </Button.KeyboardAccelerators>
                     <!--  Yenilerken ikonun yerine dönen halka; düğme boyutu ve düzen değişmez  -->
                     <Grid>
                         <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="16" />
