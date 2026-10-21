@@ -19,7 +19,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/flyout-en-dark.png">
-    <img src="docs/screenshots/flyout-en-light.png" width="480" alt="Ration flyout showing Codex session and weekly quota, pace hints and 30-day usage">
+    <img src="docs/screenshots/flyout-en-light.png" width="444" alt="Ration flyout showing Codex session and weekly quota, pace hints and 30-day usage">
   </picture>
 </p>
 

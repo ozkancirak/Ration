@@ -19,7 +19,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/flyout-tr-dark.png">
-    <img src="docs/screenshots/flyout-tr-light.png" width="480" alt="Ration paneli: Codex oturum ve haftalık kotası, tempo ipuçları ve 30 günlük kullanım">
+    <img src="docs/screenshots/flyout-tr-light.png" width="444" alt="Ration paneli: Codex oturum ve haftalık kotası, tempo ipuçları ve 30 günlük kullanım">
   </picture>
 </p>
 
