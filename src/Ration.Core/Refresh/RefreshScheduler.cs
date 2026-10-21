@@ -46,6 +46,20 @@ public sealed class RefreshScheduler : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private long _intervalTicks;
 
+    // Aynı sağlayıcının uçuştaki yenilemesi. İkinci istek (ör. açılışta arka plan turu + panel
+    // açılışı) yeni bir istek atmaz, bitmesini bekler.
+    private readonly object _flightGate = new();
+    private readonly Dictionary<string, Flight> _flights = new(StringComparer.OrdinalIgnoreCase);
+
+    private sealed class Flight
+    {
+        // İptal edilirse jitter beklemesi kısalır: kullanıcı bekleyen bir yenilemeye katıldı.
+        // Zamanlayıcısı ya da kaydı olmadığı için Dispose edilmez (geç gelen katılımcı güvenle çağırır).
+        public CancellationTokenSource SkipJitter { get; } = new();
+
+        public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
     private Task? _loop;
     private volatile bool _paused;
 
@@ -157,15 +171,62 @@ public sealed class RefreshScheduler : IAsyncDisposable
             return;
         }
 
+        Flight flight;
+        bool owner;
+        lock (_flightGate)
+        {
+            owner = !_flights.TryGetValue(provider.Id, out flight!);
+            if (owner)
+            {
+                flight = new Flight();
+                _flights[provider.Id] = flight;
+            }
+        }
+
+        if (skipJitter) flight.SkipJitter.Cancel();
+
+        if (!owner)
+        {
+            RationTrace.Info("provider.refresh", $"joined provider={provider.Id}");
+            await flight.Done.Task.WaitAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            await RunRefreshAsync(provider, breaker, flight, stopwatch, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_flightGate) _flights.Remove(provider.Id);
+            flight.Done.TrySetResult();
+        }
+    }
+
+    private async Task RunRefreshAsync(
+        IUsageProvider provider,
+        CircuitBreaker breaker,
+        Flight flight,
+        Stopwatch stopwatch,
+        CancellationToken ct)
+    {
         await _gate.WaitAsync(ct).ConfigureAwait(false);
 
         try
         {
             // Jitter: tüm sağlayıcılar aynı saniyede ateşlerse hem ağ hem UI dalgalanır.
-            if (!skipJitter && _options.MaxJitter > TimeSpan.Zero)
+            if (_options.MaxJitter > TimeSpan.Zero && !flight.SkipJitter.IsCancellationRequested)
             {
                 var jitterMs = Random.Shared.Next(0, (int)_options.MaxJitter.TotalMilliseconds + 1);
-                await Task.Delay(jitterMs, ct).ConfigureAwait(false);
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct, flight.SkipJitter.Token);
+                try
+                {
+                    await Task.Delay(jitterMs, wait.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    // Kullanıcı sonucu bekliyor: kalan bekleme atlanır.
+                }
             }
 
             var snapshot = await ProviderResolver.ResolveAsync(
