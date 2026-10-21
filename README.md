@@ -23,14 +23,23 @@
 ## Features
 
 - Session and weekly quota left, with reset times and a pace hint
-- Tray icon that fills with your remaining quota
+- Tray icon that fills with your remaining quota; hover it to see each provider's remaining quota
 - Token totals and estimated cost for the last 30 days from local logs
 - Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider
-- Light and dark theme; English and Turkish interface
+- Native Windows look (Mica and Acrylic), light and dark theme, English and Turkish interface
+- Updates itself: checks once a day, installs with one click, downloads only what changed
 
 ## Providers
 
-Claude Code · Codex · Antigravity · OpenCode · Cursor
+| Provider | Reads (read-only) | Talks to | Shows |
+|---|---|---|---|
+| Claude Code | `~/.claude/.credentials.json`, session logs | `api.anthropic.com` | Session and weekly quota; cost from logs |
+| Codex | `~/.codex/auth.json`, session logs | `chatgpt.com` | Session and weekly quota; cost from logs |
+| Antigravity | the app's local language server | `127.0.0.1` only | Quota and token usage |
+| OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go plan, when signed in) | Go plan quota; local usage and free model counter |
+| Cursor | Cursor's local storage (`state.vscdb`) | `cursor.com` | Plan usage and billing cycle |
+
+Ration never writes to those files and does not renew sign-ins. Tokens are sent only to the address in the table, only for the request that needs them.
 
 ## Install
 

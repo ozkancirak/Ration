@@ -23,14 +23,23 @@
 ## Özellikler
 
 - Oturum ve haftalık kalan kota, sıfırlanma zamanı ve tempo tahmini
-- Kalan kotaya göre dolan tepsi ikonu
+- Kalan kotaya göre dolan tepsi ikonu; üzerine gelince her sağlayıcının kalan kotası görünür
 - Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
 - Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır
-- Açık ve koyu tema; Türkçe ve İngilizce arayüz
+- Windows'a yerel görünüm (Mica ve Acrylic), açık ve koyu tema, Türkçe ve İngilizce arayüz
+- Kendini günceller: günde bir denetler, tek tıkla kurar, yalnızca değişeni indirir
 
 ## Sağlayıcılar
 
-Claude Code · Codex · Antigravity · OpenCode · Cursor
+| Sağlayıcı | Okuduğu (salt okunur) | Konuştuğu | Gösterdiği |
+|---|---|---|---|
+| Claude Code | `~/.claude/.credentials.json`, oturum günlükleri | `api.anthropic.com` | Oturum ve haftalık kota; maliyet günlüklerden |
+| Codex | `~/.codex/auth.json`, oturum günlükleri | `chatgpt.com` | Oturum ve haftalık kota; maliyet günlüklerden |
+| Antigravity | uygulamanın yerel dil sunucusu | yalnızca `127.0.0.1` | Kota ve token kullanımı |
+| OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go planı, giriş yapılmışsa) | Go planı kotası; yerel kullanım ve ücretsiz model sayacı |
+| Cursor | Cursor'ın yerel deposu (`state.vscdb`) | `cursor.com` | Plan kullanımı ve fatura dönemi |
+
+Ration bu dosyalara hiçbir şey yazmaz ve oturumları yenilemez. Belirteçler yalnızca tabloda yazan adrese, yalnızca gerektiren istek için gönderilir.
 
 ## Kurulum
 
