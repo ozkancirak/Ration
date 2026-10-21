@@ -29,6 +29,7 @@
 - Tray icon that fills with your remaining quota; hover it to see each provider's remaining quota
 - Token totals and estimated cost for the last 30 days from local logs
 - Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider
+- Keyboard friendly: arrow keys switch providers, F5 or Ctrl+R refreshes, and an optional global shortcut (Ctrl+Alt+R by default, off until you turn it on in Settings) opens the panel from anywhere; the pin button keeps it open while you work
 - Native Windows look (Mica and Acrylic), light and dark theme, English and Turkish interface
 - Updates itself: checks once a day, installs with one click, downloads only what changed
 

@@ -29,6 +29,7 @@
 - Kalan kotaya göre dolan tepsi ikonu; üzerine gelince her sağlayıcının kalan kotası görünür
 - Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
 - Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır
+- Klavyeyle rahat kullanım: ok tuşları sağlayıcı değiştirir, F5 veya Ctrl+R yeniler, isteğe bağlı genel kısayol (varsayılan Ctrl+Alt+R, Ayarlar'dan açana kadar kapalı) paneli her yerden açar; sabitleme düğmesi çalışırken açık tutar
 - Windows'a yerel görünüm (Mica ve Acrylic), açık ve koyu tema, Türkçe ve İngilizce arayüz
 - Kendini günceller: günde bir denetler, tek tıkla kurar, yalnızca değişeni indirir
 
