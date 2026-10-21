@@ -115,11 +115,12 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
-        HotkeyCard.Description = L.T(
-            $"Open Ration from anywhere with {HotkeyPreference.Current}",
-            $"Ration’ı her yerden {HotkeyPreference.Current} ile aç");
+        ShowHotkey();
         HotkeyToggle.IsOn = HotkeyPreference.Enabled;
         HotkeyToggle.Toggled += (_, _) => HotkeyPreference.SetEnabled(HotkeyToggle.IsOn);
+        HotkeyButton.Click += (_, _) => BeginHotkeyCapture();
+        HotkeyButton.PreviewKeyDown += OnHotkeyKeyDown;
+        HotkeyButton.LostFocus += (_, _) => EndHotkeyCapture();
 
         NotificationsToggle.IsOn = QuotaNotifier.Enabled;
         NotificationsToggle.Toggled += (_, _) =>
@@ -404,6 +405,61 @@ public sealed partial class SettingsWindow : Window
         yield return (CodexNotifyToggle, "codex");
         yield return (AntigravityNotifyToggle, "antigravity");
     }
+
+    // Kısayol yakalama: düğmeye tıklayınca bir sonraki geçerli birleşim kaydedilir. Yakalarken
+    // kayıtlı kısayol bırakılır (HotkeyPreference.Capturing); yoksa aynı birleşime basmak
+    // pencereye hiç ulaşmazdı.
+    private bool _capturingHotkey;
+
+    private void ShowHotkey()
+    {
+        var text = HotkeyPreference.Current.ToString();
+        HotkeyButton.Content = text;
+        HotkeyExpander.Description = L.T($"Open Ration from anywhere with {text}", $"Ration’ı her yerden {text} ile aç");
+    }
+
+    private void BeginHotkeyCapture()
+    {
+        _capturingHotkey = true;
+        HotkeyPreference.SetCapturing(true);
+        HotkeyButton.Content = L.T("Press keys…", "Tuşlara bas…");
+    }
+
+    private void EndHotkeyCapture()
+    {
+        if (!_capturingHotkey) return;
+        _capturingHotkey = false;
+        HotkeyPreference.SetCapturing(false);
+        ShowHotkey();
+    }
+
+    private void OnHotkeyKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (!_capturingHotkey) return;
+        e.Handled = true;
+
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            EndHotkeyCapture();
+            return;
+        }
+
+        int modifiers = 0;
+        if (IsKeyDown(Windows.System.VirtualKey.Control)) modifiers |= Hotkey.Control;
+        if (IsKeyDown(Windows.System.VirtualKey.Menu)) modifiers |= Hotkey.Alt;
+        if (IsKeyDown(Windows.System.VirtualKey.Shift)) modifiers |= Hotkey.Shift;
+        if (IsKeyDown(Windows.System.VirtualKey.LeftWindows) || IsKeyDown(Windows.System.VirtualKey.RightWindows)) modifiers |= Hotkey.Win;
+
+        // Yalnız değiştirici ya da desteklenmeyen tuş: yakalamaya devam.
+        if (!Hotkey.TryCreate(modifiers, (int)e.Key, out var hotkey)) return;
+
+        HotkeyPreference.Set(hotkey);
+        EndHotkeyCapture();
+    }
+
+    private static bool IsKeyDown(Windows.System.VirtualKey key) =>
+        Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
     // Genel anahtar kapalıyken eşik ve sağlayıcı seçenekleri etkisizdir.
     private void SetNotificationOptionsEnabled(bool enabled)

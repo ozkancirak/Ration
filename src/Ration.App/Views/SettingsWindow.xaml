@@ -297,16 +297,25 @@
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                 </controls:SettingsCard>
 
-                <controls:SettingsCard x:Name="HotkeyCard"
-                                       Header="{l:Loc En='Global shortcut', Tr='Genel kısayol'}">
-                    <controls:SettingsCard.HeaderIcon>
+                <controls:SettingsExpander x:Name="HotkeyExpander"
+                                           Header="{l:Loc En='Global shortcut', Tr='Genel kısayol'}"
+                                           IsExpanded="false">
+                    <controls:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE765;" />
-                    </controls:SettingsCard.HeaderIcon>
+                    </controls:SettingsExpander.HeaderIcon>
                     <ToggleSwitch x:Name="HotkeyToggle"
                                   OnContent="{l:Loc En='On', Tr='Açık'}"
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}"
                                   AutomationProperties.Name="{l:Loc En='Global shortcut', Tr='Genel kısayol'}" />
-                </controls:SettingsCard>
+                    <controls:SettingsExpander.Items>
+                        <controls:SettingsCard Header="{l:Loc En='Key combination', Tr='Tuş birleşimi'}"
+                                               Description="{l:Loc En='Click, then press the new combination. It needs Ctrl, Alt or Win. Esc cancels.', Tr='Tıkla, sonra yeni birleşime bas. Ctrl, Alt veya Win gerekir. Esc iptal eder.'}">
+                            <Button x:Name="HotkeyButton"
+                                    MinWidth="140"
+                                    AutomationProperties.Name="{l:Loc En='Key combination', Tr='Tuş birleşimi'}" />
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander.Items>
+                </controls:SettingsExpander>
 
                 <controls:SettingsExpander x:Name="NotificationsExpander"
                                            Header="{l:Loc En='Quota notifications', Tr='Kota bildirimleri'}"

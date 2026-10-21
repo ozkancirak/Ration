@@ -18,10 +18,28 @@ public static class HotkeyPreference
     public static Hotkey Current =>
         Hotkey.TryParse(SettingsStore.Default.GetString(KeyKey), out var hotkey) ? hotkey : Hotkey.Default;
 
+    /// <summary>Ayarlarda yeni birleşim yakalanırken true: kayıtlı kısayol, basılan tuşları
+    /// pencereden çalmasın diye geçici olarak bırakılır.</summary>
+    public static bool Capturing { get; private set; }
+
     public static void SetEnabled(bool enabled)
     {
         if (Enabled == enabled) return;
         SettingsStore.Default.Set(EnabledKey, enabled);
+        Changed?.Invoke();
+    }
+
+    public static void Set(Hotkey hotkey)
+    {
+        if (Current == hotkey) return;
+        SettingsStore.Default.Set(KeyKey, hotkey.ToString());
+        Changed?.Invoke();
+    }
+
+    public static void SetCapturing(bool capturing)
+    {
+        if (Capturing == capturing) return;
+        Capturing = capturing;
         Changed?.Invoke();
     }
 }

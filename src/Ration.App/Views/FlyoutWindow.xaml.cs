@@ -274,7 +274,7 @@ public sealed partial class FlyoutWindow : Window
             _hotkeyRegistered = false;
         }
 
-        if (!HotkeyPreference.Enabled) return;
+        if (!HotkeyPreference.Enabled || HotkeyPreference.Capturing) return;
 
         var hotkey = HotkeyPreference.Current;
         _hotkeyRegistered = NativeMethods.RegisterHotKey(
