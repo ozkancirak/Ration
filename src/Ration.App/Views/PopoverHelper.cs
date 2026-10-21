@@ -108,13 +108,16 @@ internal static class PopoverHelper
     /// Işıkla kapanma: kapatma isteği + odak kaybı + Esc → <paramref name="hide"/>.
     /// <paramref name="onDeactivated"/>: odak kaybında ek iş (örn. aynı tıklamanın
     /// pencereyi kapatıp hemen yeniden açmasını önleyen zaman damgası).
+    /// <paramref name="canDismissOnDeactivate"/>: false dönerse odak kaybı pencereyi kapatmaz
+    /// (sabitlenmiş flyout); Esc ve kapatma isteği yine kapatır.
     /// </summary>
     public static void ConfigureDismissal(
         Window window,
         AppWindow appWindow,
         Action hide,
         FrameworkElement escRoot,
-        Action? onDeactivated = null)
+        Action? onDeactivated = null,
+        Func<bool>? canDismissOnDeactivate = null)
     {
         appWindow.Closing += (s, e) =>
         {
@@ -128,7 +131,7 @@ internal static class PopoverHelper
             {
                 Trace.Info("window", "popover.deactivated");
                 onDeactivated?.Invoke();
-                hide();
+                if (canDismissOnDeactivate?.Invoke() ?? true) hide();
             }
         };
 

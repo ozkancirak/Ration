@@ -326,6 +326,24 @@
                 </HyperlinkButton>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                <!--  Sabitle: odak kaybında kapanmaz, tepsi simgesine tıklayınca ya da Esc ile kapanır.
+                      Kapalıyken diğer simge düğmeleri gibi saydam; açıkken vurgu rengi (Windows standardı).  -->
+                <ToggleButton x:Name="PinButton"
+                              Width="32"
+                              Height="32"
+                              Padding="0"
+                              ToolTipService.ToolTip="{l:Loc En='Keep open', Tr='Açık tut'}"
+                              AutomationProperties.Name="{l:Loc En='Keep the panel open', Tr='Paneli açık tut'}">
+                    <ToggleButton.Resources>
+                        <StaticResource x:Key="ToggleButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ToggleButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
+                        <StaticResource x:Key="ToggleButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
+                        <StaticResource x:Key="ToggleButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ToggleButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
+                        <StaticResource x:Key="ToggleButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
+                    </ToggleButton.Resources>
+                    <FontIcon Glyph="&#xE718;" FontSize="16" />
+                </ToggleButton>
                 <Button x:Name="RefreshButton"
                         Style="{StaticResource SubtleButtonStyle}"
                         Width="32"

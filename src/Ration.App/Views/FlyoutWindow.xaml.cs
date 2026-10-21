@@ -48,6 +48,7 @@ public sealed partial class FlyoutWindow : Window
     private DateTimeOffset _lastManualRefresh = DateTimeOffset.MinValue;
     private int _resumeRefreshPending;
     private bool _isVisible;
+    private bool _pinned;
     private double? _currentGaugePercent;
     private string _currentTooltip = L.T("Ration: No data", "Ration: Veri yok");
     private string? _trayProviderId = TrayProviderPreference.Current;
@@ -98,8 +99,11 @@ public sealed partial class FlyoutWindow : Window
 
         // Ortak popover kabuğu: akrilik, başlıksız sunucu, switcher gizliliği.
         PopoverHelper.ConfigureChrome(this, _appWindow, _hwnd);
+        // Sabitliyken odak kaybı pencereyi kapatmaz ve zaman damgası da basılmaz: yoksa tepsi
+        // simgesine tıklamak (odağı alan tıklama) kapatma olarak yutulurdu.
         PopoverHelper.ConfigureDismissal(this, _appWindow, HideFlyout, RootLayout,
-            onDeactivated: () => _lastDeactivatedTime = DateTimeOffset.UtcNow);
+            onDeactivated: () => { if (!_pinned) _lastDeactivatedTime = DateTimeOffset.UtcNow; },
+            canDismissOnDeactivate: () => !_pinned);
 
         // Immersive Dark Mode
         UpdateWindowFrameTheme();
@@ -135,6 +139,10 @@ public sealed partial class FlyoutWindow : Window
 
         // Wire window refresh button
         RefreshButton.Click += (s, e) => _ = RefreshManuallyAsync();
+        // Click değil Checked/Unchecked: ekran okuyucu ve UI Automation ToggleButton'ı Click
+        // olmadan çevirir.
+        PinButton.Checked += OnPinChanged;
+        PinButton.Unchecked += OnPinChanged;
 
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
         TabStrip.KeyDown += OnTabStripKeyDown;
@@ -234,6 +242,15 @@ public sealed partial class FlyoutWindow : Window
         }
 
         return NativeMethods.DefSubclassProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    private void OnPinChanged(object sender, RoutedEventArgs e)
+    {
+        var pinned = PinButton.IsChecked == true;
+        if (pinned == _pinned) return;
+
+        _pinned = pinned;
+        Trace.Info("window", $"flyout.pin state={(pinned ? "on" : "off")}");
     }
 
     private void UpdateWindowFrameTheme()
@@ -1527,7 +1544,10 @@ public sealed partial class FlyoutWindow : Window
         if (!_isVisible) return;
 
         // Once bayrak, sonra Hide: Hide yeni bir Deactivated tetikleyip geri girebilir.
+        // Sabitleme oturumluktur: bir sonraki açılış yine ışıkla kapanan flyout'tur.
         _isVisible = false;
+        _pinned = false;
+        PinButton.IsChecked = false;
         PopoverHelper.HidePopover(_appWindow, RootLayout);
         EfficiencyModeManager.SetEfficiencyMode(true);
         Trace.Info("window", "flyout.hide");
