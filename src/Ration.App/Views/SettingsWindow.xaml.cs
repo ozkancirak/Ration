@@ -115,6 +115,12 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        HotkeyCard.Description = L.T(
+            $"Open Ration from anywhere with {HotkeyPreference.Current}",
+            $"Ration’ı her yerden {HotkeyPreference.Current} ile aç");
+        HotkeyToggle.IsOn = HotkeyPreference.Enabled;
+        HotkeyToggle.Toggled += (_, _) => HotkeyPreference.SetEnabled(HotkeyToggle.IsOn);
+
         NotificationsToggle.IsOn = QuotaNotifier.Enabled;
         NotificationsToggle.Toggled += (_, _) =>
         {

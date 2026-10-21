@@ -188,6 +188,8 @@ public sealed partial class FlyoutWindow : Window
         WindowsThemeListener.ThemeChanged += OnTaskbarThemeChanged;
         AppThemePreference.Changed += OnAppThemeChanged;
         RefreshIntervalPreference.Changed += OnRefreshIntervalChanged;
+        HotkeyPreference.Changed += () => this.DispatcherQueue.TryEnqueue(ApplyHotkey);
+        ApplyHotkey();
         EfficiencyModeManager.PauseChanged += OnEfficiencyPauseChanged;
         EfficiencyModeManager.Resumed += OnSystemResumed;
         PricingTableUpdater.Updated += OnPricingUpdated;
@@ -217,6 +219,12 @@ public sealed partial class FlyoutWindow : Window
 
     private IntPtr WindowSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
     {
+        if (uMsg == NativeMethods.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
+        {
+            this.DispatcherQueue.TryEnqueue(Toggle);
+            return IntPtr.Zero;
+        }
+
         if (uMsg == SingleInstanceLease.WakeWindowMessageId)
         {
             this.DispatcherQueue.TryEnqueue(() =>
@@ -251,6 +259,29 @@ public sealed partial class FlyoutWindow : Window
 
         _pinned = pinned;
         Trace.Info("window", $"flyout.pin state={(pinned ? "on" : "off")}");
+    }
+
+    // Genel kısayol: RegisterHotKey bu pencereye WM_HOTKEY gönderir (WindowSubclassProc).
+    // Ayar değişince eski kayıt kaldırılıp yenisi yapılır; kısayol kapalıyken hiçbir şey kayıtlı kalmaz.
+    private const int HotkeyId = 0x5254;
+    private bool _hotkeyRegistered;
+
+    private void ApplyHotkey()
+    {
+        if (_hotkeyRegistered)
+        {
+            NativeMethods.UnregisterHotKey(_hwnd, HotkeyId);
+            _hotkeyRegistered = false;
+        }
+
+        if (!HotkeyPreference.Enabled) return;
+
+        var hotkey = HotkeyPreference.Current;
+        _hotkeyRegistered = NativeMethods.RegisterHotKey(
+            _hwnd, HotkeyId, (uint)hotkey.Modifiers | NativeMethods.MOD_NOREPEAT, (uint)hotkey.VirtualKey);
+        Trace.Info("hotkey", _hotkeyRegistered
+            ? $"registered key={hotkey}"
+            : $"register-failed key={hotkey} error={Marshal.GetLastWin32Error()}");
     }
 
     private void UpdateWindowFrameTheme()

@@ -297,6 +297,17 @@
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                 </controls:SettingsCard>
 
+                <controls:SettingsCard x:Name="HotkeyCard"
+                                       Header="{l:Loc En='Global shortcut', Tr='Genel kısayol'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE765;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="HotkeyToggle"
+                                  OnContent="{l:Loc En='On', Tr='Açık'}"
+                                  OffContent="{l:Loc En='Off', Tr='Kapalı'}"
+                                  AutomationProperties.Name="{l:Loc En='Global shortcut', Tr='Genel kısayol'}" />
+                </controls:SettingsCard>
+
                 <controls:SettingsExpander x:Name="NotificationsExpander"
                                            Header="{l:Loc En='Quota notifications', Tr='Kota bildirimleri'}"
                                            Description="{l:Loc En='Notify when session or weekly quota runs low and when it runs out', Tr='Oturum veya haftalık kota azalınca ve dolunca bildir'}"
