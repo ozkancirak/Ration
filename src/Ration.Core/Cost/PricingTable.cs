@@ -710,18 +710,28 @@ public static class CostEstimator
         };
     }
 
+    // Aynı model ve oran her taramada yeniden yazılırsa günlük (256 KB'ta döner) bunlarla dolar ve
+    // yararlı kayıtlar silinir. Oran ya da kaynak değişince mesaj değişir, yeniden yazılır.
+    private static readonly HashSet<string> LoggedRates = new(StringComparer.Ordinal);
+
     private static void LogRate(string model, string resolved, ModelRate rate, string source)
     {
         var resolvedText = string.Equals(model, resolved, StringComparison.OrdinalIgnoreCase)
             ? string.Empty
             : $" resolved={resolved}";
-        RationTrace.Info(
-            "pricing",
+        var message =
             $"model-rate model={model}{resolvedText} " +
             $"input={rate.InputPerMillion.ToString(CultureInfo.InvariantCulture)} " +
             $"output={rate.OutputPerMillion.ToString(CultureInfo.InvariantCulture)} " +
             $"cacheRead={rate.CacheReadPerMillion.ToString(CultureInfo.InvariantCulture)} " +
             $"cacheWrite={rate.CacheWritePerMillion.ToString(CultureInfo.InvariantCulture)} " +
-            $"source={source}");
+            $"source={source}";
+
+        lock (LoggedRates)
+        {
+            if (!LoggedRates.Add(message)) return;
+        }
+
+        RationTrace.Info("pricing", message);
     }
 }
