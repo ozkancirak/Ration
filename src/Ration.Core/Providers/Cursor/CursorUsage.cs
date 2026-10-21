@@ -160,9 +160,13 @@ public sealed class CursorUsageSource : IUsageSource
                 L.T("Cursor session expired — open Cursor once to renew it.", "Cursor oturumu doldu — yenilemek için Cursor'ı bir kez açın."), Kind);
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
-        request.Headers.TryAddWithoutValidation("Cookie", $"WorkosCursorSessionToken={session.UserId}%3A%3A{session.AccessToken}");
-        request.Headers.TryAddWithoutValidation("Accept", "application/json");
+        HttpRequestMessage NewRequest()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
+            request.Headers.TryAddWithoutValidation("Cookie", $"WorkosCursorSessionToken={session.UserId}%3A%3A{session.AccessToken}");
+            request.Headers.TryAddWithoutValidation("Accept", "application/json");
+            return request;
+        }
 
         RationTrace.Info(
             "provider.http",
@@ -170,7 +174,7 @@ public sealed class CursorUsageSource : IUsageSource
 
         try
         {
-            using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+            using var response = await TransientRetry.SendAsync(_http, NewRequest, ct).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             RationTrace.Info("provider.http", $"provider=cursor endpoint=usage status={(int)response.StatusCode}");
 

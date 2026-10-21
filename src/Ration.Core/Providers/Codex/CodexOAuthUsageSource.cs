@@ -41,17 +41,22 @@ public sealed class CodexOAuthUsageSource : IUsageSource
                 L.T("~/.codex/auth.json not found or has no tokens.access_token.", "~/.codex/auth.json bulunamadı ya da tokens.access_token içermiyor."), Kind);
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
-
-        if (!string.IsNullOrWhiteSpace(credentials.AccountId))
+        HttpRequestMessage NewRequest()
         {
-            request.Headers.TryAddWithoutValidation("chatgpt-account-id", credentials.AccountId);
+            var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
+
+            if (!string.IsNullOrWhiteSpace(credentials.AccountId))
+            {
+                request.Headers.TryAddWithoutValidation("chatgpt-account-id", credentials.AccountId);
+            }
+
+            return request;
         }
 
         try
         {
-            using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+            using var response = await TransientRetry.SendAsync(_http, NewRequest, ct).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             LastRawResponse = body;
             RationTrace.Info(

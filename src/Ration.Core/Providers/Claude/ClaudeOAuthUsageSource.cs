@@ -123,9 +123,13 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 
     private async Task<UsageSnapshot> FetchUsageAsync(ClaudeCredentials credentials, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
-        request.Headers.TryAddWithoutValidation("anthropic-beta", OAuthBetaHeader);
+        HttpRequestMessage NewRequest()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
+            request.Headers.TryAddWithoutValidation("anthropic-beta", OAuthBetaHeader);
+            return request;
+        }
 
         RationTrace.Info(
             "provider.http",
@@ -134,7 +138,7 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 
         try
         {
-            using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+            using var response = await TransientRetry.SendAsync(_http, NewRequest, ct).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             LastStatusCode = (int)response.StatusCode;
             LastRetryAfter = response.Headers.TryGetValues("Retry-After", out var retryAfter)
