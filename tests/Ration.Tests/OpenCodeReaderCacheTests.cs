@@ -65,6 +65,23 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
     }
 
     [Fact]
+    public void KopyaYolu_BoyutSinirini_VeritabaniWalVeShmIcinUygular()
+    {
+        CreateDatabase();
+        var size = new FileInfo(DatabasePath).Length;
+
+        Assert.True(OpenCodeLocalUsageReader.FitsForCopy(DatabasePath, size));
+        Assert.False(OpenCodeLocalUsageReader.FitsForCopy(DatabasePath, size - 1));
+
+        File.WriteAllBytes(DatabasePath + "-wal", new byte[1000]);
+        File.WriteAllBytes(DatabasePath + "-shm", new byte[500]);
+        Assert.True(OpenCodeLocalUsageReader.FitsForCopy(DatabasePath, size + 1500));
+        Assert.False(OpenCodeLocalUsageReader.FitsForCopy(DatabasePath, size + 1499));
+
+        Assert.Equal(256L * 1024 * 1024, OpenCodeLocalUsageReader.MaxCopyBytes);
+    }
+
+    [Fact]
     public void DegisimAnahtari_GunBoyutVeZamanlaDegisir()
     {
         CreateDatabase();

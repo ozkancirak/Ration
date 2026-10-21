@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Ration.Core.Cost;
+using Ration.Core.Diagnostics;
 using Ration.Core.Model;
 
 namespace Ration.Core.Providers.OpenCode;
@@ -40,6 +41,26 @@ public static class OpenCodeLocalUsageReader
         var report = ReadFresh(databasePath, cacheDirectory, ct, freeModelPath);
         if (key is not null && report is not null) LastReports[databasePath] = (key, report);
         return report;
+    }
+
+    /// <summary>Kopya yolunda izin verilen en büyük toplam boyut (veritabanı + WAL + SHM).</summary>
+    public const long MaxCopyBytes = 256L * 1024 * 1024;
+
+    public static bool FitsForCopy(string databasePath, long maxBytes)
+    {
+        try
+        {
+            long total = 0;
+            foreach (var path in new[] { databasePath, databasePath + "-wal", databasePath + "-shm" })
+            {
+                var file = new FileInfo(path);
+                if (file.Exists) total += file.Length;
+            }
+
+            return total <= maxBytes;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     /// <summary>
@@ -81,6 +102,14 @@ public static class OpenCodeLocalUsageReader
         catch (SqliteException)
         {
             // Doğrudan okunamadı; kopya üzerinden dene.
+        }
+
+        // Çok büyük veritabanını her yenilemede kopyalamak (bu makinede 1,2 GB) diski ve zamanı
+        // yer; kilitliyse bu tur atlanır, sonraki tur yeniden denenir.
+        if (!FitsForCopy(databasePath, MaxCopyBytes))
+        {
+            Trace.Info("provider.source", "provider=opencode copy=skipped reason=database-too-large");
+            return null;
         }
 
         var copyDirectory = Path.Combine(
