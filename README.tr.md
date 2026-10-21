@@ -17,7 +17,10 @@
 
 
 <p align="center">
-  <img src="docs/screenshots/flyout.png" width="380" alt="Ration paneli">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/flyout-tr-dark.png">
+    <img src="docs/screenshots/flyout-tr-light.png" width="480" alt="Ration paneli: Codex oturum ve haftalık kotası, tempo ipuçları ve 30 günlük kullanım">
+  </picture>
 </p>
 
 ## Özellikler
