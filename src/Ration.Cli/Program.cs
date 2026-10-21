@@ -775,15 +775,7 @@ async Task<int> RunAntigravityDiscoverAsync()
     }
     else
     {
-        using var probeHandler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            Proxy = null,
-            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
-            },
-        };
+        using var probeHandler = AntigravityLoopbackUsageSource.CreateLoopbackHandler();
         using var probeHttp = new HttpClient(probeHandler) { Timeout = TimeSpan.FromSeconds(2) };
         probeHttp.DefaultRequestHeaders.UserAgent.ParseAdd("Ration/0.1 discover");
 

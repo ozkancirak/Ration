@@ -573,23 +573,27 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
         }
     }
 
-    private static HttpClient CreateLoopbackClient()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            Proxy = null,
-            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
-            },
-        };
-
-        return new HttpClient(handler)
+    private static HttpClient CreateLoopbackClient() =>
+        new(CreateLoopbackHandler())
         {
             Timeout = TimeSpan.FromSeconds(10),
         };
-    }
+
+    /// <summary>
+    /// Dil sunucusu kendinden imzalı sertifikayla yalnızca 127.0.0.1'de dinler; doğrulama bu yüzden
+    /// kapalıdır. Doğrulama kapalıyken yönlendirme izlenmez: sunucu başka bir adrese yönlendirse
+    /// bile istek (CSRF başlığıyla) oraya gitmez.
+    /// </summary>
+    public static SocketsHttpHandler CreateLoopbackHandler() => new()
+    {
+        UseProxy = false,
+        Proxy = null,
+        AllowAutoRedirect = false,
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+        },
+    };
 
     private static UsageSnapshot Complete(
         UsageSnapshot snapshot,
