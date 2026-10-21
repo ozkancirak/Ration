@@ -121,6 +121,7 @@ public sealed partial class SettingsWindow : Window
         HotkeyButton.Click += (_, _) => BeginHotkeyCapture();
         HotkeyButton.PreviewKeyDown += OnHotkeyKeyDown;
         HotkeyButton.LostFocus += (_, _) => EndHotkeyCapture();
+        HotkeyPreference.RegistrationChanged += () => DispatcherQueue.TryEnqueue(ShowHotkey);
 
         NotificationsToggle.IsOn = QuotaNotifier.Enabled;
         NotificationsToggle.Toggled += (_, _) =>
@@ -414,8 +415,20 @@ public sealed partial class SettingsWindow : Window
     private void ShowHotkey()
     {
         var text = HotkeyPreference.Current.ToString();
-        HotkeyButton.Content = text;
-        HotkeyExpander.Description = L.T($"Open Ration from anywhere with {text}", $"Ration’ı her yerden {text} ile aç");
+        if (!_capturingHotkey) HotkeyButton.Content = text;
+
+        if (HotkeyPreference.RegistrationFailed)
+        {
+            // Bölüm kapalıyken de görünsün diye açılır.
+            HotkeyExpander.Description = L.T(
+                $"{text} is already used by another app. Choose another combination.",
+                $"{text} başka bir uygulama tarafından kullanılıyor. Başka bir birleşim seç.");
+            HotkeyExpander.IsExpanded = true;
+        }
+        else
+        {
+            HotkeyExpander.Description = L.T($"Open Ration from anywhere with {text}", $"Ration’ı her yerden {text} ile aç");
+        }
     }
 
     private void BeginHotkeyCapture()

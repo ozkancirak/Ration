@@ -274,7 +274,11 @@ public sealed partial class FlyoutWindow : Window
             _hotkeyRegistered = false;
         }
 
-        if (!HotkeyPreference.Enabled || HotkeyPreference.Capturing) return;
+        if (!HotkeyPreference.Enabled || HotkeyPreference.Capturing)
+        {
+            HotkeyPreference.ReportRegistration(failed: false);
+            return;
+        }
 
         var hotkey = HotkeyPreference.Current;
         _hotkeyRegistered = NativeMethods.RegisterHotKey(
@@ -282,6 +286,9 @@ public sealed partial class FlyoutWindow : Window
         Trace.Info("hotkey", _hotkeyRegistered
             ? $"registered key={hotkey}"
             : $"register-failed key={hotkey} error={Marshal.GetLastWin32Error()}");
+
+        // Birleşimi başka bir uygulama tutuyorsa (ERROR_HOTKEY_ALREADY_REGISTERED) ayarlar uyarır.
+        HotkeyPreference.ReportRegistration(failed: !_hotkeyRegistered);
     }
 
     private void UpdateWindowFrameTheme()

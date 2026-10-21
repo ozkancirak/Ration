@@ -13,6 +13,9 @@ public static class HotkeyPreference
 
     public static event Action? Changed;
 
+    /// <summary>Kayıt sonucu değişti (<see cref="RegistrationFailed"/>).</summary>
+    public static event Action? RegistrationChanged;
+
     public static bool Enabled => SettingsStore.Default.GetBool(EnabledKey, false);
 
     public static Hotkey Current =>
@@ -34,6 +37,16 @@ public static class HotkeyPreference
         if (Current == hotkey) return;
         SettingsStore.Default.Set(KeyKey, hotkey.ToString());
         Changed?.Invoke();
+    }
+
+    /// <summary>Son kayıt denemesi başarısız oldu: birleşimi başka bir uygulama tutuyor.</summary>
+    public static bool RegistrationFailed { get; private set; }
+
+    public static void ReportRegistration(bool failed)
+    {
+        if (RegistrationFailed == failed) return;
+        RegistrationFailed = failed;
+        RegistrationChanged?.Invoke();
     }
 
     public static void SetCapturing(bool capturing)
