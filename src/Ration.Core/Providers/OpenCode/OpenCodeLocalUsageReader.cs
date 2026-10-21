@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -15,6 +16,11 @@ namespace Ration.Core.Providers.OpenCode;
 /// </summary>
 public static class OpenCodeLocalUsageReader
 {
+    // Veritabanı ve WAL dosyası değişmediyse son rapor yeniden kullanılır: büyük veritabanını her
+    // yenilemede baştan sorgulamak (bu makinede 1,2 GB, medyan 2,7 sn) gereksiz.
+    private static readonly ConcurrentDictionary<string, (string Key, CostReport Report)> LastReports =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public static CostReport? Read(
         string databasePath,
         string cacheDirectory,
@@ -23,6 +29,49 @@ public static class OpenCodeLocalUsageReader
     {
         if (!File.Exists(databasePath)) return null;
 
+        var key = ChangeKey(databasePath, freeModelPath, DateTimeOffset.UtcNow);
+        if (key is not null &&
+            LastReports.TryGetValue(databasePath, out var last) &&
+            last.Key == key)
+        {
+            return last.Report with { PeriodEnd = DateTimeOffset.UtcNow };
+        }
+
+        var report = ReadFresh(databasePath, cacheDirectory, ct, freeModelPath);
+        if (key is not null && report is not null) LastReports[databasePath] = (key, report);
+        return report;
+    }
+
+    /// <summary>
+    /// Rapora giren her şeyin parmak izi: veritabanı ve WAL boyutu/zamanı, ücretsiz model listesi
+    /// ve UTC gün (30 günlük pencere ve "bugün" sayacı gün değişince değişir). Okunamazsa null:
+    /// önbellek kullanılmaz.
+    /// </summary>
+    public static string? ChangeKey(string databasePath, string? freeModelPath, DateTimeOffset now)
+    {
+        try
+        {
+            var database = new FileInfo(databasePath);
+            var wal = new FileInfo(databasePath + "-wal");
+            var free = freeModelPath is null ? null : new FileInfo(freeModelPath);
+
+            return string.Join('|',
+                databasePath,
+                database.Length, database.LastWriteTimeUtc.Ticks,
+                wal.Exists ? wal.Length : -1, wal.Exists ? wal.LastWriteTimeUtc.Ticks : 0,
+                free is { Exists: true } ? free.LastWriteTimeUtc.Ticks : 0,
+                now.UtcDateTime.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    private static CostReport? ReadFresh(
+        string databasePath,
+        string cacheDirectory,
+        CancellationToken ct,
+        string? freeModelPath)
+    {
         CleanupStaleCopies(cacheDirectory);
         var start = DateTimeOffset.UtcNow.AddDays(-30);
         try
