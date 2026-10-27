@@ -147,12 +147,28 @@ public static class CursorCurrentPeriodParser
             var resetsAt = ReadEpochMillis(root, "billingCycleEnd");
             var start = ReadEpochMillis(root, "billingCycleStart");
             TimeSpan? length = start is { } s && resetsAt is { } e && e > s ? e - s : null;
-            used = Math.Clamp(used, 0, 100);
-            windows.Add(new UsageWindow(WindowKind.Monthly, used, 100, used, resetsAt, L.T("Plan", "Plan"), length));
+
+            // Dönem uzunluğu belirler: yeni planlarda 7 günlük havuz haftalık, eskisi aylık sayılır
+            // (haftalık pencere tepsi ikonuna da girer, aylık girmez).
+            var kind = length is { } span && span <= TimeSpan.FromDays(8) ? WindowKind.Weekly : WindowKind.Monthly;
+
+            UsageWindow Window(double percentUsed, string label)
+            {
+                var clamped = Math.Clamp(percentUsed, 0, 100);
+                return new UsageWindow(kind, clamped, 100, clamped, resetsAt, label, length);
+            }
+
+            windows.Add(Window(used, L.T("Plan", "Plan")));
+
+            // Auto/Composer ve API havuzları ayrı sayılıyor; bildirilmişse ayrı pencere olarak gösterilir.
+            if (auto is { } autoPercent && IsFinite(autoPercent)) windows.Add(Window(autoPercent, "Auto"));
+            if (api is { } apiPercent && IsFinite(apiPercent)) windows.Add(Window(apiPercent, "API"));
         }
 
         return new CursorUsageData(windows, planName);
     }
+
+    private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
     /// <summary>İsteğe bağlı harcama (limit) tanımlı mı? Tanımlıysa eski özet yanıtından okunur.</summary>
     public static bool HasSpendLimit(string json)
@@ -370,7 +386,7 @@ public sealed class CursorProvider : IUsageProvider
 
     public ProviderCapabilities Capabilities { get; } = new(
         SupportsSessionWindow: false,
-        SupportsWeeklyWindow: false,
+        SupportsWeeklyWindow: true,
         SupportsMonthlyWindow: true,
         SupportsCredits: false,
         SupportsCostReport: false);

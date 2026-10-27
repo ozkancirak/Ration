@@ -145,11 +145,15 @@ public sealed class CursorUsageTests
 
         Assert.Equal(ProviderStatus.Ok, snapshot.Status);
         Assert.Equal("Pro", snapshot.PlanName);
-        var plan = Assert.Single(snapshot.Windows);
+        Assert.Equal(3, snapshot.Windows.Count);
+        var plan = snapshot.Windows[0];
         Assert.Equal(37.5, plan.Percent);
-        Assert.Equal(WindowKind.Monthly, plan.Kind);
+        Assert.Equal(WindowKind.Monthly, plan.Kind); // 31 günlük dönem
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1794343356282), plan.ResetsAt);
         Assert.Equal(TimeSpan.FromDays(31), plan.WindowLength);
+
+        Assert.Equal(("Auto", 12.0), (snapshot.Windows[1].Label, snapshot.Windows[1].Percent));
+        Assert.Equal(("API", 30.0), (snapshot.Windows[2].Label, snapshot.Windows[2].Percent));
     }
 
     [Theory]
@@ -212,13 +216,30 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
+    public void GuncelDonemAyristirici_YediGunlukDonem_HaftalikPencereOlur()
+    {
+        var haftalik = CursorCurrentPeriodParser.Parse(
+            """{"billingCycleStart":"1791664956282","billingCycleEnd":"1792269756282","planUsage":{"autoPercentUsed":10,"apiPercentUsed":25,"totalPercentUsed":20}}""",
+            "pro")!;
+
+        Assert.All(haftalik.Windows, w => Assert.Equal(WindowKind.Weekly, w.Kind));
+        Assert.All(haftalik.Windows, w => Assert.Equal(TimeSpan.FromDays(7), w.WindowLength));
+        Assert.Equal([20.0, 10.0, 25.0], haftalik.Windows.Select(w => w.Percent));
+
+        // Dönem sınırı yoksa uzunluk bilinmez: aylık sayılır (eski davranış).
+        var sinirsiz = CursorCurrentPeriodParser.Parse("""{"planUsage":{"totalPercentUsed":5}}""", "pro")!;
+        Assert.Equal(WindowKind.Monthly, Assert.Single(sinirsiz.Windows).Kind);
+    }
+
+    [Fact]
     public void GuncelDonemAyristirici_YuzdeKaynaklari_VeBicimler()
     {
         // Toplam yoksa havuzların en yükseği; sayı olarak verilen epoch da okunur.
         var havuz = CursorCurrentPeriodParser.Parse(
             """{"billingCycleStart":1791664956282,"billingCycleEnd":1794343356282,"planUsage":{"autoPercentUsed":12,"apiPercentUsed":30}}""",
             "pro");
-        Assert.Equal(30, Assert.Single(havuz!.Windows).Percent);
+        Assert.Equal(["Plan", "Auto", "API"], havuz!.Windows.Select(w => w.Label));
+        Assert.Equal(30, havuz.Windows[0].Percent);
 
         Assert.Equal(100, Assert.Single(CursorCurrentPeriodParser.Parse("""{"planUsage":{"totalPercentUsed":137.5}}""", "pro")!.Windows).Percent);
 
