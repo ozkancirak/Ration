@@ -56,6 +56,41 @@ public sealed class AntigravityTests
     }
 
     [Fact]
+    public void Parser_VersionedModelGroups_StayApartWithTheirOwnLimitsAndResets()
+    {
+        // Yeni model havuzu ("Gemini 4 Argon") eskisinden bağımsız kotaya sahip; adı da, sıfırlanması da ayrı kalmalı.
+        const string json = """
+            {
+              "groups": [
+                { "displayName": "Gemini Models", "buckets": [
+                    { "window": "5h", "remainingFraction": 0.90, "resetTime": "2026-10-27T12:00:00Z" },
+                    { "window": "weekly", "remainingFraction": 0.70, "resetTime": "2026-11-02T12:00:00Z" } ] },
+                { "displayName": "Gemini 4 Argon Models", "buckets": [
+                    { "window": "5h", "remainingFraction": 0.40, "resetTime": "2026-10-27T15:00:00Z" },
+                    { "window": "weekly", "remainingFraction": 0.10, "resetTime": "2026-11-03T15:00:00Z" } ] },
+                { "displayName": "Claude and GPT models", "buckets": [
+                    { "window": "5h", "remainingFraction": 1.00 } ] }
+              ]
+            }
+            """;
+
+        var windows = AntigravityUsageParser.ParseWindows(json);
+
+        Assert.Equal(5, windows.Count);
+        Assert.Equal(["Gemini Models", "Gemini Models", "Gemini 4 Argon Models", "Gemini 4 Argon Models", "Claude and GPT models"],
+            windows.Select(w => w.GroupName));
+
+        var argon = windows.Where(w => w.GroupName == "Gemini 4 Argon Models").ToList();
+        Assert.Equal(60d, argon[0].Percent, precision: 10);
+        Assert.Equal(90d, argon[1].Percent, precision: 10);
+        Assert.Equal(new DateTimeOffset(2026, 10, 27, 15, 0, 0, TimeSpan.Zero), argon[0].ResetsAt);
+
+        var gemini = windows.Where(w => w.GroupName == "Gemini Models").ToList();
+        Assert.Equal(10d, gemini[0].Percent, precision: 10);
+        Assert.Equal(new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero), gemini[0].ResetsAt);
+    }
+
+    [Fact]
     public void Parser_MalformedOrEmptyShape_ReturnsNoWindows()
     {
         Assert.Empty(AntigravityUsageParser.ParseWindows("{\"groups\":[]}"));
