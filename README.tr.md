@@ -41,7 +41,7 @@
 | Codex | `~/.codex/auth.json`, oturum günlükleri | `chatgpt.com` | Oturum ve haftalık kota; maliyet günlüklerden |
 | Antigravity | uygulamanın yerel dil sunucusu | yalnızca `127.0.0.1` | Kota ve token kullanımı |
 | OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go planı, giriş yapılmışsa) | Go planı kotası; yerel kullanım ve ücretsiz model sayacı |
-| Cursor | Cursor'ın yerel deposu (`state.vscdb`) | `cursor.com` | Plan kullanımı ve fatura dönemi |
+| Cursor | Cursor'ın yerel deposu (`state.vscdb`); yeni Cursor sürümleri belirteci şifreli tutar, Ration onu kendi Windows hesap anahtarınla açar | `api2.cursor.sh`, `cursor.com` | Plan kullanımı (Auto ve API havuzları) ve fatura dönemi |
 
 Ration bu dosyalara hiçbir şey yazmaz ve oturumları yenilemez. Belirteçler yalnızca tabloda yazan adrese, yalnızca gerektiren istek için gönderilir.
 
@@ -62,7 +62,7 @@ Select-String Setup .\SHA256SUMS.txt
 
 ## Gizlilik
 
-Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. Cursor için, Cursor'ın yerel deposundaki oturum belirteci yalnızca cursor.com adresine gönderilir. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
+Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. Cursor için, Cursor'ın yerel deposundaki oturum belirteci (Cursor şifrelediyse kendi Windows hesap anahtarınla bellekte çözülür) yalnızca Cursor'ın kendi adreslerine, api2.cursor.sh ve cursor.com'a gönderilir. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
 
 ## Veriler
 

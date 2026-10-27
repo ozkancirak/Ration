@@ -41,7 +41,7 @@
 | Codex | `~/.codex/auth.json`, session logs | `chatgpt.com` | Session and weekly quota; cost from logs |
 | Antigravity | the app's local language server | `127.0.0.1` only | Quota and token usage |
 | OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go plan, when signed in) | Go plan quota; local usage and free model counter |
-| Cursor | Cursor's local storage (`state.vscdb`) | `cursor.com` | Plan usage and billing cycle |
+| Cursor | Cursor's local storage (`state.vscdb`); newer Cursor versions keep the token encrypted, which Ration opens with your own Windows account key | `api2.cursor.sh`, `cursor.com` | Plan usage (Auto and API pools) and billing cycle |
 
 Ration never writes to those files and does not renew sign-ins. Tokens are sent only to the address in the table, only for the request that needs them.
 
@@ -62,7 +62,7 @@ The two hashes must match (PowerShell prints upper case, the file lower case). W
 
 ## Privacy
 
-Credential files are read-only; Ration never refreshes or stores them. For Cursor, the session token in Cursor's local storage is sent only to cursor.com. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
+Credential files are read-only; Ration never refreshes or stores them. For Cursor, the session token in Cursor's local storage (decrypted in memory with your own Windows account key when Cursor encrypts it) is sent only to Cursor's own hosts, api2.cursor.sh and cursor.com. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
 
 ## Data
 
