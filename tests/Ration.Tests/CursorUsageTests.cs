@@ -96,18 +96,138 @@ public sealed class CursorUsageTests
         Assert.Equal(expected, CursorUsageParser.FormatPlan(input));
 
     [Fact]
-    public async Task Basarili_CerezBasligiSadeceCursorAdresineGider()
+    public async Task OzetYolu_CerezBasligiSadeceCursorAdresineGider()
     {
-        var handler = new Handler(_ => Json(HttpStatusCode.OK, ProBody));
+        // Güncel dönem uç noktası 404 verir: özet yoluna düşülür.
+        var handler = new Handler(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
+            ? Json(HttpStatusCode.NotFound, "{}")
+            : Json(HttpStatusCode.OK, ProBody));
 
         var snapshot = await Source(handler, Session()).FetchAsync();
 
         Assert.Equal(ProviderStatus.Ok, snapshot.Status);
         Assert.Equal("Pro", snapshot.PlanName);
-        var request = Assert.Single(handler.Requests);
-        Assert.Equal(CursorUsageSource.UsageEndpoint, request.Uri);
-        Assert.Equal("WorkosCursorSessionToken=user_ABC123%3A%3Asentetik-token", request.Cookie);
-        Assert.Null(request.Authorization);
+        Assert.Equal(2, handler.Requests.Count);
+        var summary = handler.Requests[1];
+        Assert.Equal("GET", summary.Method);
+        Assert.Equal(CursorUsageSource.UsageEndpoint, summary.Uri);
+        Assert.Equal("WorkosCursorSessionToken=user_ABC123%3A%3Asentetik-token", summary.Cookie);
+        Assert.Null(summary.Authorization);
+    }
+
+    private const string CurrentPeriodBody = """
+        {
+          "billingCycleStart": "1791664956282",
+          "billingCycleEnd": "1794343356282",
+          "planUsage": { "remainingBonus": false, "autoPercentUsed": 12, "apiPercentUsed": 30, "totalPercentUsed": 37.5 },
+          "spendLimitUsage": { "pooledLimit": "0", "pooledRemaining": "0", "individualLimit": 0, "limitType": "user", "overallLimit": 0, "overallRemaining": 0 },
+          "displayMessage": "You've used 37% of your included usage"
+        }
+        """;
+
+    private static Handler CurrentPeriodHandler(string body = CurrentPeriodBody, HttpStatusCode status = HttpStatusCode.OK) =>
+        new(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
+            ? Json(status, body)
+            : Json(HttpStatusCode.OK, ProBody));
+
+    [Fact]
+    public async Task GuncelDonem_OnceDener_BelirtecYalnizBearerOlarakCursorSunucusunaGider()
+    {
+        var handler = CurrentPeriodHandler();
+
+        var snapshot = await Source(handler, Session()).FetchAsync();
+
+        var request = Assert.Single(handler.Requests); // özete gerek kalmadı
+        Assert.Equal("POST", request.Method);
+        Assert.Equal(CursorUsageSource.CurrentPeriodEndpoint, request.Uri);
+        Assert.Equal("Bearer sentetik-token", request.Authorization);
+        Assert.Null(request.Cookie);
+
+        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        Assert.Equal("Pro", snapshot.PlanName);
+        var plan = Assert.Single(snapshot.Windows);
+        Assert.Equal(37.5, plan.Percent);
+        Assert.Equal(WindowKind.Monthly, plan.Kind);
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1794343356282), plan.ResetsAt);
+        Assert.Equal(TimeSpan.FromDays(31), plan.WindowLength);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError, "{}")]
+    [InlineData(HttpStatusCode.Unauthorized, "{}")]
+    [InlineData(HttpStatusCode.OK, "<html>")]
+    [InlineData(HttpStatusCode.OK, "{\"beklenmeyen\":true}")]
+    [InlineData(HttpStatusCode.OK, "{\"planUsage\":{}}")]
+    public async Task GuncelDonemBasarisizsa_EskiOzeteDuser(HttpStatusCode status, string body)
+    {
+        var handler = CurrentPeriodHandler(body, status);
+
+        var snapshot = await Source(handler, Session()).FetchAsync();
+
+        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(CursorUsageSource.UsageEndpoint, handler.Requests[1].Uri);
+        Assert.Equal(20, snapshot.Windows[0].Percent); // ProBody: 400/2000
+    }
+
+    [Fact]
+    public async Task GuncelDonemAgHatasi_OzeteDuser()
+    {
+        var handler = new Handler(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
+            ? throw new HttpRequestException("ag")
+            : Json(HttpStatusCode.OK, ProBody));
+
+        var snapshot = await Source(handler, Session()).FetchAsync();
+
+        Assert.Equal(ProviderStatus.Ok, snapshot.Status);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task IsteGoreHarcamaLimitiVarsa_OzetKullanilir_OnDemandPenceresiKaybolmaz()
+    {
+        var limitli = CurrentPeriodBody.Replace("\"overallLimit\": 0", "\"overallLimit\": 10000");
+        var handler = CurrentPeriodHandler(limitli);
+
+        var snapshot = await Source(handler, Session()).FetchAsync();
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(2, snapshot.Windows.Count); // Plan + On-demand (özetten)
+    }
+
+    [Fact]
+    public async Task UcretsizHesapta_GuncelDonemSifir_SinirYokDer()
+    {
+        var handler = CurrentPeriodHandler(CurrentPeriodBody
+            .Replace("\"autoPercentUsed\": 12", "\"autoPercentUsed\": 0")
+            .Replace("\"apiPercentUsed\": 30", "\"apiPercentUsed\": 0")
+            .Replace("\"totalPercentUsed\": 37.5", "\"totalPercentUsed\": 0"));
+
+        var snapshot = await Source(handler, Session() with { MembershipType = "free" }).FetchAsync();
+
+        Assert.Single(handler.Requests);
+        Assert.Equal(ProviderStatus.Degraded, snapshot.Status);
+        Assert.Empty(snapshot.Windows);
+        Assert.Equal("Free", snapshot.PlanName);
+    }
+
+    [Fact]
+    public void GuncelDonemAyristirici_YuzdeKaynaklari_VeBicimler()
+    {
+        // Toplam yoksa havuzların en yükseği; sayı olarak verilen epoch da okunur.
+        var havuz = CursorCurrentPeriodParser.Parse(
+            """{"billingCycleStart":1791664956282,"billingCycleEnd":1794343356282,"planUsage":{"autoPercentUsed":12,"apiPercentUsed":30}}""",
+            "pro");
+        Assert.Equal(30, Assert.Single(havuz!.Windows).Percent);
+
+        Assert.Equal(100, Assert.Single(CursorCurrentPeriodParser.Parse("""{"planUsage":{"totalPercentUsed":137.5}}""", "pro")!.Windows).Percent);
+
+        Assert.Null(CursorCurrentPeriodParser.Parse("[1,2]", "pro"));
+        Assert.Null(CursorCurrentPeriodParser.Parse("""{"planUsage":"yok"}""", "pro"));
+
+        Assert.False(CursorCurrentPeriodParser.HasSpendLimit(CurrentPeriodBody));
+        Assert.True(CursorCurrentPeriodParser.HasSpendLimit("""{"spendLimitUsage":{"pooledLimit":"5000"}}"""));
+        Assert.False(CursorCurrentPeriodParser.HasSpendLimit("[]"));
     }
 
     [Fact]
@@ -188,7 +308,7 @@ public sealed class CursorUsageTests
     private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
-    private sealed record Seen(string Uri, string? Cookie, string? Authorization);
+    private sealed record Seen(string Method, string Uri, string? Cookie, string? Authorization);
 
     private sealed class Handler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
@@ -198,6 +318,7 @@ public sealed class CursorUsageTests
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(new Seen(
+                request.Method.Method,
                 request.RequestUri!.ToString(),
                 request.Headers.TryGetValues("Cookie", out var cookie) ? string.Join("; ", cookie) : null,
                 request.Headers.Authorization?.ToString()));

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using Ration.Core.Abstractions;
 using Ration.Core.Model;
@@ -108,13 +109,92 @@ public static class CursorUsageParser
 }
 
 /// <summary>
-/// Cursor uygulamasının yerel oturum belirtecini, Cursor'ın kendi adresine (cursor.com) çerez
-/// olarak gönderip plan kullanımını okur. Belirteç yerel dosyadan gelir (Kind = LocalFile);
-/// Ration onu yenilemez, kaydetmez, günlüğe yazmaz.
+/// api2.cursor.sh GetCurrentPeriodUsage yanıtını ayrıştırır (canlı yanıttan doğrulanan biçim):
+///
+///   billingCycleStart / End   epoch milisaniye, METİN ("1791664956282")
+///   planUsage                 { totalPercentUsed, autoPercentUsed, apiPercentUsed } (0-100)
+///   spendLimitUsage           { overallLimit, individualLimit, pooledLimit ... } (isteğe bağlı harcama)
+///
+/// Yalnızca yüzde bildirilir (kullanılan miktar/limit yok). Şema belgesiz ve değişebiliyor:
+/// plan yüzdesi yoksa null döner ve çağıran eski <c>usage-summary</c> yoluna düşer.
+/// </summary>
+public static class CursorCurrentPeriodParser
+{
+    public static CursorUsageData? Parse(string json, string? membershipType)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object ||
+            !root.TryGetProperty("planUsage", out var plan) ||
+            plan.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var total = JsonHelpers.ReadFirstNumber(plan, "totalPercentUsed");
+        var auto = JsonHelpers.ReadFirstNumber(plan, "autoPercentUsed");
+        var api = JsonHelpers.ReadFirstNumber(plan, "apiPercentUsed");
+        var percent = total ?? (auto is null && api is null ? null : Math.Max(auto ?? 0, api ?? 0));
+        if (percent is not { } used || double.IsNaN(used) || double.IsInfinity(used)) return null;
+
+        var planName = CursorUsageParser.FormatPlan(membershipType);
+        var windows = new List<UsageWindow>();
+
+        // Ücretsiz/iptal edilmiş hesapta dahil kullanım yok: "%0 kullanıldı" değil "sınır yok" demektir.
+        var free = string.Equals(membershipType?.Trim(), "free", StringComparison.OrdinalIgnoreCase);
+        if (!(free && used <= 0))
+        {
+            var resetsAt = ReadEpochMillis(root, "billingCycleEnd");
+            var start = ReadEpochMillis(root, "billingCycleStart");
+            TimeSpan? length = start is { } s && resetsAt is { } e && e > s ? e - s : null;
+            used = Math.Clamp(used, 0, 100);
+            windows.Add(new UsageWindow(WindowKind.Monthly, used, 100, used, resetsAt, L.T("Plan", "Plan"), length));
+        }
+
+        return new CursorUsageData(windows, planName);
+    }
+
+    /// <summary>İsteğe bağlı harcama (limit) tanımlı mı? Tanımlıysa eski özet yanıtından okunur.</summary>
+    public static bool HasSpendLimit(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.ValueKind == JsonValueKind.Object &&
+            document.RootElement.TryGetProperty("spendLimitUsage", out var spend) &&
+            spend.ValueKind == JsonValueKind.Object &&
+            (JsonHelpers.ReadFirstNumber(spend, "overallLimit", "individualLimit") is > 0 ||
+             ReadLong(spend, "pooledLimit") is > 0);
+    }
+
+    private static DateTimeOffset? ReadEpochMillis(JsonElement root, string name) =>
+        ReadLong(root, name) is { } millis && millis > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(millis) : null;
+
+    // Sayı ya da sayı gibi metin ("1791664956282").
+    private static long? ReadLong(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt64(out var number) => number,
+            JsonValueKind.String when long.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => null,
+        };
+    }
+}
+
+/// <summary>
+/// Cursor uygulamasının yerel oturum belirtecini yalnızca Cursor'ın kendi adreslerine gönderip
+/// plan kullanımını okur: önce api2.cursor.sh güncel dönem uç noktası, olmazsa cursor.com özeti.
+/// Belirteç yerel dosyadan gelir (Kind = LocalFile); Ration onu yenilemez, kaydetmez, günlüğe yazmaz.
 /// </summary>
 public sealed class CursorUsageSource : IUsageSource
 {
     public const string UsageEndpoint = "https://cursor.com/api/usage-summary";
+
+    /// <summary>
+    /// Güncel fatura dönemi; özet uç noktası bayat aylık dönemde 0 gösterebiliyor (CodexBar ve
+    /// CodeZeno'da bildirildi). Belgesiz iç servis: başarısız olursa özete düşülür.
+    /// </summary>
+    public const string CurrentPeriodEndpoint = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage";
 
     private readonly HttpClient _http;
     private readonly Func<bool> _installed;
@@ -167,6 +247,69 @@ public sealed class CursorUsageSource : IUsageSource
                 L.T("Cursor session expired — open Cursor once to renew it.", "Cursor oturumu doldu — yenilemek için Cursor'ı bir kez açın."), Kind);
         }
 
+        var current = await TryFetchCurrentPeriodAsync(session, ct).ConfigureAwait(false);
+        return current is { } usage
+            ? ToSnapshot(usage, session)
+            : await FetchSummaryAsync(session, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Güncel dönem uç noktası. Belgesiz iç servis olduğu için hiçbir hata (yetki, ağ, şema) kullanıcıya
+    /// gösterilmez; null dönünce eski <c>usage-summary</c> yoluna düşülür ve durumu o belirler.
+    /// İsteğe bağlı harcama limiti tanımlıysa da null döner: o pencere yalnız özet yanıtında var.
+    /// </summary>
+    private async Task<CursorUsageData?> TryFetchCurrentPeriodAsync(CursorSession session, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, CurrentPeriodEndpoint)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json"),
+            };
+            request.Headers.TryAddWithoutValidation("Authorization", "Bearer " + session.AccessToken);
+            request.Headers.TryAddWithoutValidation("Connect-Protocol-Version", "1");
+
+            RationTrace.Info(
+                "provider.http",
+                "provider=cursor request-method=POST request-url=" + CurrentPeriodEndpoint +
+                " request-header-names=Authorization,Content-Type,Connect-Protocol-Version");
+
+            using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+            RationTrace.Info("provider.http", $"provider=cursor endpoint=current-period status={(int)response.StatusCode}");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            if (CursorCurrentPeriodParser.HasSpendLimit(body)) return null;
+
+            return CursorCurrentPeriodParser.Parse(body, session.MembershipType);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException && !ct.IsCancellationRequested)
+        {
+            RationTrace.Error("provider.http", $"provider=cursor endpoint=current-period error={ex.GetType().Name}");
+            return null;
+        }
+    }
+
+    private UsageSnapshot ToSnapshot(CursorUsageData usage, CursorSession session)
+    {
+        var plan = usage.PlanName ?? CursorUsageParser.FormatPlan(session.MembershipType);
+
+        return new UsageSnapshot(
+            ProviderId: "cursor",
+            Windows: usage.Windows,
+            Credits: null,
+            Cost: null,
+            Status: usage.Windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
+            ResolvedVia: Kind,
+            FetchedAt: _clock(),
+            StaleReason: usage.Windows.Count > 0
+                ? null
+                : L.T("No usage limit is reported for this plan.", "Bu plan için kullanım sınırı bildirilmiyor."),
+            PlanName: plan);
+    }
+
+    private async Task<UsageSnapshot> FetchSummaryAsync(CursorSession session, CancellationToken ct)
+    {
         HttpRequestMessage NewRequest()
         {
             var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
@@ -203,21 +346,7 @@ public sealed class CursorUsageSource : IUsageSource
                     L.T($"Unexpected response: HTTP {(int)response.StatusCode}", $"Beklenmedik yanıt: HTTP {(int)response.StatusCode}"), Kind);
             }
 
-            var usage = CursorUsageParser.Parse(body);
-            var plan = usage.PlanName ?? CursorUsageParser.FormatPlan(session.MembershipType);
-
-            return new UsageSnapshot(
-                ProviderId: "cursor",
-                Windows: usage.Windows,
-                Credits: null,
-                Cost: null,
-                Status: usage.Windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
-                ResolvedVia: Kind,
-                FetchedAt: _clock(),
-                StaleReason: usage.Windows.Count > 0
-                    ? null
-                    : L.T("No usage limit is reported for this plan.", "Bu plan için kullanım sınırı bildirilmiyor."),
-                PlanName: plan);
+            return ToSnapshot(CursorUsageParser.Parse(body), session);
         }
         catch (JsonException ex)
         {
