@@ -122,7 +122,8 @@ public sealed partial class FlyoutWindow : Window
         _providers = ProviderRegistry.CreateAll(
             _http,
             AntigravityProcessPortFinder.FindPorts,
-            AntigravityProcessPortFinder.FindEndpoints);
+            AntigravityProcessPortFinder.FindEndpoints,
+            CursorTokenProtector.TryDecrypt);
         _selectedId = _providers.FirstOrDefault()?.Id ?? "claude";
 
         _scheduler = new RefreshScheduler(_providers, options: new RefreshOptions

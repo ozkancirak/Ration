@@ -19,6 +19,7 @@ using Ration.Core.Updates;
 using Ration.App.Updates;
 using Ration.Platform.Windows.Interop;
 using Ration.Platform.Windows.App;
+using Ration.Platform.Windows.Providers;
 using Ration.Platform.Windows.Theme;
 
 namespace Ration.App.Views;
@@ -387,7 +388,7 @@ public sealed partial class SettingsWindow : Window
             L.T("Data found", "Veri bulundu"),
             L.T("Database not found", "Veritabanı bulunamadı"));
 
-        var cursor = CursorSessionStore.TryRead();
+        var cursor = CursorSessionStore.TryRead(decrypt: CursorTokenProtector.TryDecrypt);
         SetProviderStatus(
             CursorProviderBadge,
             CursorProviderStatus,

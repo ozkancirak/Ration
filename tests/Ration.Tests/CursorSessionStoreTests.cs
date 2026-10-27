@@ -128,6 +128,37 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void SifreliBelirtec_CozucuyleOturumOlur_AmaHerSeyDogrulanir()
+    {
+        var jwt = FakeJwt("github|user_ABC123", Now.AddDays(3));
+        var sifreli = CreateDatabase(
+            ("cursorAuth/accessToken", CursorSessionStore.EncryptedTokenPrefix + "c3ludGhldGlj"),
+            ("cursorAuth/stripeMembershipType", "pro"));
+
+        var session = CursorSessionStore.TryRead(sifreli, decrypt: _ => " " + jwt + " ");
+        Assert.NotNull(session);
+        Assert.Equal(jwt, session.AccessToken);
+        Assert.Equal("user_ABC123", session.UserId);
+        Assert.Equal("pro", session.MembershipType);
+
+        Assert.Null(CursorSessionStore.TryRead(sifreli));                                              // çözücü yok
+        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => null));                          // çözülemedi
+        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => "jwt-degil"));                   // çözüldü ama JWT değil
+        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => throw new System.Security.Cryptography.CryptographicException()));
+        Assert.True(CursorSessionStore.HasEncryptedToken(sifreli));
+    }
+
+    [Fact]
+    public void DuzBelirtec_CozucuyuCagirmaz()
+    {
+        var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))));
+
+        var session = CursorSessionStore.TryRead(path, decrypt: _ => throw new InvalidOperationException("çağrılmamalıydı"));
+
+        Assert.NotNull(session);
+    }
+
+    [Fact]
     public void Okuma_VeritabaniDegistirmez()
     {
         var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))));

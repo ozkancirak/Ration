@@ -16,12 +16,13 @@ public static class ProviderRegistry
     public static IReadOnlyList<IUsageProvider> CreateAll(
         HttpClient http,
         Func<IReadOnlyList<int>>? findAntigravityProcessPorts = null,
-        Func<IReadOnlyList<AntigravityProcessEndpoint>>? findAntigravityProcessEndpoints = null) =>
+        Func<IReadOnlyList<AntigravityProcessEndpoint>>? findAntigravityProcessEndpoints = null,
+        Func<string, string?>? decryptCursorToken = null) =>
     [
         new ClaudeProvider(http),
         new CodexProvider(http),
         new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
         new OpenCodeProvider(http),
-        new CursorProvider(),
+        new CursorProvider(decryptToken: decryptCursorToken),
     ];
 }

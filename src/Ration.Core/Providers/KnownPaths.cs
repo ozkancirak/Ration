@@ -136,6 +136,11 @@ public static class KnownPaths
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Cursor", "User", "globalStorage", "state.vscdb");
 
+    /// <summary>Cursor'ın Electron <c>Local State</c> dosyası; şifreli belirtecin anahtarı burada (DPAPI korumalı).</summary>
+    public static string CursorLocalStateFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "Cursor", "Local State");
+
     public static string ModelAliasesFile => Path.Combine(CacheDir, "model-aliases.json");
 
     public static string OpenCodeFreeModelsFile => Path.Combine(CacheDir, "free-models.json");

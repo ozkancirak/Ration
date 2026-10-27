@@ -127,10 +127,11 @@ public sealed class CursorUsageSource : IUsageSource
         Func<CursorSession?>? session = null,
         Func<bool>? installed = null,
         Func<DateTimeOffset>? clock = null,
-        Func<bool>? encryptedToken = null)
+        Func<bool>? encryptedToken = null,
+        Func<string, string?>? decryptToken = null)
     {
         _http = http;
-        _session = session ?? (() => CursorSessionStore.TryRead());
+        _session = session ?? (() => CursorSessionStore.TryRead(decrypt: decryptToken));
         _installed = installed ?? (() => File.Exists(KnownPaths.CursorStateDatabaseFile));
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
         _encryptedToken = encryptedToken ?? (() => CursorSessionStore.HasEncryptedToken());
@@ -251,9 +252,10 @@ public sealed class CursorProvider : IUsageProvider
     /// Verilmezse çerez kabı kapalı özel bir istemci kurulur: belirteç elle Cookie başlığına konur,
     /// yanıttaki Set-Cookie başka isteklere taşınmaz.
     /// </param>
-    public CursorProvider(HttpClient? http = null)
+    /// <param name="decryptToken">Cursor 3.27+ şifreli belirtecini çözen platform işlevi (isteğe bağlı).</param>
+    public CursorProvider(HttpClient? http = null, Func<string, string?>? decryptToken = null)
     {
-        Sources = [new CursorUsageSource(http ?? CreateClient())];
+        Sources = [new CursorUsageSource(http ?? CreateClient(), decryptToken: decryptToken)];
     }
 
     private static HttpClient CreateClient()

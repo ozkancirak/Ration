@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -34,15 +35,22 @@ public static class CursorSessionStore
     /// </summary>
     public const string EncryptedTokenPrefix = "cursor-safe-storage:v1:";
 
-    public static CursorSession? TryRead(string? path = null)
+    /// <param name="decrypt">
+    /// Şifreli değeri (önek dahil) çözen platform işlevi; yoksa ya da null dönerse şifreli belirteç
+    /// oturum sayılmaz. Çözülen belirteç de yine JWT olarak doğrulanır.
+    /// </param>
+    public static CursorSession? TryRead(string? path = null, Func<string, string?>? decrypt = null)
     {
         var values = ReadValues(path ?? KnownPaths.CursorStateDatabaseFile);
-        if (values is null ||
-            !values.TryGetValue(TokenKey, out var token) ||
-            !TryReadClaims(token, out var userId, out var expiresAt))
+        if (values is null || !values.TryGetValue(TokenKey, out var token)) return null;
+
+        if (token.StartsWith(EncryptedTokenPrefix, StringComparison.Ordinal))
         {
-            return null;
+            token = Decrypt(decrypt, token);
+            if (token is null) return null;
         }
+
+        if (!TryReadClaims(token, out var userId, out var expiresAt)) return null;
 
         return new CursorSession(
             token,
@@ -100,6 +108,20 @@ public static class CursorSessionStore
         catch (SqliteException) { return null; }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }
+    }
+
+    private static string? Decrypt(Func<string, string?>? decrypt, string value)
+    {
+        if (decrypt is null) return null;
+
+        try
+        {
+            return decrypt(value)?.Trim();
+        }
+        catch (Exception ex) when (ex is CryptographicException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     // VS Code durum veritabanı değeri metin ya da BLOB olarak tutabilir; BOM'suz ASCII'nin

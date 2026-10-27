@@ -40,7 +40,8 @@ http.DefaultRequestHeaders.UserAgent.ParseAdd("Ration/0.1");
 var providers = ProviderRegistry.CreateAll(
         http,
         AntigravityProcessPortFinder.FindPorts,
-        AntigravityProcessPortFinder.FindEndpoints)
+        AntigravityProcessPortFinder.FindEndpoints,
+        Ration.Platform.Windows.Providers.CursorTokenProtector.TryDecrypt)
     .ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
 
 if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
