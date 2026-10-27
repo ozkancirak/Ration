@@ -29,9 +29,40 @@ public static class CursorSessionStore
     private const string MembershipKey = "cursorAuth/stripeMembershipType";
     private const string StatusKey = "cursorAuth/stripeSubscriptionStatus";
 
+    /// <summary>
+    /// Cursor 3.27'den beri saklanan belirteç şifreli ve bu önekle başlıyor; düz JWT değil.
+    /// </summary>
+    public const string EncryptedTokenPrefix = "cursor-safe-storage:v1:";
+
     public static CursorSession? TryRead(string? path = null)
     {
-        path ??= KnownPaths.CursorStateDatabaseFile;
+        var values = ReadValues(path ?? KnownPaths.CursorStateDatabaseFile);
+        if (values is null ||
+            !values.TryGetValue(TokenKey, out var token) ||
+            !TryReadClaims(token, out var userId, out var expiresAt))
+        {
+            return null;
+        }
+
+        return new CursorSession(
+            token,
+            userId,
+            expiresAt,
+            values.GetValueOrDefault(MembershipKey),
+            values.GetValueOrDefault(StatusKey));
+    }
+
+    /// <summary>
+    /// Belirteç var ama Cursor onu şifrelemiş. "Giriş yapılmamış" ile karıştırılmasın diye ayrı
+    /// sorulur; değer okunmaz, yalnızca önekine bakılır.
+    /// </summary>
+    public static bool HasEncryptedToken(string? path = null) =>
+        ReadValues(path ?? KnownPaths.CursorStateDatabaseFile) is { } values &&
+        values.TryGetValue(TokenKey, out var token) &&
+        token.StartsWith(EncryptedTokenPrefix, StringComparison.Ordinal);
+
+    private static Dictionary<string, string>? ReadValues(string path)
+    {
         if (!File.Exists(path)) return null;
 
         try
@@ -64,18 +95,7 @@ public static class CursorSessionStore
                 }
             }
 
-            if (!values.TryGetValue(TokenKey, out var token) ||
-                !TryReadClaims(token, out var userId, out var expiresAt))
-            {
-                return null;
-            }
-
-            return new CursorSession(
-                token,
-                userId,
-                expiresAt,
-                values.GetValueOrDefault(MembershipKey),
-                values.GetValueOrDefault(StatusKey));
+            return values;
         }
         catch (SqliteException) { return null; }
         catch (IOException) { return null; }

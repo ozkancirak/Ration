@@ -119,18 +119,21 @@ public sealed class CursorUsageSource : IUsageSource
     private readonly HttpClient _http;
     private readonly Func<bool> _installed;
     private readonly Func<CursorSession?> _session;
+    private readonly Func<bool> _encryptedToken;
     private readonly Func<DateTimeOffset> _clock;
 
     public CursorUsageSource(
         HttpClient http,
         Func<CursorSession?>? session = null,
         Func<bool>? installed = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        Func<bool>? encryptedToken = null)
     {
         _http = http;
         _session = session ?? (() => CursorSessionStore.TryRead());
         _installed = installed ?? (() => File.Exists(KnownPaths.CursorStateDatabaseFile));
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        _encryptedToken = encryptedToken ?? (() => CursorSessionStore.HasEncryptedToken());
     }
 
     public SourceKind Kind => SourceKind.LocalFile;
@@ -150,8 +153,11 @@ public sealed class CursorUsageSource : IUsageSource
         var session = _session();
         if (session is null)
         {
+            // Giriş yapılmış ama belirteç şifreli (Cursor 3.27+): "giriş yapın" demek yanıltır.
             return Snapshot.Empty("cursor", ProviderStatus.AuthRequired,
-                L.T("Sign in to Cursor, then try again.", "Cursor'da giriş yapın, sonra tekrar deneyin."), Kind);
+                _encryptedToken()
+                    ? L.T("Cursor stores its sign-in encrypted and Ration cannot read it yet.", "Cursor girişi şifreli saklıyor ve Ration henüz okuyamıyor.")
+                    : L.T("Sign in to Cursor, then try again.", "Cursor'da giriş yapın, sonra tekrar deneyin."), Kind);
         }
 
         if (!session.IsUsable(_clock()))

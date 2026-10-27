@@ -113,6 +113,21 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void SifreliBelirtec_Taninir_AmaOturumOlarakOkunmaz()
+    {
+        var sifreli = CreateDatabase(("cursorAuth/accessToken", CursorSessionStore.EncryptedTokenPrefix + "c3ludGhldGljLWNpcGhlcg=="));
+
+        Assert.True(CursorSessionStore.HasEncryptedToken(sifreli));
+        Assert.Null(CursorSessionStore.TryRead(sifreli));
+
+        Assert.False(CursorSessionStore.HasEncryptedToken(
+            CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))))));
+        Assert.False(CursorSessionStore.HasEncryptedToken(CreateDatabase(("cursorAuth/accessToken", "bu-bir-jwt-degil"))));
+        Assert.False(CursorSessionStore.HasEncryptedToken(CreateDatabase(("cursorAuth/cachedEmail", "kisi@example.com"))));
+        Assert.False(CursorSessionStore.HasEncryptedToken(Path.Combine(_directory, "yok.vscdb")));
+    }
+
+    [Fact]
     public void Okuma_VeritabaniDegistirmez()
     {
         var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))));

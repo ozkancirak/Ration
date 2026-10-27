@@ -395,9 +395,11 @@ public sealed partial class SettingsWindow : Window
             L.T("Session found", "Oturum bulundu"),
             cursor is not null
                 ? L.T("Session expired — open Cursor", "Oturum süresi geçmiş — Cursor'ı açın")
-                : File.Exists(KnownPaths.CursorStateDatabaseFile)
-                    ? L.T("Not signed in", "Giriş yapılmamış")
-                    : L.T("Cursor not found", "Cursor bulunamadı"));
+                : CursorSessionStore.HasEncryptedToken()
+                    ? L.T("Sign-in is encrypted — not readable yet", "Giriş şifreli — henüz okunamıyor")
+                    : File.Exists(KnownPaths.CursorStateDatabaseFile)
+                        ? L.T("Not signed in", "Giriş yapılmamış")
+                        : L.T("Cursor not found", "Cursor bulunamadı"));
     }
 
     private IEnumerable<(ToggleSwitch Toggle, string ProviderId)> NotificationProviderToggles()

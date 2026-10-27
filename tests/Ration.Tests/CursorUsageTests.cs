@@ -27,8 +27,9 @@ public sealed class CursorUsageTests
     private static CursorUsageSource Source(
         HttpMessageHandler handler,
         CursorSession? session,
-        bool installed = true) =>
-        new(new HttpClient(handler), () => session, () => installed, () => Now);
+        bool installed = true,
+        bool encryptedToken = false) =>
+        new(new HttpClient(handler), () => session, () => installed, () => Now, () => encryptedToken);
 
     [Fact]
     public void Ayristirici_PlanVeIsteğeBagliPencereleriOranlaOkur()
@@ -131,6 +132,22 @@ public sealed class CursorUsageTests
         Assert.Equal(ProviderStatus.AuthRequired, yok.Status);
         Assert.Equal(ProviderStatus.AuthRequired, dolmus.Status);
         Assert.Contains("açın", dolmus.StaleReason);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task SifreliBelirtec_GirisYapinDemez_AgaCikmaz()
+    {
+        var handler = new Handler(_ => Json(HttpStatusCode.OK, ProBody));
+
+        var sifreli = await Source(handler, null, encryptedToken: true).FetchAsync();
+        var girisYok = await Source(handler, null).FetchAsync();
+
+        Assert.Equal(ProviderStatus.AuthRequired, sifreli.Status);
+        Assert.True(
+            sifreli.StaleReason!.Contains("şifreli", StringComparison.OrdinalIgnoreCase) ||
+            sifreli.StaleReason.Contains("encrypted", StringComparison.OrdinalIgnoreCase));
+        Assert.NotEqual(girisYok.StaleReason, sifreli.StaleReason);
         Assert.Empty(handler.Requests);
     }
 
