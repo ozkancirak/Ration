@@ -28,6 +28,12 @@ internal static class JsonHelpers
         return null;
     }
 
+    /// <summary>Alan string ise değerini, yoksa ya da başka türdeyse null döndürür.</summary>
+    public static string? ReadString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
     /// <summary>Verilen isimlerden ilk sayısal alanı döndürür; yoksa null.</summary>
     public static double? ReadFirstNumber(JsonElement element, params string[] names)
     {

@@ -283,7 +283,38 @@ public static class ClaudeUsageParser
             if (window is not null) result.Add(window);
         }
 
+        AddScopedWeeklyLimits(doc.RootElement, result);
+
         return result;
+    }
+
+    // Yeni yanıtta modele özel haftalıklar (Fable gibi) seven_day_* alanlarında değil,
+    // limits[] içinde "weekly_scoped" olarak gelir; limits[] içindeki diğer girdiler
+    // five_hour / seven_day'i yineler. Yüzdesi ya da model adı olmayan girdi atılır:
+    // 0'a çevrilirse gerçek bir modelin altında API'nin hiç göndermediği "%0" çizilir.
+    private static void AddScopedWeeklyLimits(JsonElement root, List<UsageWindow> result)
+    {
+        if (!root.TryGetProperty("limits", out var limits) || limits.ValueKind != JsonValueKind.Array) return;
+
+        foreach (var entry in limits.EnumerateArray())
+        {
+            if (entry.ValueKind != JsonValueKind.Object ||
+                JsonHelpers.ReadString(entry, "kind") != "weekly_scoped" ||
+                !entry.TryGetProperty("scope", out var scope) || scope.ValueKind != JsonValueKind.Object ||
+                !scope.TryGetProperty("model", out var model) || model.ValueKind != JsonValueKind.Object ||
+                JsonHelpers.ReadString(model, "display_name")?.Trim() is not { Length: > 0 } name)
+            {
+                continue;
+            }
+
+            var label = L.T($"Weekly · {name}", $"Haftalık · {name}");
+
+            // Eski alan hâlâ doluysa (seven_day_opus gibi) aynı pencere iki kez eklenmez.
+            if (result.Any(w => string.Equals(w.Label, label, StringComparison.OrdinalIgnoreCase))) continue;
+
+            var window = ReadWindow(entry, WindowKind.Weekly, label, TimeSpan.FromDays(7));
+            if (window is not null) result.Add(window);
+        }
     }
 
     private static UsageWindow? ReadWindow(JsonElement element, WindowKind kind, string label, TimeSpan length)

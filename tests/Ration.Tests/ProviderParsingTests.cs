@@ -79,6 +79,83 @@ public class ProviderParsingTests
         Assert.Equal(windows[0].ResetsAt, windows[1].ResetsAt);
     }
 
+    // Biçim, Temmuz 2026'da gözlenen gerçek yanıttan sadeleştirilmiş sentetik bir kopyadır.
+    private const string ScopedLimitsJson = """
+    {
+      "five_hour": { "utilization": 10, "resets_at": "2026-07-08T22:59:59Z" },
+      "seven_day": { "utilization": 55, "resets_at": "2026-07-10T10:59:59Z" },
+      "seven_day_opus": null,
+      "seven_day_sonnet": null,
+      "limits": [
+        { "kind": "session",       "group": "session", "percent": 10, "scope": null },
+        { "kind": "weekly_all",    "group": "weekly",  "percent": 55, "scope": null },
+        { "kind": "weekly_scoped", "group": "weekly",  "percent": 84, "resets_at": "2026-07-10T10:59:59Z",
+          "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null } }
+      ]
+    }
+    """;
+
+    [Fact]
+    public void ClaudeParser_LimitsDizisindekiModeleOzelHaftalikPenceresiniOkur()
+    {
+        var windows = ClaudeUsageParser.ParseWindows(ScopedLimitsJson);
+
+        // session ve weekly_all girdileri five_hour / seven_day'i yineler, tekrar eklenmez.
+        Assert.Equal(3, windows.Count);
+        var fable = Assert.Single(windows, w => w.Label?.EndsWith("Fable", StringComparison.Ordinal) == true);
+        Assert.Equal(WindowKind.Weekly, fable.Kind);
+        Assert.Equal(84, fable.Percent);
+        Assert.Equal(TimeSpan.FromDays(7), fable.WindowLength);
+        Assert.NotNull(fable.ResetsAt);
+    }
+
+    [Fact]
+    public void ClaudeParser_LimitsGirdisindeYuzdeYoksaAtar_SifirUydurmaz()
+    {
+        const string json = """
+        {
+          "limits": [
+            { "kind": "weekly_scoped", "scope": { "model": { "display_name": "Fable" } } },
+            { "kind": "weekly_scoped", "percent": null, "scope": { "model": { "display_name": "Design" } } },
+            { "kind": "weekly_scoped", "percent": 40, "scope": { "model": { "display_name": "  " } } },
+            { "kind": "weekly_scoped", "percent": 40, "scope": null },
+            { "kind": "weekly_scoped", "percent": 40 },
+            "bozuk"
+          ]
+        }
+        """;
+
+        Assert.Empty(ClaudeUsageParser.ParseWindows(json));
+    }
+
+    [Fact]
+    public void ClaudeParser_EskiAlanVeLimitsAyniModeliIkiKezEklemez()
+    {
+        const string json = """
+        {
+          "seven_day_opus": { "utilization": 30 },
+          "limits": [
+            { "kind": "weekly_scoped", "percent": 30, "scope": { "model": { "display_name": "Opus" } } },
+            { "kind": "weekly_scoped", "percent": 12, "scope": { "model": { "display_name": "Sonnet" } } }
+          ]
+        }
+        """;
+
+        var windows = ClaudeUsageParser.ParseWindows(json);
+
+        Assert.Equal(2, windows.Count);
+        Assert.Single(windows, w => w.Label?.EndsWith("Opus", StringComparison.Ordinal) == true);
+        Assert.Single(windows, w => w.Label?.EndsWith("Sonnet", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public void ClaudeParser_LimitsDizisiDegilseYoksayar()
+    {
+        const string json = """{ "five_hour": 5, "limits": { "kind": "weekly_scoped" } }""";
+
+        Assert.Single(ClaudeUsageParser.ParseWindows(json));
+    }
+
     [Fact]
     public void CodexParser_BirincilVeIkincilPencereleriOkur()
     {
