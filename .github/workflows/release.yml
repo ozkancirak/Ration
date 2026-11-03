@@ -20,21 +20,21 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Etiket csproj'daki sürümle aynı olmalı; yoksa uygulama içi güncelleme yanlış sürüm görür.
+      # The tag must match the version in the csproj; otherwise the in-app update sees the wrong version.
       - name: Check version
         shell: pwsh
         run: |
           $version = ([xml](Get-Content src/Ration.App/Ration.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
           if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match version $version" }
 
-      # Önceki yayından fark (delta) paketi üretilir; güncelleme yalnızca değişeni indirir.
+      # A delta package against the previous release is produced; an update downloads only what changed.
       - name: Package
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/package.ps1 -Configuration Release -DeltaFromRepo https://github.com/${{ github.repository }}
 
-      # Taslak olarak yüklenir; notlar eklendikten sonra elle yayınlanır.
+      # Uploaded as a draft; published by hand after the notes are added.
       - name: Upload draft release
         run: >
           dotnet tool run vpk upload github
@@ -45,8 +45,8 @@ jobs:
           --tag ${{ github.ref_name }}
           --releaseName "Ration ${{ github.ref_name }}"
 
-      # Sağlama toplamları, vpk'nın yüklediği dosyalarla aynı taslağa eklenir. Taslaklar etiket
-      # adıyla bulunamadığı için sürüm kimliği API'den alınır.
+      # The checksums are added to the same draft as the files uploaded by vpk. Drafts cannot be found by tag
+      # name, so the release id is taken from the API.
       - name: Attach checksums
         shell: pwsh
         env:

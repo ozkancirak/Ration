@@ -51,7 +51,7 @@ public sealed class QuotaAlertsTests
             "Claude", new HashSet<string>(), Now);
         var fired = first.Select(a => a.Key).ToHashSet();
 
-        // Aynı döngü, sıfırlanma zamanı 7 sn kaymış ("N sn sonra"dan hesaplanan kaynaklar).
+        // Same cycle, the reset time has drifted by 7 s (sources computed from "in N seconds").
         var again = QuotaAlerts.Evaluate(
             Snap(ProviderStatus.Ok, Window(WindowKind.Session, 92, Now.AddHours(2).AddSeconds(7))),
             "Claude", fired, Now);

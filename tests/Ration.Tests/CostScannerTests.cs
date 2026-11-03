@@ -5,12 +5,12 @@ using System.Text.Json;
 namespace Ration.Tests;
 
 /// <summary>
-/// Tüm JSONL içerikleri SENTETİKTİR. Gerçek oturum loglarından kopyalanmış
-/// hiçbir şey repoya giremez.
+/// All JSONL contents are SYNTHETIC. Nothing copied from real session logs
+/// can enter the repo.
 ///
-/// NOT: JSON şablonlarında interpolasyon KULLANILMIYOR. Raw string interpolasyonunda
-/// ($$"""...""") JSON'un kapanış süslü parantezleri ("}}}") hole kapatma dizisiyle
-/// çakışıyor; bunun yerine düz şablon + Replace kullanıyoruz.
+/// NOTE: interpolation is NOT USED in the JSON templates. In raw string interpolation
+/// ($$"""...""") the closing braces of the JSON ("}}}") collide with the hole-closing sequence;
+/// we use a plain template + Replace instead.
 /// </summary>
 public sealed class ClaudeCostScannerTests : IDisposable
 {
@@ -118,7 +118,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     [Fact]
     public void AyniYanitiIkiKezSaymaz()
     {
-        // Ayni message.id + requestId iki satirda gorunebilir (devam kaydi, yeniden yazim).
+        // The same message.id + requestId can appear on two lines (resume record, rewrite).
         WriteJsonl("a.jsonl",
             AssistantLine("msg_1", "req_1", "ornek-model", 100, 50),
             AssistantLine("msg_1", "req_1", "ornek-model", 100, 50));
@@ -232,7 +232,7 @@ public sealed class CodexCostScannerTests : IDisposable
     [Fact]
     public void ModelYazilmayanOturum_CodexDurumVeritabanindanModelAlir()
     {
-        // Sentetik Codex ev dizini: sessions/ + state_5.sqlite (threads: rollout_path, model).
+        // Synthetic Codex home directory: sessions/ + state_5.sqlite (threads: rollout_path, model).
         var home = Path.Combine(_dir, "home");
         var sessions = Path.Combine(home, "sessions");
         Directory.CreateDirectory(sessions);
@@ -289,7 +289,7 @@ public sealed class CodexCostScannerTests : IDisposable
 
         var result = CodexCostScanner.Scan(since, _dir);
 
-        // (120-100) - (90-80) normal girdidir: 10 + 10 cache + 5 çıktı.
+        // (120-100) - (90-80) is normal input: 10 + 10 cache + 5 output.
         Assert.Equal(25, Assert.Single(result.Tally.Models).TotalTokens);
         Assert.True(result.PeriodKnown);
     }
@@ -357,7 +357,7 @@ public class PricingTests
         Assert.Equal(18m, report.TotalCost);
         Assert.Equal("fiyatsiz-model", Assert.Single(report.ModelsWithoutPricing!));
 
-        // Token'lar fiyat bilinmese de eksiksiz raporlanir.
+        // Tokens are reported in full even if the price is unknown.
         Assert.Equal(6_000_000, report.InputTokens);
     }
 
@@ -562,7 +562,7 @@ public sealed class JsonlSchemaProbeTests : IDisposable
         Assert.Contains("payload.info.input_tokens : Number", paths);
         Assert.Contains("payload.info.gizli_metin : String", paths);
 
-        // Degerler asla cikmaz.
+        // Values never come out.
         Assert.DoesNotContain(paths, p => p.Contains("bu-cikmamali", StringComparison.Ordinal));
         Assert.DoesNotContain(paths, p => p.Contains("123", StringComparison.Ordinal));
     }

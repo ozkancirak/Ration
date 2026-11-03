@@ -75,7 +75,7 @@ public sealed class CursorUsageTests
     [Fact]
     public void Ayristirici_SinirsizVeyaHaksizPlan_SifirYuzdeUretmez()
     {
-        // Canlı yanıttan gözlenen biçim: ücretsiz/iptal edilmiş hesapta limit 0, yüzde 0.
+        // Format observed from a live response: for a free/cancelled account the limit is 0, the percent 0.
         var data = CursorUsageParser.Parse(
             """
             {"membershipType":"free","billingCycleEnd":"2026-11-10T00:00:00.000Z",
@@ -98,7 +98,7 @@ public sealed class CursorUsageTests
     [Fact]
     public async Task OzetYolu_CerezBasligiSadeceCursorAdresineGider()
     {
-        // Güncel dönem uç noktası 404 verir: özet yoluna düşülür.
+        // The current-period endpoint returns 404: falls back to the summary path.
         var handler = new Handler(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
             ? Json(HttpStatusCode.NotFound, "{}")
             : Json(HttpStatusCode.OK, ProBody));
@@ -137,7 +137,7 @@ public sealed class CursorUsageTests
 
         var snapshot = await Source(handler, Session()).FetchAsync();
 
-        var request = Assert.Single(handler.Requests); // özete gerek kalmadı
+        var request = Assert.Single(handler.Requests); // the summary was not needed
         Assert.Equal("POST", request.Method);
         Assert.Equal(CursorUsageSource.CurrentPeriodEndpoint, request.Uri);
         Assert.Equal("Bearer sentetik-token", request.Authorization);
@@ -148,7 +148,7 @@ public sealed class CursorUsageTests
         Assert.Equal(3, snapshot.Windows.Count);
         var plan = snapshot.Windows[0];
         Assert.Equal(37.5, plan.Percent);
-        Assert.Equal(WindowKind.Monthly, plan.Kind); // 31 günlük dönem
+        Assert.Equal(WindowKind.Monthly, plan.Kind); // 31-day period
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1794343356282), plan.ResetsAt);
         Assert.Equal(TimeSpan.FromDays(31), plan.WindowLength);
 
@@ -196,7 +196,7 @@ public sealed class CursorUsageTests
         var snapshot = await Source(handler, Session()).FetchAsync();
 
         Assert.Equal(2, handler.Requests.Count);
-        Assert.Equal(2, snapshot.Windows.Count); // Plan + On-demand (özetten)
+        Assert.Equal(2, snapshot.Windows.Count); // Plan + On-demand (from the summary)
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class CursorUsageTests
         Assert.All(haftalik.Windows, w => Assert.Equal(TimeSpan.FromDays(7), w.WindowLength));
         Assert.Equal([20.0, 10.0, 25.0], haftalik.Windows.Select(w => w.Percent));
 
-        // Dönem sınırı yoksa uzunluk bilinmez: aylık sayılır (eski davranış).
+        // Without a period boundary the length is unknown: counted as monthly (old behavior).
         var sinirsiz = CursorCurrentPeriodParser.Parse("""{"planUsage":{"totalPercentUsed":5}}""", "pro")!;
         Assert.Equal(WindowKind.Monthly, Assert.Single(sinirsiz.Windows).Kind);
     }
@@ -234,7 +234,7 @@ public sealed class CursorUsageTests
     [Fact]
     public void GuncelDonemAyristirici_YuzdeKaynaklari_VeBicimler()
     {
-        // Toplam yoksa havuzların en yükseği; sayı olarak verilen epoch da okunur.
+        // Without a total, the highest of the pools; an epoch given as a number is also read.
         var havuz = CursorCurrentPeriodParser.Parse(
             """{"billingCycleStart":1791664956282,"billingCycleEnd":1794343356282,"planUsage":{"autoPercentUsed":12,"apiPercentUsed":30}}""",
             "pro");
@@ -312,7 +312,7 @@ public sealed class CursorUsageTests
 
         Assert.Equal(ProviderStatus.Error, bozuk.Status);
         Assert.Equal(ProviderStatus.Degraded, bos.Status);
-        Assert.Equal("Pro", bos.PlanName); // yanıtta plan yoksa yerel oturumdaki plan kullanılır
+        Assert.Equal("Pro", bos.PlanName); // if the response has no plan, the plan from the local session is used
     }
 
     [Fact]

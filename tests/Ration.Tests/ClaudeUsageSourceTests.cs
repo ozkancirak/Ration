@@ -64,7 +64,7 @@ public sealed class ClaudeUsageSourceTests
             Assert.Equal("17", source.LastRetryAfter);
             Assert.StartsWith("Claude hız sınırına takıldı", snapshot.StaleReason);
 
-            // Süre dolmadan yeni örnek (yeniden başlatma) ağa çıkmaz; diskteki süreye uyar.
+            // A new instance before the time expires (a restart) does not go to the network; it obeys the time on disk.
             var restarted = new ClaudeOAuthUsageSource(
                 new HttpClient(handler),
                 () => new ClaudeCredentials("sentetik-token", DateTimeOffset.UtcNow.AddHours(1), "max"),
@@ -214,7 +214,7 @@ public sealed class ClaudeStatusLineTests : IDisposable
 {
     private readonly string _path = Path.Combine(Path.GetTempPath(), $"ration-statusline-{Guid.NewGuid():N}.json");
 
-    // Sentetik: gerçek statusLine girdisinin yalnızca şekli; oturum içeriği yok.
+    // Synthetic: only the shape of a real statusLine input; no session content.
     private const string Input = """
     {"session_id":"sentetik","cwd":"C:/gizli","rate_limits":{"five_hour":{"used_percentage":12.5,"resets_at":1790157600},"seven_day":{"used_percentage":40,"resets_at":1790500000.5}}}
     """;

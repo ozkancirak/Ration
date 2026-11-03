@@ -5,7 +5,7 @@ using Ration.Core.Usage;
 
 namespace Ration.Tests;
 
-/// <summary>Tempo hesabı testleri. Tüm veriler sentetiktir; kimlik dosyası okunmaz.</summary>
+/// <summary>Pace calculation tests. All data is synthetic; no credentials file is read.</summary>
 public class PaceCalculatorTests
 {
     private static UsageWindow Window(double percent, TimeSpan length, TimeSpan remainingFromNow)
@@ -27,7 +27,7 @@ public class PaceCalculatorTests
     [Fact]
     public void Gerideyse_RahatYazar()
     {
-        // 5 saatlik pencerenin 1 saati geçti (%20), tüketim %2 → tempo −0.18.
+        // 1 hour of the 5-hour window has passed (20%), usage 2% → pace −0.18.
         Assert.Equal(
             "Rahat · pencere sonuna yeter",
             Line(Window(2, TimeSpan.FromHours(5), TimeSpan.FromHours(4))));
@@ -36,8 +36,8 @@ public class PaceCalculatorTests
     [Fact]
     public void Hizliysa_BitisSuresiyleYazar()
     {
-        // 10 saatlik pencerenin 8 saati geçti (%80), tüketim %90 → tempo +0.10,
-        // tükenme ≈ 53 dk < sıfırlanmaya 2 sa.
+        // 8 hours of the 10-hour window have passed (80%), usage 90% → pace +0.10,
+        // depletion ≈ 53 min < 2 h to reset.
         Assert.Equal(
             "Hızlı gidiyorsun · bu tempoda 53 dk sonra biter",
             Line(Window(90, TimeSpan.FromHours(10), TimeSpan.FromHours(2))));
@@ -46,7 +46,7 @@ public class PaceCalculatorTests
     [Fact]
     public void Bitis_Yakinsa_BirazdanYazar_AslaSifirDakikaYok()
     {
-        // 5 saatlik pencerenin 4 saati geçti (%80), tüketim %98 → tükenme ≈ 5 dk altı.
+        // 4 hours of the 5-hour window have passed (80%), usage 98% → depletion in under ≈ 5 min.
         var text = Line(Window(98, TimeSpan.FromHours(5), TimeSpan.FromHours(1)));
 
         Assert.Equal("Hızlı gidiyorsun · bu tempoda birazdan biter", text);
@@ -56,7 +56,7 @@ public class PaceCalculatorTests
     [Fact]
     public void Bitis_RationdanUzunsa_CeliskiOlmaz_RahatYazar()
     {
-        // Sentetik sınır durumu: tempo önden ama tahmin pencere sonundan geç → rahat.
+        // Synthetic edge case: pace is ahead but the estimate is later than the window end → comfortable.
         var now = DateTimeOffset.UtcNow;
         var window = Window(60, TimeSpan.FromHours(10), TimeSpan.FromHours(1));
         var pace = new PaceResult(0.10, TimeSpan.FromHours(2));
@@ -67,16 +67,16 @@ public class PaceCalculatorTests
     [Fact]
     public void DengeYakinsa_DengeliYazar()
     {
-        // Tüketim tam zamanında: %50 / %50 → tempo 0.
+        // Usage exactly on time: 50% / 50% → pace 0.
         Assert.Equal(
             "Dengeli tempo",
             Line(Window(50, TimeSpan.FromHours(10), TimeSpan.FromHours(5))));
     }
 
     [Theory]
-    [InlineData(100)]   // tükenmiş → rozet, tempo satırı yok
-    [InlineData(140)]   // kırpılmamış ham değer de gizler
-    [InlineData(0)]     // hiç tüketim yok
+    [InlineData(100)]   // used up → badge, no pace row
+    [InlineData(140)]   // an unclamped raw value hides it too
+    [InlineData(0)]     // no usage at all
     public void Ucta_SatirGosterilmez(double percent)
     {
         Assert.Null(PaceCalculator.Calculate(
@@ -118,7 +118,7 @@ public class PaceCalculatorTests
     [Fact]
     public void Pencere_YeniSifirlandiysa_SatirGosterilmez()
     {
-        // Ration süre pencere uzunluğuna eşit ya da fazla → geçen oran <= 0.
+        // Remaining time is equal to or greater than the window length → elapsed ratio <= 0.
         Assert.Null(PaceCalculator.Calculate(
             Window(90, TimeSpan.FromHours(5), TimeSpan.FromHours(6)), DateTimeOffset.UtcNow));
     }

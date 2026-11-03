@@ -79,7 +79,7 @@ public sealed class CursorSessionStoreTests : IDisposable
         var session = CursorSessionStore.TryRead(path);
 
         Assert.NotNull(session);
-        Assert.False(session.IsUsable(Now)); // 60 sn payı: dolmak üzere olan belirteç gönderilmez
+        Assert.False(session.IsUsable(Now)); // 60 s margin: a token about to expire is not sent
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public sealed class CursorSessionStoreTests : IDisposable
         Assert.Equal("user_ABC123", session.UserId);
         Assert.Equal("pro", session.MembershipType);
 
-        Assert.Null(CursorSessionStore.TryRead(sifreli));                                              // çözücü yok
-        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => null));                          // çözülemedi
-        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => "jwt-degil"));                   // çözüldü ama JWT değil
+        Assert.Null(CursorSessionStore.TryRead(sifreli));                                              // no decryptor
+        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => null));                          // could not be decrypted
+        Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => "jwt-degil"));                   // decrypted but not a JWT
         Assert.Null(CursorSessionStore.TryRead(sifreli, decrypt: _ => throw new System.Security.Cryptography.CryptographicException()));
         Assert.True(CursorSessionStore.HasEncryptedToken(sifreli));
     }

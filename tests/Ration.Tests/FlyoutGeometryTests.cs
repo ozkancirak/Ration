@@ -4,7 +4,7 @@ namespace Ration.Tests;
 
 public class FlyoutGeometryTests
 {
-    // 1920x1080 ekran, alt görev çubuğu 48 px.
+    // 1920x1080 screen, bottom taskbar 48 px.
     private static readonly Bounds Monitor = new(0, 0, 1920, 1080);
     private static readonly Bounds WorkBottom = new(0, 0, 1920, 1032);
 
@@ -38,7 +38,7 @@ public class FlyoutGeometryTests
         var placement = FlyoutGeometry.Place(icon, Monitor, WorkBottom, width, height, margin);
 
         Assert.Equal(FlyoutEdge.Bottom, placement.Edge);
-        // Simge görev çubuğunun içinde; pencere çubuğun üst kenarından `margin` kadar yukarıda durur.
+        // The icon is inside the taskbar; the window sits `margin` above the top edge of the bar.
         Assert.Equal(WorkBottom.Bottom - margin - height, placement.Y);
         Assert.Equal(icon.CenterX - width / 2, placement.X);
     }
@@ -107,14 +107,14 @@ public class FlyoutGeometryTests
     [InlineData(1896, 600, FlyoutEdge.Right)]
     public void AutoHiddenTaskbar_UsesTheEdgeNearestTheIcon(int x, int y, FlyoutEdge expected)
     {
-        // Otomatik gizlemede çalışma alanı ekranın tamamıdır; kenar simgenin yerinden bulunur.
+        // With auto-hide the work area is the whole screen; the edge is found from the icon's position.
         Assert.Equal(expected, FlyoutGeometry.DetectEdge(IconAt(x, y), Monitor, Monitor));
     }
 
     [Fact]
     public void SeveralShrunkEdges_PickTheOneNearestTheIcon()
     {
-        // Alt görev çubuğu + sağda yan çubuk: iki kenar da kısalmış.
+        // Bottom taskbar + a side bar on the right: both edges are shortened.
         var work = new Bounds(0, 0, 1600, 1032);
 
         Assert.Equal(FlyoutEdge.Bottom, FlyoutGeometry.DetectEdge(IconAt(1000, 1056), Monitor, work));
@@ -122,12 +122,12 @@ public class FlyoutGeometryTests
     }
 
     [Theory]
-    [InlineData(1920, 0)]      // birincil ekranın sağında
-    [InlineData(-2560, 0)]     // solunda (negatif koordinat)
-    [InlineData(300, -1080)]   // üstünde
+    [InlineData(1920, 0)]      // right of the primary screen
+    [InlineData(-2560, 0)]     // left of it (negative coordinate)
+    [InlineData(300, -1080)]   // above it
     public void SecondaryMonitor_PlacesInsideItsOwnWorkArea(int originX, int originY)
     {
-        // 150% ölçekli ikinci ekran: 2560x1440 fiziksel piksel, alt görev çubuğu 72 px.
+        // Second screen at 150% scale: 2560x1440 physical pixels, bottom taskbar 72 px.
         var monitor = new Bounds(originX, originY, originX + 2560, originY + 1440);
         var work = new Bounds(originX, originY, originX + 2560, originY + 1368);
         var icon = IconAt(originX + 2400, originY + 1404, 36);

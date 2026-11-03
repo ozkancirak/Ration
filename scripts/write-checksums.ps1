@@ -6,17 +6,17 @@ param(
     [string]$Version
 )
 
-# Yayın klasöründeki her dosyanın SHA-256'sını SHA256SUMS.txt'ye yazar. Biçim sha256sum ile
-# aynıdır ("<hash>  <dosya>"), bu yüzden indiren kişi `sha256sum -c SHA256SUMS.txt` ya da
-# PowerShell'de Get-FileHash ile doğrulayabilir.
+# Writes the SHA-256 of every file in the release folder to SHA256SUMS.txt. The format is the same as sha256sum
+# ("<hash>  <file>"), so the downloader can verify with `sha256sum -c SHA256SUMS.txt` or
+# with Get-FileHash in PowerShell.
 $ErrorActionPreference = 'Stop'
 $Directory = [IO.Path]::GetFullPath($Directory)
 $output = Join-Path $Directory 'SHA256SUMS.txt'
 
-# Yalnızca kullanıcının indirdiği dosyalar: bu sürümün paketleri, kurulum ve taşınabilir zip.
-# Delta için indirilen önceki sürüm paketi bu sürümün varlığı değildir; feed dosyalarını
-# (releases.*.json, assets.*.json, RELEASES*) vpk yüklerken yeniden yazar ya da yüklemez,
-# bu yüzden özetleri sürümdekiyle tutmazdı.
+# Only the files the user downloads: this release's packages, the installer and the portable zip.
+# The previous release's package downloaded for the delta is not an asset of this release; the feed files
+# (releases.*.json, assets.*.json, RELEASES*) are rewritten by vpk when it uploads, or not uploaded,
+# so their digests would not match the ones in the release.
 $assets = Get-ChildItem -LiteralPath $Directory -File |
     Where-Object {
         $_.Name -ne 'SHA256SUMS.txt' -and (
@@ -33,6 +33,6 @@ $lines = foreach ($asset in $assets) {
     "$hash  $($asset.Name)"
 }
 
-# LF ve BOM'suz: sha256sum -c satır sonu ve BOM'a takılır.
+# LF and no BOM: sha256sum -c trips on line endings and a BOM.
 [IO.File]::WriteAllText($output, (($lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 Write-Host "SHA256SUMS.txt: $($assets.Count) dosya"

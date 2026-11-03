@@ -5,7 +5,7 @@ using Ration.Core.Providers.Antigravity;
 
 namespace Ration.Tests;
 
-/// <summary>Antigravity yerel istemcisi (sertifika doğrulaması kapalı) yönlendirme izlemez.</summary>
+/// <summary>The Antigravity local client (certificate validation off) does not follow redirects.</summary>
 public sealed class LoopbackHandlerTests
 {
     [Fact]

@@ -8,7 +8,7 @@ public sealed class CursorTokenCipherTests
 {
     private static readonly byte[] Key = Enumerable.Range(1, 32).Select(i => (byte)i).ToArray();
 
-    // Chromium os_crypt düzeni: "v10" | nonce(12) | şifreli metin | etiket(16), AES-256-GCM.
+    // Chromium os_crypt layout: "v10" | nonce(12) | ciphertext | tag(16), AES-256-GCM.
     private static string Encrypt(string plain, byte[] key, string version = "v10")
     {
         var nonce = new byte[12];
@@ -38,11 +38,11 @@ public sealed class CursorTokenCipherTests
         var value = Encrypt("belirtec", Key);
 
         Assert.Null(CursorTokenCipher.TryDecrypt(value, Enumerable.Repeat((byte)7, 32).ToArray()));
-        Assert.Null(CursorTokenCipher.TryDecrypt(value, new byte[16]));                       // anahtar boyu
-        Assert.Null(CursorTokenCipher.TryDecrypt("eyJ.duz.jwt", Key));                         // önek yok
+        Assert.Null(CursorTokenCipher.TryDecrypt(value, new byte[16]));                       // key length
+        Assert.Null(CursorTokenCipher.TryDecrypt("eyJ.duz.jwt", Key));                         // no prefix
         Assert.Null(CursorTokenCipher.TryDecrypt(CursorSessionStore.EncryptedTokenPrefix + "bu base64 degil!", Key));
-        Assert.Null(CursorTokenCipher.TryDecrypt(CursorSessionStore.EncryptedTokenPrefix + Convert.ToBase64String(new byte[10]), Key)); // kısa
-        Assert.Null(CursorTokenCipher.TryDecrypt(Encrypt("belirtec", Key, "v20"), Key));      // app-bound biçim desteklenmez
+        Assert.Null(CursorTokenCipher.TryDecrypt(CursorSessionStore.EncryptedTokenPrefix + Convert.ToBase64String(new byte[10]), Key)); // short
+        Assert.Null(CursorTokenCipher.TryDecrypt(Encrypt("belirtec", Key, "v20"), Key));      // app-bound format is not supported
 
         var bytes = Convert.FromBase64String(value[CursorSessionStore.EncryptedTokenPrefix.Length..]);
         bytes[^1] ^= 0xFF;                                                                       // etiket bozuldu

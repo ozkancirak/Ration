@@ -3,7 +3,7 @@ using Ration.Core.Providers.OpenCode;
 
 namespace Ration.Tests;
 
-/// <summary>Veritabanı değişmediyse OpenCode raporu yeniden sorgulanmaz. Veriler SENTETİKTİR.</summary>
+/// <summary>If the database has not changed, the OpenCode report is not queried again. The data is SYNTHETIC.</summary>
 public sealed class OpenCodeReaderCacheTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"ration-opencode-cache-{Guid.NewGuid():N}");
@@ -48,7 +48,7 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
         CreateDatabase();
         Assert.Equal(100, ReadInputTokens());
 
-        // İçeriği değiştir ama boyut ve zaman damgasını eskisi gibi bırak: önbellek isabet etmeli.
+        // Change the content but leave the size and timestamp as they were: the cache must hit.
         var original = File.GetLastWriteTimeUtc(DatabasePath);
         var originalLength = new FileInfo(DatabasePath).Length;
         Execute("UPDATE session SET tokens_input = 999;");
@@ -58,7 +58,7 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
 
         Assert.Equal(100, ReadInputTokens());
 
-        // Zaman damgası değişince gerçek veri okunur.
+        // When the timestamp changes, the real data is read.
         File.SetLastWriteTimeUtc(DatabasePath, original.AddSeconds(5));
 
         Assert.Equal(999, ReadInputTokens());

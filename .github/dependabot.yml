@@ -7,8 +7,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
-    # vpk paketleme aracıdır, uygulamadaki Velopack kütüphanesiyle aynı sürümde olmalı;
-    # ikisi birlikte elle güncellenir.
+    # vpk is the packaging tool and must be on the same version as the Velopack library in the app;
+    # the two are updated together by hand.
     ignore:
       - dependency-name: "vpk"
     groups:

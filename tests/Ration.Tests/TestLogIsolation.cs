@@ -3,8 +3,9 @@ using System.Runtime.CompilerServices;
 namespace Ration.Tests;
 
 /// <summary>
-/// Test çalıştırması tanı günlüğünü geçici bir dosyaya yazar, gerçek ration.log'a değil.
-/// Metin doğrulayan testler Türkçe yazıldı; makinenin dilinden bağımsız olsun diye dil sabitlenir.
+/// The test run writes the diagnostic log to a temp file, not to the real ration.log.
+/// The tests that verify text were written in Turkish; the language is pinned so that they
+/// are independent of the machine's language.
 /// </summary>
 internal static class TestLogIsolation
 {

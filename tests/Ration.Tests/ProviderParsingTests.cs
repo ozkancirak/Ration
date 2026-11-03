@@ -5,8 +5,8 @@ using Ration.Core.Providers.Codex;
 namespace Ration.Tests;
 
 /// <summary>
-/// Buradaki JSON'lar TAMAMEN SENTETİKTİR. Gerçek .credentials.json / auth.json
-/// içeriğinden kopyalanmış hiçbir şey repoya giremez.
+/// The JSON here is ENTIRELY SYNTHETIC. Nothing copied from the contents of a real
+/// .credentials.json / auth.json can enter the repo.
 /// </summary>
 public class ProviderParsingTests
 {
@@ -79,7 +79,7 @@ public class ProviderParsingTests
         Assert.Equal(windows[0].ResetsAt, windows[1].ResetsAt);
     }
 
-    // Biçim, Temmuz 2026'da gözlenen gerçek yanıttan sadeleştirilmiş sentetik bir kopyadır.
+    // The format is a synthetic copy simplified from a real response observed in July 2026.
     private const string ScopedLimitsJson = """
     {
       "five_hour": { "utilization": 10, "resets_at": "2026-07-08T22:59:59Z" },
@@ -100,7 +100,7 @@ public class ProviderParsingTests
     {
         var windows = ClaudeUsageParser.ParseWindows(ScopedLimitsJson);
 
-        // session ve weekly_all girdileri five_hour / seven_day'i yineler, tekrar eklenmez.
+        // The session and weekly_all entries repeat five_hour / seven_day, they are not added again.
         Assert.Equal(3, windows.Count);
         var fable = Assert.Single(windows, w => w.Label?.EndsWith("Fable", StringComparison.Ordinal) == true);
         Assert.Equal(WindowKind.Weekly, fable.Kind);
@@ -203,7 +203,7 @@ public class ProviderParsingTests
     [Fact]
     public void ClaudeKimlik_ClaudeAiOauthYoksaNullDoner()
     {
-        // Claude Code 2.1.x'te dosyada yalnizca mcpOAuth bulunabiliyor; bu kullanilabilir degil.
+        // In Claude Code 2.1.x the file may contain only mcpOAuth; that is not usable.
         var path = Path.Combine(Path.GetTempPath(), $"ration-test-{Guid.NewGuid():N}.json");
         File.WriteAllText(path, """{ "mcpOAuth": { "accessToken": "sentetik-deger" } }""");
 

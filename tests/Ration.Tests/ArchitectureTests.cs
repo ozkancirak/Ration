@@ -9,7 +9,7 @@ public class ArchitectureTests
     [Fact]
     public void CoreAssembly_MustNotReference_WinUI_Or_WindowsAppSDK()
     {
-        // Ration.Core hiçbir WinUI / WinRT / Microsoft.WindowsAppSDK / System.Windows referansı içeremez.
+        // Ration.Core cannot contain any reference to WinUI / WinRT / Microsoft.WindowsAppSDK / System.Windows.
         var coreAssembly = typeof(IUsageProvider).Assembly;
         var referencedAssemblies = coreAssembly.GetReferencedAssemblies();
 

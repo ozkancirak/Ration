@@ -4,7 +4,7 @@ using Ration.Core.Refresh;
 
 namespace Ration.Tests;
 
-/// <summary>Aynı sağlayıcı için üst üste gelen yenilemeler tek istek atar.</summary>
+/// <summary>Overlapping refreshes for the same provider send a single request.</summary>
 public sealed class RefreshSingleFlightTests : IDisposable
 {
     private readonly string _dir =
@@ -96,7 +96,7 @@ public sealed class RefreshSingleFlightTests : IDisposable
         var source = new GatedSource("ornek");
         await using var scheduler = Create(source, TimeSpan.FromSeconds(60));
 
-        var background = scheduler.RefreshAllAsync(); // jitter bekliyor olabilir
+        var background = scheduler.RefreshAllAsync(); // may be waiting on jitter
         var interactive = scheduler.RefreshAllAsync(skipJitter: true);
         source.Gate.SetResult();
 

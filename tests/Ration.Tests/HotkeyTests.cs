@@ -28,11 +28,11 @@ public sealed class HotkeyTests
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("R")]              // değiştirici yok
-    [InlineData("Shift+R")]        // yalnız Shift yazı yazmayı bozar
-    [InlineData("Ctrl+Alt")]       // tuş yok
+    [InlineData("R")]              // no modifier
+    [InlineData("Shift+R")]        // Shift alone breaks typing
+    [InlineData("Ctrl+Alt")]       // no key
     [InlineData("Ctrl+")]
-    [InlineData("Ctrl+Alt+Esc")]   // desteklenmeyen tuş
+    [InlineData("Ctrl+Alt+Esc")]   // unsupported key
     [InlineData("Ctrl+Alt+F25")]
     [InlineData("Ctrl+Alt+F0")]
     [InlineData("Hyper+R")]

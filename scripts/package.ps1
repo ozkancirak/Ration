@@ -3,8 +3,8 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
     [string]$OutputRoot,
-    # Önceki sürümün tam paketi bu depodan indirilir; vpk pack bununla fark (delta) paketi üretir.
-    # Kullanıcı yalnızca değişen kısmı indirir. Önceki sürüm yoksa ya da inmezse yalnızca tam paket çıkar.
+    # The full package of the previous release is downloaded from this repo; vpk pack uses it to produce a delta package.
+    # The user downloads only the changed part. If there is no previous release or the download fails, only the full package is produced.
     [string]$DeltaFromRepo
 )
 
@@ -108,10 +108,10 @@ try {
         --channel win-x64 `
         --outputDir $releaseDir
 
-    # Paketlenen uygulama açılıyor mu ve csproj'daki sürümü mü bildiriyor? Yayından önce yakalanır.
+    # Does the packaged app start, and does it report the version in the csproj? Caught before release.
     $smokeOutput = Join-Path $outputRoot 'smoke-version.txt'
     $smoke = Start-Process -FilePath $mainExe -ArgumentList '--version' -PassThru -RedirectStandardOutput $smokeOutput
-    $null = $smoke.Handle  # tutulmazsa ExitCode, çıkıştan sonra boş gelir
+    $null = $smoke.Handle  # if not held, ExitCode comes back empty after the process exits
     if (-not $smoke.WaitForExit(30000)) {
         $smoke.Kill()
         throw 'Paketlenen uygulama --version ile 30 saniyede kapanmadı.'

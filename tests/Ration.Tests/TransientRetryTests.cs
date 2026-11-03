@@ -42,7 +42,7 @@ public sealed class TransientRetryTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(2, handler.Requests.Count);
-        Assert.NotSame(handler.Requests[0], handler.Requests[1]); // her deneme yeni istek
+        Assert.NotSame(handler.Requests[0], handler.Requests[1]); // a new request for each attempt
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class TransientRetryTests
     [Fact]
     public async Task RetryAfter_BeklemeSuresineUyulur()
     {
-        // Taban bekleme 1 saat; sunucu "hemen" dediği için test beklemeden biter.
+        // The base wait is 1 hour; since the server said "immediately" the test finishes without waiting.
         var handler = new SequenceHandler(
             _ =>
             {

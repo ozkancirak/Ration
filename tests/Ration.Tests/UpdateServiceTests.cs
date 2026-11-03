@@ -108,7 +108,7 @@ public class UpdateServiceTests
     [Fact]
     public async Task Download_WithoutPriorCheck_FindsTheUpdateFirst()
     {
-        // Önceki oturumdan "güncelleme var" bilgisi kalmış olabilir; kaynak nesnesi bellekte yoktur.
+        // An "update available" notice may be left over from the previous session; the source object is not in memory.
         var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
         var service = new UpdateService(source, new MemoryStore(), () => Now);
 
@@ -243,7 +243,7 @@ public class UpdateServiceTests
         Assert.Equal(expected, UpdateService.IsNewer(available, current));
     }
 
-    // Progress<T> eşzamansız gönderir; testte sıra değişmesin diye doğrudan çağıran.
+    // Progress<T> posts asynchronously; a direct caller is used so the order does not change in the test.
     private sealed class ImmediateProgress(List<int> seen) : IProgress<int>
     {
         public void Report(int value) => seen.Add(value);

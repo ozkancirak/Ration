@@ -33,7 +33,7 @@ public class CircuitBreakerTests
 
         for (var i = 0; i < 40; i++) breaker.RecordFailure(t0);
 
-        // Uzun kesintide us kaydirmasi tasmamali, tavanda kalmali.
+        // In a long outage the exponent shift must not overflow, it must stay at the ceiling.
         Assert.Equal(TimeSpan.FromSeconds(10), breaker.CurrentBackoff);
     }
 
@@ -120,7 +120,7 @@ public sealed class SnapshotCacheTests : IDisposable
     {
         var cache = new SnapshotCache(_dir);
 
-        // Yol kacisi denemesi dosya adina gecmemeli.
+        // A path-escape attempt must not end up in the file name.
         cache.Save(Snapshot.Empty("../../kotu", ProviderStatus.Ok, null, SourceKind.LocalFile));
 
         Assert.NotNull(cache.TryLoad("../../kotu"));
@@ -284,7 +284,7 @@ public sealed class RefreshSchedulerTests : IDisposable
 
         Assert.NotNull(sonuc);
 
-        // Bos kutu degil: eski veri korunur, bayatligi soylenir.
+        // Not an empty box: old data is kept and its staleness is stated.
         Assert.Equal(55, Assert.Single(sonuc!.Windows).Percent);
         Assert.Equal(ProviderStatus.Degraded, sonuc.Status);
         Assert.Contains("12 dk önce", sonuc.StaleReason);
@@ -325,7 +325,7 @@ public sealed class RefreshSchedulerTests : IDisposable
         await scheduler.RefreshAllAsync();
         await scheduler.RefreshAllAsync();
 
-        // Ilk hata devreyi 30 sn acar; sonraki turlar hic sorgulamaz.
+        // The first failure opens the circuit for 30 s; the following rounds do not query at all.
         Assert.Equal(1, cagriSayisi);
     }
 

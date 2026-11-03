@@ -5,11 +5,11 @@ using Ration.Core.Usage;
 
 namespace Ration.Tests;
 
-// Dil süreç genelinde tek bayraktır; diğer testler Türkçe beklerken değiştirilmemeli.
+// The language is a single process-wide flag; it must not be changed while other tests expect Turkish.
 [CollectionDefinition(nameof(LanguageTests), DisableParallelization = true)]
 public sealed class LanguageCollection;
 
-/// <summary>İngilizce metinler. Diğer testler Türkçe (TestLogIsolation) çalışır.</summary>
+/// <summary>English texts. The other tests run in Turkish (TestLogIsolation).</summary>
 [Collection(nameof(LanguageTests))]
 public sealed class LanguageTests
 {

@@ -58,7 +58,7 @@ public sealed class AntigravityTests
     [Fact]
     public void Parser_VersionedModelGroups_StayApartWithTheirOwnLimitsAndResets()
     {
-        // Yeni model havuzu ("Gemini 4 Argon") eskisinden bağımsız kotaya sahip; adı da, sıfırlanması da ayrı kalmalı.
+        // The new model pool ("Gemini 4 Argon") has a quota independent of the old one; its name and its reset must both stay separate.
         const string json = """
             {
               "groups": [

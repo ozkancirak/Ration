@@ -5,8 +5,8 @@ using Ration.Core.Providers.Codex;
 namespace Ration.Tests;
 
 /// <summary>
-/// Oturum log kaynağı testleri. Tüm JSONL'lar SENTETİKTİR, temp dizinde üretilir;
-/// gerçek ~/.codex/sessions içeriği repoya giremez.
+/// Tests of the session log source. All JSONL is SYNTHETIC, produced in a temp directory;
+/// real ~/.codex/sessions content cannot enter the repo.
 /// </summary>
 public class CodexSessionLogTests : IDisposable
 {
@@ -70,7 +70,7 @@ public class CodexSessionLogTests : IDisposable
 
         var snapshot = await new CodexSessionLogUsageSource(_dir).FetchAsync();
 
-        // Aynı dosyada son satır (42), dosyalar arasında en yeni dosya kazanır.
+        // Within the same file the last line (42) wins, across files the newest file wins.
         Assert.Equal(42, Assert.Single(snapshot.Windows, w => w.Kind == WindowKind.Session).Percent);
     }
 

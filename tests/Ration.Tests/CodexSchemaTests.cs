@@ -5,9 +5,9 @@ using Ration.Core.Providers.Codex;
 namespace Ration.Tests;
 
 /// <summary>
-/// wham/usage yanıtının 19.09.2026'da doğrulanmış ŞEKLİNİ kullanır.
-/// İçindeki bütün değerler uydurmadır — gerçek hesaptan kopyalanmış kimlik,
-/// e-posta veya kota verisi repoya giremez.
+/// Uses the SHAPE of the wham/usage response verified on 2026-09-19.
+/// All values in it are made up — identity, email or quota data copied from a real account
+/// cannot enter the repo.
 /// </summary>
 public class CodexSchemaTests
 {
@@ -141,7 +141,7 @@ public class RawResponseRedactorTests
         Assert.DoesNotContain("user-SENTETIK", redacted);
         Assert.DoesNotContain("00000000-0000-0000-0000-000000000000", redacted);
 
-        // Kota verisi olduğu gibi kalmalı, yoksa tanı işe yaramaz.
+        // Quota data must stay as it is, otherwise the diagnostics are useless.
         Assert.Contains("plus", redacted);
         Assert.Contains(RawResponseRedactor.Placeholder, redacted);
     }

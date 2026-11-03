@@ -3,8 +3,8 @@ using Ration.Core.Discovery;
 namespace Ration.Tests;
 
 /// <summary>
-/// Keşif testleri. Tüm dizinler SENTETİKTİR, temp altında üretilir.
-/// En önemli iddia: hiçbir DEĞER (token/e-posta/id) çıktığa sızmaz.
+/// Discovery tests. All directories are SYNTHETIC, produced under temp.
+/// The most important claim: no VALUE (token/email/id) leaks into the output.
 /// </summary>
 public class ProviderDiscoveryTests : IDisposable
 {
@@ -36,7 +36,7 @@ public class ProviderDiscoveryTests : IDisposable
         Assert.Contains("kullanici.aktif : True", dump);
         Assert.Contains("oturum.etiketler[] : String(len=1)", dump);
 
-        // Değer sızıntısı yok: ne e-posta, ne token, ne de sayı değeri.
+        // No value leak: no email, no token, no numeric value.
         Assert.DoesNotContain(secretMail, dump);
         Assert.DoesNotContain(secretToken, dump);
         Assert.DoesNotContain("41", dump);

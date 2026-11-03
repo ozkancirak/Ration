@@ -2,7 +2,7 @@ using Ration.Core.Cost;
 
 namespace Ration.Tests;
 
-/// <summary>Aynı model oranı her taramada günlüğe yeniden yazılmaz.</summary>
+/// <summary>The same model rate is not rewritten to the log on every scan.</summary>
 public sealed class PricingLogTests
 {
     private static int CountLines(string needle)
@@ -31,7 +31,7 @@ public sealed class PricingLogTests
 
         Assert.Equal(1, CountLines(needle));
 
-        // Oran değişti: yeni bilgi, yeniden yazılır.
+        // The rate changed: new information, rewritten.
         var repriced = new PricingTable(new Dictionary<string, ModelRate> { [model] = new(4m, 15m, 0m, 0m) });
         CostEstimator.Estimate(ScanOf(model), repriced);
         CostEstimator.Estimate(ScanOf(model), repriced);

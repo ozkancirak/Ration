@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 
-# Aynı dala art arda push'ta eski koşu iptal edilir.
+# On repeated pushes to the same branch the older run is cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -40,8 +40,8 @@ jobs:
       - name: Test
         run: dotnet test -c Debug --no-build --no-restore
 
-      # Gerçek yayın yolu: trimmed self-contained publish ve Velopack paketi. Etiket atılmadan
-      # paketleme bozulursa burada görünür.
+      # The real release path: a trimmed self-contained publish and the Velopack package. If packaging breaks
+      # before a tag is pushed, it shows up here.
       - name: Package
         shell: pwsh
         run: ./scripts/package.ps1 -Configuration Release

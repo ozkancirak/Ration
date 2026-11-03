@@ -1,5 +1,5 @@
-# docs/brand/*.svg -> src/Ration.App/Assets altındaki PNG'ler ve AppIcon.ico.
-# Chrome, icon.svg'yi her boyutta doğrudan o boyutta rasterler (küçültme yok); System.Drawing ICO ve PNG'leri yazar.
+# docs/brand/*.svg -> the PNGs under src/Ration.App/Assets and AppIcon.ico.
+# Chrome rasterizes icon.svg directly at each size (no downscaling); System.Drawing writes the ICO and PNGs.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
@@ -12,8 +12,8 @@ New-Item -ItemType Directory -Force $tmp | Out-Null
 
 $native = @{}
 
-# icon.svg'yi Chrome ile doğrudan hedef boyutta rasterler. 1024 px'lik bir resmi küçültmek
-# küçük ikonlarda bulanıklık ve koyu hale üretiyordu; vektörden çizilince temiz çıkar.
+# Rasterizes icon.svg with Chrome directly at the target size. Shrinking a 1024 px image
+# produced blur and a dark halo on small icons; drawn from the vector it comes out clean.
 function Native([int]$size) {
     if ($native.ContainsKey($size)) { return $native[$size] }
     $html = Join-Path $tmp "icon-$size.html"
@@ -23,7 +23,7 @@ function Native([int]$size) {
         Set-Content -Encoding utf8 $html
     if (Test-Path $png) { Remove-Item $png -Force }
     $window = [Math]::Max($size, 300)
-    # Chrome ilerlemeyi stderr'e yazar; Stop tercihinde bu hata sayılır.
+    # Chrome writes progress to stderr; under the Stop preference that counts as an error.
     $ErrorActionPreference = 'Continue'
     & $chrome --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --default-background-color=00000000 `
         --window-size="$window,$window" --screenshot="$png" ([Uri]$html).AbsoluteUri 2>$null | Out-Null
@@ -58,7 +58,7 @@ Save 'StoreLogo.png' 50 50 50
 Save 'Wide310x150Logo.scale-200.png' 620 300 240
 Save 'SplashScreen.scale-200.png' 1240 600 400
 
-# ICO: PNG sıkıştırmalı girdiler (Vista+).
+# ICO: PNG-compressed entries (Vista+).
 $sizes = 16, 20, 24, 32, 40, 48, 64, 256
 $blobs = foreach ($s in $sizes) {
     $bmp = Scaled $s $s $s

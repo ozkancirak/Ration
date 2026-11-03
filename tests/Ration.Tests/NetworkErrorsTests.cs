@@ -50,7 +50,7 @@ public class NetworkErrorsTests
     [Fact]
     public async Task RealHttpClientTimeout_IsRecognizedAsTimeout()
     {
-        // Yanıt vermeyen yerel bir sunucu: gerçek HttpClient zaman aşımının istisna zincirini doğrular.
+        // A local server that does not respond: verifies the exception chain of a real HttpClient timeout.
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         using var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(300) };
