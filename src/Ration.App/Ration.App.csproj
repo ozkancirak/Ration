@@ -11,7 +11,7 @@
     <Platforms>x64;ARM64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
-    <Version>0.7.2</Version>
+    <Version>0.8.0</Version>
     <SelfContained>true</SelfContained>
     <!-- Only the TR/EN UI languages; other satellite folders do not go into the publish output. -->
     <SatelliteResourceLanguages>tr;en</SatelliteResourceLanguages>
