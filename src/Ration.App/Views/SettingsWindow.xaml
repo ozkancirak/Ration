@@ -364,6 +364,12 @@
                                 <ComboBoxItem Content="{l:Loc En='50% left', Tr='%50 kaldı'}" Tag="50" />
                             </ComboBox>
                         </controls:SettingsCard>
+                        <controls:SettingsCard Header="{l:Loc En='Quota reset', Tr='Kota sıfırlanması'}"
+                                               Description="{l:Loc En='Notify when a used-up quota is available again', Tr='Dolan kota yeniden kullanılabilir olunca bildir'}">
+                            <ToggleSwitch x:Name="ResetNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
                         <controls:SettingsCard Header="Claude Code">
                             <ToggleSwitch x:Name="ClaudeNotifyToggle"
                                           OnContent="{l:Loc En='On', Tr='Açık'}"

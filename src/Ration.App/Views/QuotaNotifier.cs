@@ -32,8 +32,12 @@ internal static class QuotaNotifier
     private const string FiredKey = "firedAlerts";
     private const string ThresholdKey = "lowQuotaThreshold";
     private const string DisabledProvidersKey = "notificationsDisabledProviders";
+    private const string NotifyOnResetKey = "notifyOnReset";
 
     public static readonly int[] Thresholds = [10, 20, 30, 50];
+
+    /// <summary>Also notify when a used-up window has quota again. Off by default: no new toasts after an update.</summary>
+    public static bool NotifyOnReset { get; private set; }
 
     /// <summary>Remaining-quota threshold (%) for the "running low" notification; an invalid record falls back to the default.</summary>
     public static int LowThreshold { get; private set; }
@@ -44,6 +48,13 @@ internal static class QuotaNotifier
         var stored = SettingsStore.Default.GetInt(ThresholdKey, (int)QuotaAlerts.LowRemaining);
         LowThreshold = Array.IndexOf(Thresholds, stored) >= 0 ? stored : (int)QuotaAlerts.LowRemaining;
         _fired = SettingsStore.Default.GetStrings(FiredKey).ToList();
+        NotifyOnReset = SettingsStore.Default.GetBool(NotifyOnResetKey, false);
+    }
+
+    public static void SetNotifyOnReset(bool enabled)
+    {
+        NotifyOnReset = enabled;
+        SettingsStore.Default.Set(NotifyOnResetKey, enabled);
     }
 
     public static void SetEnabled(bool enabled)
@@ -96,7 +107,7 @@ internal static class QuotaNotifier
     {
         if (!Enabled || !_registered || !IsProviderEnabled(snapshot.ProviderId)) return;
 
-        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold);
+        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold, NotifyOnReset);
         if (alerts.Count == 0) return;
 
         foreach (var alert in alerts)
@@ -120,6 +131,7 @@ internal static class QuotaNotifier
             }
 
             _fired.Add(alert.Key);
+            if (alert.Forget is { } forget) _fired.RemoveAll(forget.Contains);
         }
 
         if (_fired.Count > MaxRemembered) _fired.RemoveRange(0, _fired.Count - MaxRemembered);

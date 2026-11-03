@@ -2,7 +2,8 @@ using Ration.Core.Model;
 
 namespace Ration.Core.Usage;
 
-public sealed record QuotaAlert(string Key, string Title, string Body);
+/// <param name="Forget">Fired keys that are obsolete once this alert is shown (a reset closes the "used up" alerts before it).</param>
+public sealed record QuotaAlert(string Key, string Title, string Body, IReadOnlyList<string>? Forget = null);
 
 /// <summary>
 /// Quota notification decision (pure; display is in the App layer). In the main windows (session/weekly),
@@ -20,7 +21,8 @@ public static class QuotaAlerts
         string providerName,
         IReadOnlySet<string> alreadyFired,
         DateTimeOffset now,
-        double lowRemaining = LowRemaining)
+        double lowRemaining = LowRemaining,
+        bool includeResets = false)
     {
         if (snapshot.Status != ProviderStatus.Ok) return Array.Empty<QuotaAlert>();
 
@@ -32,18 +34,40 @@ public static class QuotaAlerts
             if (window.Label?.Contains("gpt-", StringComparison.OrdinalIgnoreCase) == true) continue;
 
             var remaining = Math.Clamp(100 - window.Percent, 0, 100);
-            var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= lowRemaining ? (L.T("running low", "azaldı"), lowRemaining.ToString("0", System.Globalization.CultureInfo.InvariantCulture)) : (null, null);
-            if (level is null) continue;
 
             // In Claude, Weekly, Weekly · Opus and Weekly · Sonnet are the same kind; the label tells them apart.
             var windowName = window.Kind == WindowKind.Session ? L.T("Session", "Oturum") : window.Label ?? L.T("Weekly", "Haftalık");
             // In some sources the reset time is computed from "in N seconds" and drifts by a few seconds
             // from query to query; if it is not rounded to a 10-minute slice, the same notification comes again and again.
             var cycle = window.ResetsAt is { } r ? ((r.ToUnixTimeSeconds() + 300) / 600).ToString() : "-";
-            var key = $"{snapshot.ProviderId}|{window.GroupName}|{window.Kind}|{window.Label}|{cycle}|{threshold}";
+            var windowKey = $"{snapshot.ProviderId}|{window.GroupName}|{window.Kind}|{window.Label}|";
+            var group = string.IsNullOrWhiteSpace(window.GroupName) ? string.Empty : $" ({window.GroupName})";
+
+            // A window that was used up in an earlier cycle has quota again: the reset happened. The "used up"
+            // keys of the older cycles are forgotten so the next reset needs a new "used up" first.
+            if (includeResets && remaining > 0 && cycle != "-")
+            {
+                var resetKey = $"{windowKey}{cycle}|reset";
+                var currentUsedUp = $"{windowKey}{cycle}|0";
+                var usedUpBefore = alreadyFired
+                    .Where(k => k.StartsWith(windowKey, StringComparison.Ordinal) && k.EndsWith("|0", StringComparison.Ordinal) && k != currentUsedUp)
+                    .ToList();
+                if (usedUpBefore.Count > 0 && !alreadyFired.Contains(resetKey))
+                {
+                    alerts.Add(new QuotaAlert(
+                        resetKey,
+                        L.T($"{providerName}{group} · {windowName} quota reset", $"{providerName}{group} · {windowName} kotası sıfırlandı"),
+                        L.T($"Fresh quota: {remaining:F0}% left.", $"Yeni kota: %{remaining:F0} kaldı."),
+                        usedUpBefore));
+                }
+            }
+
+            var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= lowRemaining ? (L.T("running low", "azaldı"), lowRemaining.ToString("0", System.Globalization.CultureInfo.InvariantCulture)) : (null, null);
+            if (level is null) continue;
+
+            var key = $"{windowKey}{cycle}|{threshold}";
             if (alreadyFired.Contains(key)) continue;
 
-            var group = string.IsNullOrWhiteSpace(window.GroupName) ? string.Empty : $" ({window.GroupName})";
             var reset = FormatUntil(window.ResetsAt, now);
             var body = remaining <= 0
                 ? (reset is null ? L.T("Quota used up.", "Kota tükendi.") : L.T($"Resets in {reset}.", $"{reset} sonra sıfırlanır."))
