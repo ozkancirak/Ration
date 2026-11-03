@@ -50,6 +50,7 @@ public sealed partial class FlyoutWindow : Window
     private bool _isVisible;
     private bool _pinned;
     private double? _currentGaugePercent;
+    private bool _currentGaugeStale;
     private string _currentTooltip = L.T("Ration: No data", "Ration: Veri yok");
     private string? _trayProviderId = TrayProviderPreference.Current;
     private SettingsWindow? _settingsWindow;
@@ -1000,7 +1001,7 @@ public sealed partial class FlyoutWindow : Window
 
         DetailUnavailableTitle.Visibility = Visibility.Visible;
 
-        var stale = snapshot is { Status: ProviderStatus.Degraded, StaleReason: not null } &&
+        var stale = snapshot.IsStale &&
             (snapshot.Windows.Count > 0 || snapshot.Cost is not null || snapshot.Credits is not null);
         DetailUpdated.Text = stale ||
             snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error
@@ -1404,7 +1405,7 @@ public sealed partial class FlyoutWindow : Window
         EnqueueResize();
     }
 
-    public void UpdateTrayIcon(double? percent, string? tooltip = null)
+    public void UpdateTrayIcon(double? percent, string? tooltip = null, bool? stale = null)
     {
         bool isLightTheme = AppThemePreference.IsTaskbarLightTheme();
 
@@ -1418,8 +1419,9 @@ public sealed partial class FlyoutWindow : Window
         if (iconSize <= 0) iconSize = (int)Math.Round(16 * (dpi / 96.0));
 
         tooltip ??= _currentTooltip;
+        stale ??= _currentGaugeStale;
 
-        IntPtr iconHandle = TrayIconRenderer.CreateGaugeIconHandle(percent, isLightTheme, iconSize);
+        IntPtr iconHandle = TrayIconRenderer.CreateGaugeIconHandle(percent, isLightTheme, iconSize, stale.Value);
         IntPtr previousHandle = _currentIconHandle;
 
         _currentIconHandle = iconHandle;
@@ -1595,7 +1597,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void RecalculateTrayIcon()
     {
-        var available = new Dictionary<string, (string Name, double Percent)>(StringComparer.OrdinalIgnoreCase);
+        var available = new Dictionary<string, (string Name, double Percent, bool Stale)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var provider in _providers)
         {
@@ -1616,11 +1618,11 @@ public sealed partial class FlyoutWindow : Window
             if (mainWindows.Count > 0)
             {
                 var max = mainWindows.Max(w => w.Percent);
-                available[id] = (name, Math.Clamp(max, 0, 100));
+                available[id] = (name, Math.Clamp(max, 0, 100), snapshot.IsStale);
             }
         }
 
-        (string Name, double Percent)? selected = null;
+        (string Name, double Percent, bool Stale)? selected = null;
         if (_trayProviderId is { } requested)
         {
             if (available.TryGetValue(requested, out var fixedProvider))
@@ -1639,13 +1641,16 @@ public sealed partial class FlyoutWindow : Window
             ? string.Join("\n", available.Values
                 .OrderBy(entry => entry.Equals(value) ? 0 : 1)
                 .ThenByDescending(entry => entry.Percent)
-                .Select(entry => L.T($"{entry.Name} · {100 - entry.Percent:F0}% left", $"{entry.Name} · %{100 - entry.Percent:F0} kaldı")))
+                .Select(entry => L.T(
+                    $"{entry.Name} · {100 - entry.Percent:F0}% left{(entry.Stale ? " (old data)" : "")}",
+                    $"{entry.Name} · %{100 - entry.Percent:F0} kaldı{(entry.Stale ? " (eski veri)" : "")}")))
             : _trayProviderId is { } missing
                 ? L.T($"{TabDisplayName(missing)}: No data", $"{TabDisplayName(missing)}: Veri yok")
                 : L.T("Ration: No data", "Ration: Veri yok");
 
         _currentGaugePercent = gaugePercent;
+        _currentGaugeStale = selected?.Stale ?? false;
         _currentTooltip = tooltip;
-        UpdateTrayIcon(gaugePercent, tooltip);
+        UpdateTrayIcon(gaugePercent, tooltip, _currentGaugeStale);
     }
 }

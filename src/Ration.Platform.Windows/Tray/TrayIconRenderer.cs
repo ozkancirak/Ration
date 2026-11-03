@@ -19,7 +19,8 @@ namespace Ration.Platform.Windows.Tray;
 /// </summary>
 public static class TrayIconRenderer
 {
-    public static Bitmap CreateGaugeBitmap(double? percentage, bool isLightTheme, int size = 16)
+    /// <param name="stale">The percentage is the last good result after a failed refresh: the whole icon is drawn faded.</param>
+    public static Bitmap CreateGaugeBitmap(double? percentage, bool isLightTheme, int size = 16, bool stale = false)
     {
         bool hasData = percentage is double value
             && !double.IsNaN(value)
@@ -68,6 +69,13 @@ public static class TrayIconRenderer
                         ? Color.FromArgb(120, 0, 0, 0)
                         : Color.FromArgb(170, 255, 255, 255);
                 }
+            }
+
+            if (stale && !isHighContrast)
+            {
+                // Old data must not pass for a fresh reading. High contrast keeps the system colors.
+                borderColor = Faded(borderColor);
+                fillColor = Faded(fillColor);
             }
 
             // DPI scaling and pixel boundaries
@@ -126,9 +134,11 @@ public static class TrayIconRenderer
         return bitmap;
     }
 
-    public static IntPtr CreateGaugeIconHandle(double? percentage, bool isLightTheme, int size = 16)
+    private static Color Faded(Color color) => Color.FromArgb(color.A * 45 / 100, color);
+
+    public static IntPtr CreateGaugeIconHandle(double? percentage, bool isLightTheme, int size = 16, bool stale = false)
     {
-        using var bitmap = CreateGaugeBitmap(percentage, isLightTheme, size);
+        using var bitmap = CreateGaugeBitmap(percentage, isLightTheme, size, stale);
         return bitmap.GetHicon();
     }
 

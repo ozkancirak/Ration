@@ -97,7 +97,7 @@ switch (command)
 
     case "icon-preview":
     case "render-icons":
-        RenderIconPreview(GetOption(args, "--out") ?? "contact-sheet.png");
+        RenderIconPreview(GetOption(args, "--out") ?? "contact-sheet.png", HasFlag(args, "--stale"));
         return 0;
 
     case "diagnose":
@@ -496,7 +496,7 @@ string? FindAppExecutable()
         && !string.Equals(Path.GetFullPath(path), Environment.ProcessPath, StringComparison.OrdinalIgnoreCase));
 }
 
-void RenderIconPreview(string outputPath)
+void RenderIconPreview(string outputPath, bool stale)
 {
     var percentages = new double?[] { null, 0.0, 50.0, 75.0, 90.0, 100.0 };
     var sizes = new[] { 16, 20, 24, 32 };
@@ -515,7 +515,7 @@ void RenderIconPreview(string outputPath)
         using var whiteBrush = new SolidBrush(Color.White);
         using var grayBrush = new SolidBrush(Color.FromArgb(170, 170, 170));
 
-        g.DrawString("Ration — Tray icon contact sheet", fontHeader, whiteBrush, 24, 16);
+        g.DrawString(stale ? "Ration — Tray icon contact sheet (stale data)" : "Ration — Tray icon contact sheet", fontHeader, whiteBrush, 24, 16);
         g.DrawString("Vertical outline tank/gauge · DPI × theme × usage · — = no data · fill = remaining quota", fontSubLabel, grayBrush, 24, 40);
 
         var themes = new[]
@@ -575,7 +575,7 @@ void RenderIconPreview(string outputPath)
                     var pct = percentages[p];
                     int cx = colStartX + (p * colWidth);
 
-                    using var icon = TrayIconRenderer.CreateGaugeBitmap(pct, theme.IsLight, size);
+                    using var icon = TrayIconRenderer.CreateGaugeBitmap(pct, theme.IsLight, size, stale);
 
                     // 1x actual size (PixelOffsetMode.None, NearestNeighbor)
                     g.InterpolationMode = InterpolationMode.NearestNeighbor;
@@ -1002,7 +1002,7 @@ void PrintHelp()
     Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|cursor|all] [--json] [--raw]");
     Console.WriteLine("  ration cost  [-p claude|codex|all] [--days N] [--json]");
     Console.WriteLine("  ration --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  " + L.T("# discovery/schema; never prints values", "# keşif/şema; değer yazmaz"));
-    Console.WriteLine("  ration icon-preview [--out contact-sheet.png]  " + L.T("# renders the DPI/theme contact sheet", "# DPI/tema temas levhası üretir"));
+    Console.WriteLine("  ration icon-preview [--out contact-sheet.png] [--stale]  " + L.T("# renders the DPI/theme contact sheet", "# DPI/tema temas levhası üretir"));
     Console.WriteLine("  ration diagnose [--raw]");
     Console.WriteLine("  ration --log                         " + L.T("# last 100 lines of ration.log", "# ration.log son 100 satır"));
     Console.WriteLine("  ration --selftest [--screenshot-dir DIR]  " + L.T("# real menu input test", "# gerçek menü girdisi testi"));

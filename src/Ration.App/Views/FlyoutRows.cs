@@ -29,7 +29,7 @@ public sealed record WindowRow(
     /// </summary>
     public static IReadOnlyList<WindowRow> From(UsageSnapshot snapshot, DateTimeOffset now)
     {
-        var stale = snapshot.Status == ProviderStatus.Degraded && snapshot.StaleReason is not null;
+        var stale = snapshot.IsStale;
         var groups = snapshot.Windows.GroupBy(w => w.GroupName ?? string.Empty, StringComparer.Ordinal).ToList();
         var rows = new List<WindowRow>();
 

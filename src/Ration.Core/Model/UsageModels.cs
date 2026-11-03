@@ -103,4 +103,8 @@ public sealed record UsageSnapshot(
     string? StatusDetail = null,
     // For sources like OpenCode, only the names of configured providers are shown,
     // not credential values.
-    IReadOnlyList<string>? ConfiguredProviders = null);
+    IReadOnlyList<string>? ConfiguredProviders = null)
+{
+    /// <summary>The windows are the last good result, kept after a failed refresh (Degraded with a stale reason).</summary>
+    public bool IsStale => Status == ProviderStatus.Degraded && StaleReason is not null;
+}
