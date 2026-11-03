@@ -156,6 +156,19 @@ public sealed partial class SettingsWindow : Window
         ResetNotifyToggle.Toggled += (_, _) => QuotaNotifier.SetNotifyOnReset(ResetNotifyToggle.IsOn);
         SignInNotifyToggle.IsOn = QuotaNotifier.NotifyOnSignIn;
         SignInNotifyToggle.Toggled += (_, _) => QuotaNotifier.SetNotifyOnSignIn(SignInNotifyToggle.IsOn);
+        SurgeNotifyToggle.IsOn = QuotaNotifier.NotifyOnSurge;
+        SurgeNotifyToggle.Toggled += (_, _) => QuotaNotifier.SetNotifyOnSurge(SurgeNotifyToggle.IsOn);
+        SurgeThresholdSelection.SelectedItem = SurgeThresholdSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag as string == QuotaNotifier.SurgePoints.ToString());
+        SurgeThresholdSelection.SelectionChanged += (_, _) =>
+        {
+            if (SurgeThresholdSelection.SelectedItem is ComboBoxItem { Tag: string value } &&
+                int.TryParse(value, out var percent))
+            {
+                QuotaNotifier.SetSurgePoints(percent);
+            }
+        };
 
         SetNotificationOptionsEnabled(QuotaNotifier.Enabled);
         LowThresholdSelection.SelectedItem = LowThresholdSelection.Items
@@ -503,6 +516,8 @@ public sealed partial class SettingsWindow : Window
         LowThresholdSelection.IsEnabled = enabled;
         ResetNotifyToggle.IsEnabled = enabled;
         SignInNotifyToggle.IsEnabled = enabled;
+        SurgeNotifyToggle.IsEnabled = enabled;
+        SurgeThresholdSelection.IsEnabled = enabled;
         foreach (var (toggle, _) in NotificationProviderToggles()) toggle.IsEnabled = enabled;
     }
 

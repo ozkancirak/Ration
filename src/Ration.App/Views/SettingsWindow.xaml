@@ -376,6 +376,20 @@
                                           OnContent="{l:Loc En='On', Tr='Açık'}"
                                           OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                         </controls:SettingsCard>
+                        <controls:SettingsCard Header="{l:Loc En='Fast usage', Tr='Hızlı tüketim'}"
+                                               Description="{l:Loc En='Notify when usage climbs quickly, for example after a runaway agent', Tr='Kullanım hızla artınca bildir, örneğin kontrolden çıkan bir ajanda'}">
+                            <ToggleSwitch x:Name="SurgeNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="{l:Loc En='Fast usage threshold', Tr='Hızlı tüketim eşiği'}"
+                                               Description="{l:Loc En='Share of the quota used within 5 minutes', Tr='5 dakikada kullanılan kota payı'}">
+                            <ComboBox x:Name="SurgeThresholdSelection" MinWidth="140">
+                                <ComboBoxItem Content="{l:Loc En='5% in 5 min', Tr='5 dakikada %5'}" Tag="5" />
+                                <ComboBoxItem Content="{l:Loc En='10% in 5 min', Tr='5 dakikada %10'}" Tag="10" />
+                                <ComboBoxItem Content="{l:Loc En='20% in 5 min', Tr='5 dakikada %20'}" Tag="20" />
+                            </ComboBox>
+                        </controls:SettingsCard>
                         <controls:SettingsCard Header="Claude Code">
                             <ToggleSwitch x:Name="ClaudeNotifyToggle"
                                           OnContent="{l:Loc En='On', Tr='Açık'}"

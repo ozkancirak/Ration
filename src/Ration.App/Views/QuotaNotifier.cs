@@ -37,7 +37,14 @@ internal static class QuotaNotifier
     private const string EverWorkedKey = "signInEverWorked";
     private const string SignInNotifiedKey = "signInNotified";
 
+    private const string NotifyOnSurgeKey = "notifyOnSurge";
+    private const string SurgePointsKey = "surgePoints";
+
     private static readonly CredentialEpisodes _episodes;
+    private static readonly SurgeTracker _surges = new();
+
+    /// <summary>"N% within 5 minutes" choices for the fast usage alert.</summary>
+    public static readonly int[] SurgeThresholds = [5, 10, 20];
 
     public static readonly int[] Thresholds = [10, 20, 30, 50];
 
@@ -46,6 +53,12 @@ internal static class QuotaNotifier
 
     /// <summary>Also notify, once per failure episode, when a provider that used to work needs a new sign-in. Off by default.</summary>
     public static bool NotifyOnSignIn { get; private set; }
+
+    /// <summary>Also notify when usage climbs quickly (a runaway agent, a stuck loop). Off by default.</summary>
+    public static bool NotifyOnSurge { get; private set; }
+
+    /// <summary>Quota percent that counts as a surge when used within 5 minutes; an invalid record falls back to the default.</summary>
+    public static int SurgePoints { get; private set; }
 
     /// <summary>Remaining-quota threshold (%) for the "running low" notification; an invalid record falls back to the default.</summary>
     public static int LowThreshold { get; private set; }
@@ -58,6 +71,9 @@ internal static class QuotaNotifier
         _fired = SettingsStore.Default.GetStrings(FiredKey).ToList();
         NotifyOnReset = SettingsStore.Default.GetBool(NotifyOnResetKey, false);
         NotifyOnSignIn = SettingsStore.Default.GetBool(NotifyOnSignInKey, false);
+        NotifyOnSurge = SettingsStore.Default.GetBool(NotifyOnSurgeKey, false);
+        var points = SettingsStore.Default.GetInt(SurgePointsKey, SurgeTracker.DefaultPointsPerFiveMinutes);
+        SurgePoints = Array.IndexOf(SurgeThresholds, points) >= 0 ? points : SurgeTracker.DefaultPointsPerFiveMinutes;
         _episodes = new CredentialEpisodes(
             SettingsStore.Default.GetStrings(EverWorkedKey),
             SettingsStore.Default.GetStrings(SignInNotifiedKey));
@@ -67,6 +83,18 @@ internal static class QuotaNotifier
     {
         NotifyOnSignIn = enabled;
         SettingsStore.Default.Set(NotifyOnSignInKey, enabled);
+    }
+
+    public static void SetNotifyOnSurge(bool enabled)
+    {
+        NotifyOnSurge = enabled;
+        SettingsStore.Default.Set(NotifyOnSurgeKey, enabled);
+    }
+
+    public static void SetSurgePoints(int percent)
+    {
+        SurgePoints = percent;
+        SettingsStore.Default.Set(SurgePointsKey, percent);
     }
 
     private static void SaveEpisodes()
@@ -137,6 +165,10 @@ internal static class QuotaNotifier
         var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold, NotifyOnReset).ToList();
         var signIn = NotifyOnSignIn ? _episodes.Pending(snapshot, providerName) : null;
         if (signIn is not null) alerts.Add(signIn);
+        var surges = NotifyOnSurge
+            ? _surges.Observe(snapshot, providerName, DateTimeOffset.UtcNow, SurgePoints)
+            : Array.Empty<QuotaAlert>();
+        alerts.AddRange(surges);
         if (alerts.Count == 0) return;
 
         foreach (var alert in alerts)
@@ -165,6 +197,9 @@ internal static class QuotaNotifier
                 if (_episodes.MarkNotified(snapshot.ProviderId)) SaveEpisodes();
                 continue;
             }
+
+            // The tracker keeps its own quiet time; surge alerts are not remembered across restarts.
+            if (surges.Contains(alert)) continue;
 
             _fired.Add(alert.Key);
             if (alert.Forget is { } forget) _fired.RemoveAll(forget.Contains);
