@@ -918,6 +918,7 @@ public sealed partial class FlyoutWindow : Window
         WelcomePanel.Visibility = discovered ? Visibility.Collapsed : Visibility.Visible;
         DetailPanel.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
         TabStrip.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
+        TabDivider.Visibility = TabStrip.Visibility;
 
         if (discovered || WelcomeProviders.ItemsSource is not null) return;
 

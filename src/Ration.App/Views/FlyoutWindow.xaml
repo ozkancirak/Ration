@@ -46,6 +46,20 @@
               are produced from code (2-6 providers); icon on top, name below, mini meter at the very bottom.  -->
         <Grid x:Name="TabStrip" Grid.Row="0" ColumnSpacing="4" />
 
+        <!--  Dividers between the fixed parts and the detail: the rows are 12 apart, so the line sits in the middle of the gap  -->
+        <Rectangle x:Name="TabDivider"
+                   Grid.Row="1"
+                   Height="1"
+                   Margin="0,-6,0,0"
+                   VerticalAlignment="Top"
+                   Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <Rectangle Grid.Row="2"
+                   Height="1"
+                   Margin="0,-6,0,0"
+                   VerticalAlignment="Top"
+                   Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
         <!--  Detail of the selected provider (this part scrolls if it overflows; the tabs and the bottom row are fixed)  -->
         <ScrollViewer x:Name="DetailScrollViewer"
                       Grid.Row="1"
@@ -200,6 +214,10 @@
 
                     <!--  Usage and API equivalent (local log scan; hidden if there is no data)  -->
                     <StackPanel x:Name="CostSection" Spacing="10" Visibility="Collapsed">
+
+                        <Rectangle Height="1"
+                                   Margin="0,0,0,2"
+                                   Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
 
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <TextBlock x:Name="CostTitle"
