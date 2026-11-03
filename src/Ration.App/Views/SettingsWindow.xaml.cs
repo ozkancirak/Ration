@@ -62,6 +62,10 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        UsageDisplaySelection.SelectedIndex = UsageDisplayPreference.ShowUsed ? 1 : 0;
+        UsageDisplaySelection.SelectionChanged += (_, _) =>
+            UsageDisplayPreference.Set(UsageDisplaySelection.SelectedItem is ComboBoxItem { Tag: "used" });
+
         RefreshIntervalSelection.SelectedItem = RefreshIntervalSelection.Items
             .OfType<ComboBoxItem>()
             .FirstOrDefault(item =>

@@ -12,9 +12,9 @@ namespace Ration.App.Views;
 public sealed record WindowRow(
     string? GroupHeading,
     string Title,
-    double Remaining,
+    double MeterValue,
     Brush MeterBrush,
-    string RemainingText,
+    string PercentText,
     string ResetText,
     string? PaceText,
     string AutomationName,
@@ -24,10 +24,10 @@ public sealed record WindowRow(
     public Visibility PaceVisibility => PaceText is null ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>
-    /// The meter shows the REMAINING quota (the same language as the tray icon); the color follows
-    /// the warning thresholds by usage (QuotaVisuals.MeterBrush).
+    /// The meter shows the REMAINING quota (the same language as the tray icon), or the used one when
+    /// <paramref name="showUsed"/> is on; the color follows the warning thresholds by usage (QuotaVisuals.MeterBrush).
     /// </summary>
-    public static IReadOnlyList<WindowRow> From(UsageSnapshot snapshot, DateTimeOffset now)
+    public static IReadOnlyList<WindowRow> From(UsageSnapshot snapshot, DateTimeOffset now, bool showUsed = false)
     {
         var stale = snapshot.IsStale;
         var groups = snapshot.Windows.GroupBy(w => w.GroupName ?? string.Empty, StringComparer.Ordinal).ToList();
@@ -40,6 +40,7 @@ public sealed record WindowRow(
             {
                 var title = TitleFor(window);
                 var remaining = Math.Clamp(100 - window.Percent, 0, 100);
+                var shown = showUsed ? 100 - remaining : remaining;
                 string? pace = window.Percent >= 100
                     ? PaceCalculator.FormatConsumedBadge(window, now)
                     : stale ? null : PaceLine(window, now);
@@ -47,15 +48,14 @@ public sealed record WindowRow(
                 rows.Add(new WindowRow(
                     heading,
                     title,
-                    remaining,
+                    shown,
                     QuotaVisuals.MeterBrush(window.Percent),
-                    // Small usage must not disappear in rounding: at 0.2% used, "99.8% left" rather than "100% left".
-                    remaining is > 99 and < 99.95
-                        ? L.T($"{remaining:0.#}% left", $"%{remaining:0.#} kaldı")
-                        : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı"),
+                    PercentTextFor(remaining, showUsed),
                     ResetTextFor(window.ResetsAt, stale),
                     pace,
-                    L.T($"{title}, {remaining:F0} percent left", $"{title}, yüzde {remaining:F0} kaldı"),
+                    showUsed
+                        ? L.T($"{title}, {shown:F0} percent used", $"{title}, yüzde {shown:F0} kullanıldı")
+                        : L.T($"{title}, {shown:F0} percent left", $"{title}, yüzde {shown:F0} kaldı"),
                     // The app language is reflected in CurrentCulture; "f" is the local long date + short time.
                     window.ResetsAt is { } resetsAt ? resetsAt.ToLocalTime().ToString("f") : null));
                 heading = null;
@@ -63,6 +63,22 @@ public sealed record WindowRow(
         }
 
         return rows;
+    }
+
+    /// <summary>"85% left" or "15% used". Small amounts must not disappear in rounding: 0.2% used reads "99.8% left", not "100% left".</summary>
+    private static string PercentTextFor(double remaining, bool showUsed)
+    {
+        var used = 100 - remaining;
+        if (showUsed)
+        {
+            return used is > 0.05 and < 1
+                ? L.T($"{used:0.#}% used", $"%{used:0.#} kullanıldı")
+                : L.T($"{used:F0}% used", $"%{used:F0} kullanıldı");
+        }
+
+        return remaining is > 99 and < 99.95
+            ? L.T($"{remaining:0.#}% left", $"%{remaining:0.#} kaldı")
+            : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı");
     }
 
     /// <summary>Pace and, for monthly allowances, the daily target; null when neither applies.</summary>

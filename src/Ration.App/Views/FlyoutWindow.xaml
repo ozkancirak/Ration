@@ -177,7 +177,7 @@
                                     <TextBlock Text="{x:Bind Title}"
                                                Style="{StaticResource BodyStrongTextBlockStyle}"
                                                TextWrapping="Wrap" />
-                                    <ProgressBar Value="{x:Bind Remaining}"
+                                    <ProgressBar Value="{x:Bind MeterValue}"
                                                  Maximum="100"
                                                  Foreground="{x:Bind MeterBrush}"
                                                  Background="{ThemeResource ControlStrongFillColorDisabledBrush}"
@@ -187,7 +187,7 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{x:Bind RemainingText}"
+                                        <TextBlock Text="{x:Bind PercentText}"
                                                    Style="{StaticResource CaptionTextBlockStyle}"
                                                    FontWeight="SemiBold"
                                                    Typography.NumeralAlignment="Tabular" />

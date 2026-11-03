@@ -147,6 +147,7 @@ public sealed partial class FlyoutWindow : Window
         PinButton.Unchecked += OnPinChanged;
 
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
+        UsageDisplayPreference.Changed += () => DispatcherQueue.TryEnqueue(OnUsageDisplayChanged);
         TabStrip.KeyDown += OnTabStripKeyDown;
         CopyErrorButton.Click += OnCopyErrorClicked;
 
@@ -494,6 +495,13 @@ public sealed partial class FlyoutWindow : Window
         RefreshIcon.Visibility = Visibility.Visible;
     }
 
+    private void OnUsageDisplayChanged()
+    {
+        UpdateTabs();
+        RenderDetail();
+        RecalculateTrayIcon();
+    }
+
     private void OnTrayProviderChanged(string? providerId)
     {
         _trayProviderId = providerId;
@@ -831,9 +839,12 @@ public sealed partial class FlyoutWindow : Window
             }
 
             var percent = MainPercent(snapshot);
-            meter.Value = 100 - percent;
+            var shown = UsageDisplayPreference.ShowUsed ? percent : 100 - percent;
+            meter.Value = shown;
             meter.Foreground = tabBrush;
-            AutomationProperties.SetName(button, L.T($"{snapshot.ProviderId}, {100 - percent:F0} percent left", $"{snapshot.ProviderId}, yüzde {100 - percent:F0} kaldı"));
+            AutomationProperties.SetName(button, UsageDisplayPreference.ShowUsed
+                ? L.T($"{snapshot.ProviderId}, {shown:F0} percent used", $"{snapshot.ProviderId}, yüzde {shown:F0} kullanıldı")
+                : L.T($"{snapshot.ProviderId}, {shown:F0} percent left", $"{snapshot.ProviderId}, yüzde {shown:F0} kaldı"));
         }
     }
 
@@ -1079,7 +1090,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void SetWindows(UsageSnapshot? snapshot)
     {
-        var rows = snapshot is null ? Array.Empty<WindowRow>() : WindowRow.From(snapshot, DateTimeOffset.UtcNow);
+        var rows = snapshot is null ? Array.Empty<WindowRow>() : WindowRow.From(snapshot, DateTimeOffset.UtcNow, UsageDisplayPreference.ShowUsed);
         WindowList.ItemsSource = rows;
         WindowList.Visibility = rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -1642,9 +1653,13 @@ public sealed partial class FlyoutWindow : Window
             ? string.Join("\n", available.Values
                 .OrderBy(entry => entry.Equals(value) ? 0 : 1)
                 .ThenByDescending(entry => entry.Percent)
-                .Select(entry => L.T(
-                    $"{entry.Name} · {100 - entry.Percent:F0}% left{(entry.Stale ? " (old data)" : "")}",
-                    $"{entry.Name} · %{100 - entry.Percent:F0} kaldı{(entry.Stale ? " (eski veri)" : "")}")))
+                .Select(entry => UsageDisplayPreference.ShowUsed
+                    ? L.T(
+                        $"{entry.Name} · {entry.Percent:F0}% used{(entry.Stale ? " (old data)" : "")}",
+                        $"{entry.Name} · %{entry.Percent:F0} kullanıldı{(entry.Stale ? " (eski veri)" : "")}")
+                    : L.T(
+                        $"{entry.Name} · {100 - entry.Percent:F0}% left{(entry.Stale ? " (old data)" : "")}",
+                        $"{entry.Name} · %{100 - entry.Percent:F0} kaldı{(entry.Stale ? " (eski veri)" : "")}")))
             : _trayProviderId is { } missing
                 ? L.T($"{TabDisplayName(missing)}: No data", $"{TabDisplayName(missing)}: Veri yok")
                 : L.T("Ration: No data", "Ration: Veri yok");

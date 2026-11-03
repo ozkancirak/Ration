@@ -270,6 +270,19 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="{l:Loc En='Percentages', Tr='Yüzdeler'}"
+                                       Description="{l:Loc En='Show what is left or what is used in the panel and the tray tooltip', Tr='Panelde ve tepsi ipucunda kalanı ya da kullanılanı göster'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE9D9;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ComboBox x:Name="UsageDisplaySelection"
+                              MinWidth="140"
+                              AutomationProperties.Name="{l:Loc En='Percentages', Tr='Yüzdeler'}">
+                        <ComboBoxItem Content="{l:Loc En='Remaining', Tr='Kalan'}" Tag="remaining" />
+                        <ComboBoxItem Content="{l:Loc En='Used', Tr='Kullanılan'}" Tag="used" />
+                    </ComboBox>
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Show in tray', Tr='Tepside göster'}"
                                        Description="{l:Loc En='Which provider’s quota the tray icon shows', Tr='Tepsi ikonunda hangi sağlayıcının kotası gösterilsin'}">
                     <controls:SettingsCard.HeaderIcon>
