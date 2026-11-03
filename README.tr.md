@@ -25,10 +25,10 @@
 
 ## Özellikler
 
-- Oturum ve haftalık kalan kota, sıfırlanma zamanı ve tempo tahmini
-- Kalan kotaya göre dolan tepsi ikonu; üzerine gelince her sağlayıcının kalan kotası görünür
+- Oturum ve haftalık kalan kota, sıfırlanma zamanı ve tempo tahmini; aylık kotalarda günlük hedef. Kalanı ya da kullanılanı gösterebilirsin
+- Kalan kotaya göre dolan tepsi ikonu (izlediği sağlayıcıyı ve pencereyi sen seçersin); verisi eskiyince soluklaşır. Üzerine gelince her sağlayıcının kalan kotası görünür
 - Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
-- Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır
+- Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır. İsteğe bağlı: dolan kota sıfırlanınca, bir sağlayıcı yeniden giriş isteyince ve kullanım hızla artınca bildirim
 - Klavyeyle rahat kullanım: ok tuşları sağlayıcı değiştirir, F5 veya Ctrl+R yeniler, isteğe bağlı genel kısayol (varsayılan Ctrl+Alt+R, Ayarlar'dan açana kadar kapalı) paneli her yerden açar; sabitleme düğmesi çalışırken açık tutar
 - Windows'a yerel görünüm (Mica ve Acrylic), açık ve koyu tema, Türkçe ve İngilizce arayüz
 - Kendini günceller: günde bir denetler, tek tıkla kurar, yalnızca değişeni indirir
@@ -68,7 +68,7 @@ Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. C
 
 Ration dosyalarını `%LOCALAPPDATA%\Ration` altında tutar (kurulum da burada durur):
 
-- `settings.json`: tercihlerin (dil, tema, yenileme aralığı, tepsi sağlayıcısı, bildirimler, son güncelleme denetimi)
+- `settings.json`: tercihlerin (dil, tema, yenileme aralığı, tepsi sağlayıcısı ve penceresi, yüzde gösterimi, bildirimler, son güncelleme denetimi)
 - `pricing.json`: önbelleğe alınmış model fiyatları
 - `snapshots\`: son kota okumaları
 - `ration.log`: sırları maskelenmiş tanılama günlüğü

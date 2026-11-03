@@ -25,10 +25,10 @@
 
 ## Features
 
-- Session and weekly quota left, with reset times and a pace hint
-- Tray icon that fills with your remaining quota; hover it to see each provider's remaining quota
+- Session and weekly quota left, with reset times and a pace hint; monthly allowances also get a daily target. Show what is left or what is used
+- Tray icon that fills with your remaining quota (you choose the provider and the window it follows) and fades when its data is old; hover it to see each provider's remaining quota
 - Token totals and estimated cost for the last 30 days from local logs
-- Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider
+- Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider. Optional alerts when a used-up quota resets, when a provider needs a new sign-in and when usage climbs fast
 - Keyboard friendly: arrow keys switch providers, F5 or Ctrl+R refreshes, and an optional global shortcut (Ctrl+Alt+R by default, off until you turn it on in Settings) opens the panel from anywhere; the pin button keeps it open while you work
 - Native Windows look (Mica and Acrylic), light and dark theme, English and Turkish interface
 - Updates itself: checks once a day, installs with one click, downloads only what changed
@@ -68,7 +68,7 @@ Credential files are read-only; Ration never refreshes or stores them. For Curso
 
 Ration keeps its files in `%LOCALAPPDATA%\Ration` (the installer lives there too):
 
-- `settings.json`: your preferences (language, theme, refresh interval, tray provider, notifications, last update check)
+- `settings.json`: your preferences (language, theme, refresh interval, tray provider and window, percentage display, notifications, last update check)
 - `pricing.json`: cached model prices
 - `snapshots\`: last quota readings
 - `ration.log`: diagnostic log with secrets redacted
