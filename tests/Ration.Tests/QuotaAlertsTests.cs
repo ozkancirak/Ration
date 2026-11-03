@@ -15,7 +15,7 @@ public sealed class QuotaAlertsTests
         new(kind, used, 100, used, resets, label);
 
     [Fact]
-    public void Esikler_AzaldiVeDoldu_VeRahatPencereSessiz()
+    public void Thresholds_RunningLowAndUsedUp_AndAComfortableWindowIsSilent()
     {
         var alerts = QuotaAlerts.Evaluate(
             Snap(ProviderStatus.Ok,
@@ -31,7 +31,7 @@ public sealed class QuotaAlertsTests
     }
 
     [Fact]
-    public void OzelEsik_OncedenUyarir_VeFarkliEsikFarkliAnahtarUretir()
+    public void CustomThreshold_WarnsEarlier_AndADifferentThresholdProducesADifferentKey()
     {
         var snapshot = Snap(ProviderStatus.Ok, Window(WindowKind.Session, 75, Now.AddHours(2)));
 
@@ -44,7 +44,7 @@ public sealed class QuotaAlertsTests
     }
 
     [Fact]
-    public void AyniDongudeTekrarlanmaz_KayanSifirlanmaZamanindaBile()
+    public void SameCycle_DoesNotRepeat_EvenWithADriftingResetTime()
     {
         var first = QuotaAlerts.Evaluate(
             Snap(ProviderStatus.Ok, Window(WindowKind.Session, 90, Now.AddHours(2))),
@@ -61,7 +61,7 @@ public sealed class QuotaAlertsTests
     }
 
     [Fact]
-    public void YeniDongu_YeniBildirim()
+    public void NewCycle_NewNotification()
     {
         var fired = QuotaAlerts.Evaluate(
             Snap(ProviderStatus.Ok, Window(WindowKind.Session, 90, Now.AddHours(2))),
@@ -75,7 +75,7 @@ public sealed class QuotaAlertsTests
     }
 
     [Fact]
-    public void BayatVeri_VeModelBazliLimit_BildirimUretmez()
+    public void StaleData_AndPerModelLimit_ProduceNoNotification()
     {
         Assert.Empty(QuotaAlerts.Evaluate(
             Snap(ProviderStatus.Degraded, Window(WindowKind.Session, 99, Now.AddHours(1))),

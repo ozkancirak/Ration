@@ -25,7 +25,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Gerideyse_RahatYazar()
+    public void BehindPace_ShowsComfortable()
     {
         // 1 hour of the 5-hour window has passed (20%), usage 2% → pace −0.18.
         Assert.Equal(
@@ -34,7 +34,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Hizliysa_BitisSuresiyleYazar()
+    public void AheadOfPace_ShowsTimeUntilDepletion()
     {
         // 8 hours of the 10-hour window have passed (80%), usage 90% → pace +0.10,
         // depletion ≈ 53 min < 2 h to reset.
@@ -44,7 +44,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Bitis_Yakinsa_BirazdanYazar_AslaSifirDakikaYok()
+    public void ImminentDepletion_SaysShortlyAndNeverZeroMinutes()
     {
         // 4 hours of the 5-hour window have passed (80%), usage 98% → depletion in under ≈ 5 min.
         var text = Line(Window(98, TimeSpan.FromHours(5), TimeSpan.FromHours(1)));
@@ -54,7 +54,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Bitis_RationdanUzunsa_CeliskiOlmaz_RahatYazar()
+    public void DepletionAfterWindowEnd_ShowsComfortableWithoutContradiction()
     {
         // Synthetic edge case: pace is ahead but the estimate is later than the window end → comfortable.
         var now = DateTimeOffset.UtcNow;
@@ -65,7 +65,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void DengeYakinsa_DengeliYazar()
+    public void OnPace_ShowsBalanced()
     {
         // Usage exactly on time: 50% / 50% → pace 0.
         Assert.Equal(
@@ -77,14 +77,14 @@ public class PaceCalculatorTests
     [InlineData(100)]   // used up → badge, no pace row
     [InlineData(140)]   // an unclamped raw value hides it too
     [InlineData(0)]     // no usage at all
-    public void Ucta_SatirGosterilmez(double percent)
+    public void UsedUpOrUnused_ShowsNoPaceRow(double percent)
     {
         Assert.Null(PaceCalculator.Calculate(
             Window(percent, TimeSpan.FromHours(5), TimeSpan.FromHours(1)), DateTimeOffset.UtcNow));
     }
 
     [Fact]
-    public void TukendiRozeti_RationSureyleYazar()
+    public void UsedUpBadge_ShowsRemainingTime()
     {
         var now = DateTimeOffset.UtcNow;
         var window = Window(100, TimeSpan.FromHours(5), TimeSpan.FromHours(4) + TimeSpan.FromMinutes(59));
@@ -93,7 +93,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void TukendiRozeti_Sifirlamasizsa_SadeYazar()
+    public void UsedUpBadge_WithoutResetTime_IsPlain()
     {
         var window = new UsageWindow(WindowKind.Session, 100, 100, 100, null, "5 saatlik", TimeSpan.FromHours(5));
 
@@ -103,7 +103,7 @@ public class PaceCalculatorTests
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void EksikVeride_SatirGosterilmez(bool withReset, bool withLength)
+    public void MissingData_ShowsNoRow(bool withReset, bool withLength)
     {
         var now = DateTimeOffset.UtcNow;
         var window = new UsageWindow(
@@ -116,7 +116,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Pencere_YeniSifirlandiysa_SatirGosterilmez()
+    public void JustResetWindow_ShowsNoRow()
     {
         // Remaining time is equal to or greater than the window length → elapsed ratio <= 0.
         Assert.Null(PaceCalculator.Calculate(
@@ -124,7 +124,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void CokYeniPencerede_GecmisOraniYetersizse_SatirGosterilmez()
+    public void VeryNewWindow_WithInsufficientElapsedRatio_ShowsNoRow()
     {
         Assert.Null(PaceCalculator.Calculate(
             Window(90, TimeSpan.FromHours(5), TimeSpan.FromHours(4) + TimeSpan.FromMinutes(52)),
@@ -132,7 +132,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void Sure_Bicimlendirme_KisaYazar()
+    public void Duration_Formatting_IsCompact()
     {
         Assert.Equal("5 dk", PaceCalculator.FormatDuration(TimeSpan.FromMinutes(5)));
         Assert.Equal("53 dk", PaceCalculator.FormatDuration(TimeSpan.FromMinutes(53)));
@@ -142,7 +142,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void ClaudeParser_PencereUzunlugunuDoldurur()
+    public void ClaudeParser_FillsWindowLength()
     {
         const string json = """{ "five_hour": { "utilization": 10 }, "seven_day": 20 }""";
 
@@ -153,7 +153,7 @@ public class PaceCalculatorTests
     }
 
     [Fact]
-    public void CodexParser_PencereUzunlugunuYanttanOkur()
+    public void CodexParser_ReadsWindowLengthFromResponse()
     {
         const string json = """
         {

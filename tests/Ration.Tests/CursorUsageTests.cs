@@ -32,7 +32,7 @@ public sealed class CursorUsageTests
         new(new HttpClient(handler), () => session, () => installed, () => Now, () => encryptedToken);
 
     [Fact]
-    public void Ayristirici_PlanVeIsteğeBagliPencereleriOranlaOkur()
+    public void Parser_ReadsPlanAndOptionalWindowsAsRatios()
     {
         var data = CursorUsageParser.Parse(ProBody);
 
@@ -49,7 +49,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public void Ayristirici_BildirilenYuzdeyiOncelikliKullanir_VeSinirlar()
+    public void Parser_PrefersTheReportedPercent_AndClamps()
     {
         var data = CursorUsageParser.Parse(
             """{"individualUsage":{"plan":{"used":1,"limit":10,"totalPercentUsed":137.5}}}""");
@@ -58,7 +58,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public void Ayristirici_KapaliVeSinirsizOnDemand_PenceREOlmaz_TanimadigiSekilBosDoner()
+    public void Parser_DisabledAndUnlimitedOnDemand_GiveNoWindow_UnknownShapeReturnsEmpty()
     {
         var kapali = CursorUsageParser.Parse(
             """{"individualUsage":{"plan":{"used":5,"limit":50},"onDemand":{"enabled":false,"used":0,"limit":100}}}""");
@@ -73,7 +73,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public void Ayristirici_SinirsizVeyaHaksizPlan_SifirYuzdeUretmez()
+    public void Parser_UnlimitedOrEntitlementlessPlan_DoesNotProduceZeroPercent()
     {
         // Format observed from a live response: for a free/cancelled account the limit is 0, the percent 0.
         var data = CursorUsageParser.Parse(
@@ -92,11 +92,11 @@ public sealed class CursorUsageTests
     [InlineData("free_trial", "Free trial")]
     [InlineData("  ", null)]
     [InlineData(null, null)]
-    public void PlanAdi_Bicimlenir(string? input, string? expected) =>
+    public void PlanName_IsFormatted(string? input, string? expected) =>
         Assert.Equal(expected, CursorUsageParser.FormatPlan(input));
 
     [Fact]
-    public async Task OzetYolu_CerezBasligiSadeceCursorAdresineGider()
+    public async Task SummaryPath_CookieHeaderGoesOnlyToTheCursorAddress()
     {
         // The current-period endpoint returns 404: falls back to the summary path.
         var handler = new Handler(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
@@ -131,7 +131,7 @@ public sealed class CursorUsageTests
             : Json(HttpStatusCode.OK, ProBody));
 
     [Fact]
-    public async Task GuncelDonem_OnceDener_BelirtecYalnizBearerOlarakCursorSunucusunaGider()
+    public async Task CurrentPeriod_IsTriedFirst_TokenGoesOnlyAsBearerToTheCursorServer()
     {
         var handler = CurrentPeriodHandler();
 
@@ -162,7 +162,7 @@ public sealed class CursorUsageTests
     [InlineData(HttpStatusCode.OK, "<html>")]
     [InlineData(HttpStatusCode.OK, "{\"beklenmeyen\":true}")]
     [InlineData(HttpStatusCode.OK, "{\"planUsage\":{}}")]
-    public async Task GuncelDonemBasarisizsa_EskiOzeteDuser(HttpStatusCode status, string body)
+    public async Task CurrentPeriodFailure_FallsBackToTheOldSummary(HttpStatusCode status, string body)
     {
         var handler = CurrentPeriodHandler(body, status);
 
@@ -175,7 +175,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task GuncelDonemAgHatasi_OzeteDuser()
+    public async Task CurrentPeriodNetworkError_FallsBackToTheSummary()
     {
         var handler = new Handler(request => request.RequestUri!.AbsoluteUri == CursorUsageSource.CurrentPeriodEndpoint
             ? throw new HttpRequestException("ag")
@@ -188,7 +188,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task IsteGoreHarcamaLimitiVarsa_OzetKullanilir_OnDemandPenceresiKaybolmaz()
+    public async Task OptionalSpendLimit_UsesTheSummary_OnDemandWindowDoesNotVanish()
     {
         var limitli = CurrentPeriodBody.Replace("\"overallLimit\": 0", "\"overallLimit\": 10000");
         var handler = CurrentPeriodHandler(limitli);
@@ -200,7 +200,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task UcretsizHesapta_GuncelDonemSifir_SinirYokDer()
+    public async Task FreeAccount_CurrentPeriodZero_MeansNoLimit()
     {
         var handler = CurrentPeriodHandler(CurrentPeriodBody
             .Replace("\"autoPercentUsed\": 12", "\"autoPercentUsed\": 0")
@@ -216,7 +216,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public void GuncelDonemAyristirici_YediGunlukDonem_HaftalikPencereOlur()
+    public void CurrentPeriodParser_SevenDayPeriod_BecomesAWeeklyWindow()
     {
         var haftalik = CursorCurrentPeriodParser.Parse(
             """{"billingCycleStart":"1791664956282","billingCycleEnd":"1792269756282","planUsage":{"autoPercentUsed":10,"apiPercentUsed":25,"totalPercentUsed":20}}""",
@@ -232,7 +232,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public void GuncelDonemAyristirici_YuzdeKaynaklari_VeBicimler()
+    public void CurrentPeriodParser_PercentSourcesAndFormats()
     {
         // Without a total, the highest of the pools; an epoch given as a number is also read.
         var havuz = CursorCurrentPeriodParser.Parse(
@@ -252,7 +252,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task KuruluDegilse_AgaCikmadanNotInstalled()
+    public async Task NotInstalled_ReturnsWithoutUsingTheNetwork()
     {
         var handler = new Handler(_ => Json(HttpStatusCode.OK, ProBody));
 
@@ -263,7 +263,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task OturumYokVeyaSuresiDolmus_AgaCikmadanAuthRequired()
+    public async Task NoSessionOrExpired_ReturnsAuthRequiredWithoutUsingTheNetwork()
     {
         var handler = new Handler(_ => Json(HttpStatusCode.OK, ProBody));
 
@@ -277,7 +277,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task SifreliBelirtec_GirisYapinDemez_AgaCikmaz()
+    public async Task EncryptedToken_DoesNotSaySignIn_AndDoesNotUseTheNetwork()
     {
         var handler = new Handler(_ => Json(HttpStatusCode.OK, ProBody));
 
@@ -297,7 +297,7 @@ public sealed class CursorUsageTests
     [InlineData(HttpStatusCode.Forbidden, ProviderStatus.AuthRequired)]
     [InlineData(HttpStatusCode.TooManyRequests, ProviderStatus.Error)]
     [InlineData(HttpStatusCode.InternalServerError, ProviderStatus.Error)]
-    public async Task HttpHatalari_DurumaEslenir(HttpStatusCode code, ProviderStatus expected)
+    public async Task HttpErrors_MapToStatuses(HttpStatusCode code, ProviderStatus expected)
     {
         var snapshot = await Source(new Handler(_ => Json(code, "{}")), Session()).FetchAsync();
 
@@ -305,7 +305,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task BozukYanitVeBilinmeyenSema_Hata_VeDegraded()
+    public async Task CorruptResponseAndUnknownSchema_GiveErrorAndDegraded()
     {
         var bozuk = await Source(new Handler(_ => Json(HttpStatusCode.OK, "<html>")), Session()).FetchAsync();
         var bos = await Source(new Handler(_ => Json(HttpStatusCode.OK, "{}")), Session()).FetchAsync();
@@ -316,7 +316,7 @@ public sealed class CursorUsageTests
     }
 
     [Fact]
-    public async Task ZamanAsimi_AnlasilirMesajVerir()
+    public async Task Timeout_GivesAnUnderstandableMessage()
     {
         var handler = new Handler(_ => throw new TaskCanceledException("t", new TimeoutException()));
 

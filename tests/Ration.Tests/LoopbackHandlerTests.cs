@@ -9,7 +9,7 @@ namespace Ration.Tests;
 public sealed class LoopbackHandlerTests
 {
     [Fact]
-    public void Ayarlar_ProxySizVeYonlendirmesiz()
+    public void Settings_NoProxyAndNoRedirects()
     {
         using var handler = AntigravityLoopbackUsageSource.CreateLoopbackHandler();
 
@@ -18,7 +18,7 @@ public sealed class LoopbackHandlerTests
     }
 
     [Fact]
-    public async Task Yonlendirme_Izlenmez_IkinciAdreseIstekGitmez()
+    public async Task Redirect_IsNotFollowed_NoRequestGoesToTheSecondAddress()
     {
         using var target = new TcpListener(IPAddress.Loopback, 0);
         target.Start();

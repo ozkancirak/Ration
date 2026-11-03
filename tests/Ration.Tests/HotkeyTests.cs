@@ -5,7 +5,7 @@ namespace Ration.Tests;
 public sealed class HotkeyTests
 {
     [Fact]
-    public void Varsayilan_CtrlAltR()
+    public void Default_IsCtrlAltR()
     {
         Assert.Equal("Ctrl+Alt+R", Hotkey.Default.ToString());
         Assert.True(Hotkey.TryParse("Ctrl+Alt+R", out var parsed));
@@ -17,7 +17,7 @@ public sealed class HotkeyTests
     [InlineData("Alt + 7", "Alt+7")]
     [InlineData("Win+Alt+F24", "Alt+Win+F24")]
     [InlineData("Control+Alt+r", "Ctrl+Alt+R")]
-    public void Ayristirir_VeKanonikYazar(string input, string expected)
+    public void Parses_AndWritesCanonicalForm(string input, string expected)
     {
         Assert.True(Hotkey.TryParse(input, out var hotkey));
         Assert.Equal(expected, hotkey.ToString());
@@ -37,13 +37,13 @@ public sealed class HotkeyTests
     [InlineData("Ctrl+Alt+F0")]
     [InlineData("Hyper+R")]
     [InlineData("Ctrl+Alt+R+S")]
-    public void Gecersizleri_Reddeder(string? input)
+    public void RejectsInvalidValues(string? input)
     {
         Assert.False(Hotkey.TryParse(input, out _));
     }
 
     [Fact]
-    public void TryCreate_DegistiriciVeTusuDogrular()
+    public void TryCreate_ValidatesModifierAndKey()
     {
         Assert.True(Hotkey.TryCreate(Hotkey.Control, 'K', out _));
         Assert.False(Hotkey.TryCreate(Hotkey.Shift, 'K', out _));

@@ -43,7 +43,7 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
         OpenCodeLocalUsageReader.Read(DatabasePath, Path.Combine(_root, "cache"))!.InputTokens;
 
     [Fact]
-    public void Degismediyse_OnbellektenDoner_DegisinceYenidenSorgular()
+    public void Unchanged_ReturnsFromCache_ChangedQueriesAgain()
     {
         CreateDatabase();
         Assert.Equal(100, ReadInputTokens());
@@ -65,7 +65,7 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
     }
 
     [Fact]
-    public void KopyaYolu_BoyutSinirini_VeritabaniWalVeShmIcinUygular()
+    public void CopyPath_AppliesTheSizeLimit_ToDatabaseWalAndShm()
     {
         CreateDatabase();
         var size = new FileInfo(DatabasePath).Length;
@@ -82,7 +82,7 @@ public sealed class OpenCodeReaderCacheTests : IDisposable
     }
 
     [Fact]
-    public void DegisimAnahtari_GunBoyutVeZamanlaDegisir()
+    public void ChangeKey_ChangesWithDaySizeAndTime()
     {
         CreateDatabase();
         var now = new DateTimeOffset(2026, 10, 21, 12, 0, 0, TimeSpan.Zero);

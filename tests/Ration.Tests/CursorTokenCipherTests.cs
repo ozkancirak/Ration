@@ -25,7 +25,7 @@ public sealed class CursorTokenCipherTests
     [Theory]
     [InlineData("v10")]
     [InlineData("v11")]
-    public void SifreliBelirtec_DogruAnahtarlaCozulur(string version)
+    public void EncryptedToken_DecryptsWithTheRightKey(string version)
     {
         var value = Encrypt("  sentetik.jwt.belirteci  ", Key, version);
 
@@ -33,7 +33,7 @@ public sealed class CursorTokenCipherTests
     }
 
     [Fact]
-    public void YanlisAnahtar_BozukVeri_VeBilinmeyenBicim_Null()
+    public void WrongKey_CorruptData_AndUnknownFormat_ReturnNull()
     {
         var value = Encrypt("belirtec", Key);
 
@@ -50,7 +50,7 @@ public sealed class CursorTokenCipherTests
     }
 
     [Fact]
-    public void LocalState_DpapiOnekiAtilir_DigerleriNull()
+    public void LocalState_DpapiPrefixIsStripped_OthersReturnNull()
     {
         var blob = new byte[] { 1, 2, 3, 4 };
         var withMarker = Convert.ToBase64String(Encoding.ASCII.GetBytes("DPAPI").Concat(blob).ToArray());

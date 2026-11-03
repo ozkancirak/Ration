@@ -63,7 +63,7 @@ public sealed class RefreshSingleFlightTests : IDisposable
             new RefreshOptions { MaxJitter = jitter, EmitCachedOnStart = false, Interval = TimeSpan.FromHours(1) });
 
     [Fact]
-    public async Task EszamanliIstekler_TekFetchYapar()
+    public async Task ConcurrentRequests_DoASingleFetch()
     {
         var source = new GatedSource("ornek");
         await using var scheduler = Create(source, TimeSpan.Zero);
@@ -78,7 +78,7 @@ public sealed class RefreshSingleFlightTests : IDisposable
     }
 
     [Fact]
-    public async Task BittiktenSonrakiIstek_YeniFetchYapar()
+    public async Task RequestAfterCompletion_DoesANewFetch()
     {
         var source = new GatedSource("ornek");
         source.Gate.SetResult();
@@ -91,7 +91,7 @@ public sealed class RefreshSingleFlightTests : IDisposable
     }
 
     [Fact]
-    public async Task KullaniciYenilemesiKatilinca_ArkaPlanJitterBeklemesiKisalir()
+    public async Task UserRefreshJoining_ShortensTheBackgroundJitterWait()
     {
         var source = new GatedSource("ornek");
         await using var scheduler = Create(source, TimeSpan.FromSeconds(60));
@@ -108,7 +108,7 @@ public sealed class RefreshSingleFlightTests : IDisposable
     }
 
     [Fact]
-    public void DevreKesici_EszamanliKayitlarSayiyiBozmaz()
+    public void CircuitBreaker_ConcurrentRecordsDoNotCorruptTheCount()
     {
         var breaker = new CircuitBreaker(TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(1));
         var now = DateTimeOffset.UtcNow;

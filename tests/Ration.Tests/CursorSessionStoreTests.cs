@@ -53,7 +53,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void GecerliOturum_BelirtecKullaniciVePlaniOkur()
+    public void ValidSession_ReadsTokenUserAndPlan()
     {
         var path = CreateDatabase(
             ("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(10))),
@@ -72,7 +72,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void SuresiDolanBelirtec_OkunurAmaKullanilamaz()
+    public void ExpiredToken_IsReadButNotUsable()
     {
         var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddSeconds(30))));
 
@@ -83,7 +83,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void Utf16LeBlob_BozulmadanOkunur()
+    public void Utf16LeBlob_IsReadIntact()
     {
         var token = FakeJwt("github|user_ABC123", Now.AddDays(1));
         var path = CreateDatabase(("cursorAuth/accessToken", Encoding.Unicode.GetBytes(token)));
@@ -95,7 +95,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void DosyaYoksa_BelirtecYoksa_BozukBelirtec_VeTabloYoksa_Null()
+    public void MissingFile_MissingToken_CorruptToken_AndMissingTable_ReturnNull()
     {
         Assert.Null(CursorSessionStore.TryRead(Path.Combine(_directory, "yok.vscdb")));
         Assert.Null(CursorSessionStore.TryRead(CreateDatabase(("cursorAuth/cachedEmail", "kisi@example.com"))));
@@ -113,7 +113,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void SifreliBelirtec_Taninir_AmaOturumOlarakOkunmaz()
+    public void EncryptedToken_IsRecognizedButNotReadAsASession()
     {
         var sifreli = CreateDatabase(("cursorAuth/accessToken", CursorSessionStore.EncryptedTokenPrefix + "c3ludGhldGljLWNpcGhlcg=="));
 
@@ -128,7 +128,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void SifreliBelirtec_CozucuyleOturumOlur_AmaHerSeyDogrulanir()
+    public void EncryptedToken_BecomesASessionWithADecryptor_ButIsFullyValidated()
     {
         var jwt = FakeJwt("github|user_ABC123", Now.AddDays(3));
         var sifreli = CreateDatabase(
@@ -149,7 +149,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void DuzBelirtec_CozucuyuCagirmaz()
+    public void PlainToken_DoesNotCallTheDecryptor()
     {
         var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))));
 
@@ -159,7 +159,7 @@ public sealed class CursorSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void Okuma_VeritabaniDegistirmez()
+    public void Reading_DoesNotModifyTheDatabase()
     {
         var path = CreateDatabase(("cursorAuth/accessToken", FakeJwt("github|user_ABC123", Now.AddDays(1))));
         var before = File.ReadAllBytes(path);

@@ -34,7 +34,7 @@ public sealed class TransientRetryTests
             baseDelay: delay ?? NoWait);
 
     [Fact]
-    public async Task Gecici5xx_TekSefer_YenidenDener()
+    public async Task Transient5xx_RetriesOnce()
     {
         var handler = new SequenceHandler(Status(HttpStatusCode.ServiceUnavailable), Status(HttpStatusCode.OK));
 
@@ -46,7 +46,7 @@ public sealed class TransientRetryTests
     }
 
     [Fact]
-    public async Task IkiKezHata_SonYaniti_DonerVeUcuncuDenemeYapmaz()
+    public async Task TwoFailures_ReturnTheLastResponse_AndDoNotTryAThirdTime()
     {
         var handler = new SequenceHandler(Status(HttpStatusCode.BadGateway));
 
@@ -57,7 +57,7 @@ public sealed class TransientRetryTests
     }
 
     [Fact]
-    public async Task BaglantiKopmasi_YenidenDener()
+    public async Task ConnectionDrop_Retries()
     {
         var handler = new SequenceHandler(
             Throw(new HttpRequestException(HttpRequestError.ConnectionError, "reset")),
@@ -75,7 +75,7 @@ public sealed class TransientRetryTests
     [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.NotFound)]
     [InlineData(HttpStatusCode.TooManyRequests)]
-    public async Task KaliciYanitlarVeHizSiniri_YenidenDenenmez(HttpStatusCode code)
+    public async Task PermanentResponsesAndRateLimit_AreNotRetried(HttpStatusCode code)
     {
         var handler = new SequenceHandler(Status(code));
 
@@ -86,7 +86,7 @@ public sealed class TransientRetryTests
     }
 
     [Fact]
-    public async Task CevrimdisiVeSertifikaHatasi_YenidenDenenmez()
+    public async Task OfflineAndCertificateErrors_AreNotRetried()
     {
         var offline = new SequenceHandler(Throw(new HttpRequestException(
             HttpRequestError.NameResolutionError, "dns", new SocketException((int)SocketError.HostNotFound))));
@@ -99,7 +99,7 @@ public sealed class TransientRetryTests
     }
 
     [Fact]
-    public async Task ZamanAsimi_YenidenDenenmez()
+    public async Task Timeout_IsNotRetried()
     {
         var handler = new SequenceHandler(Throw(new TaskCanceledException("t", new TimeoutException())));
 
@@ -109,7 +109,7 @@ public sealed class TransientRetryTests
     }
 
     [Fact]
-    public async Task RetryAfter_BeklemeSuresineUyulur()
+    public async Task RetryAfter_IsHonoredForTheWaitDuration()
     {
         // The base wait is 1 hour; since the server said "immediately" the test finishes without waiting.
         var handler = new SequenceHandler(

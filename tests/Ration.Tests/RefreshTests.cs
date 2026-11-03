@@ -7,7 +7,7 @@ namespace Ration.Tests;
 public class CircuitBreakerTests
 {
     [Fact]
-    public void IlkHatadaAcilirVeBeklemeIkiyeKatlanir()
+    public void FirstFailure_OpensAndTheWaitDoubles()
     {
         var breaker = new CircuitBreaker(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
         var t0 = DateTimeOffset.UtcNow;
@@ -26,7 +26,7 @@ public class CircuitBreakerTests
     }
 
     [Fact]
-    public void BeklemeTavandaDurur()
+    public void WaitStopsAtTheCeiling()
     {
         var breaker = new CircuitBreaker(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
         var t0 = DateTimeOffset.UtcNow;
@@ -38,7 +38,7 @@ public class CircuitBreakerTests
     }
 
     [Fact]
-    public void SureDolduktanSonraKapanir()
+    public void ClosesAfterTheTimeElapses()
     {
         var breaker = new CircuitBreaker(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
         var t0 = DateTimeOffset.UtcNow;
@@ -50,7 +50,7 @@ public class CircuitBreakerTests
     }
 
     [Fact]
-    public void BasariSifirlar()
+    public void SuccessResets()
     {
         var breaker = new CircuitBreaker(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10));
         var t0 = DateTimeOffset.UtcNow;
@@ -80,7 +80,7 @@ public sealed class SnapshotCacheTests : IDisposable
     }
 
     [Fact]
-    public void YazipGeriOkur()
+    public void WritesAndReadsBack()
     {
         var cache = new SnapshotCache(_dir);
 
@@ -110,13 +110,13 @@ public sealed class SnapshotCacheTests : IDisposable
     }
 
     [Fact]
-    public void OlmayanSaglayiciIcinNullDoner()
+    public void MissingProvider_ReturnsNull()
     {
         Assert.Null(new SnapshotCache(_dir).TryLoad("hic-yazilmadi"));
     }
 
     [Fact]
-    public void SaglayiciKimliginiDosyaAdiIcinTemizler()
+    public void SanitizesTheProviderIdForTheFileName()
     {
         var cache = new SnapshotCache(_dir);
 
@@ -129,7 +129,7 @@ public sealed class SnapshotCacheTests : IDisposable
     }
 
     [Fact]
-    public void KaynakBelirsizseYazmaz()
+    public void DoesNotWriteWhenTheSourceIsUnknown()
     {
         var cache = new SnapshotCache(_dir);
 
@@ -140,7 +140,7 @@ public sealed class SnapshotCacheTests : IDisposable
     }
 
     [Fact]
-    public void KaynagiBelirsizDosyayiOkumazVeTemizler()
+    public void DoesNotReadAFileWithAnUnknownSource_AndCleansItUp()
     {
         var cache = new SnapshotCache(_dir);
         Directory.CreateDirectory(_dir);
@@ -196,7 +196,7 @@ public sealed class RefreshSchedulerTests : IDisposable
         StaleReason: null);
 
     [Fact]
-    public async Task KullaniciYenilemesi_JitterBeklemez()
+    public async Task UserRefresh_DoesNotWaitForJitter()
     {
         var provider = new FakeProvider("ornek", () => Ok("ornek", 30));
         var options = NoJitter with { MaxJitter = TimeSpan.FromSeconds(30) };
@@ -211,7 +211,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task BasariliSonucYayinlanirVeCachelenir()
+    public async Task SuccessfulResult_IsPublishedAndCached()
     {
         var cache = new SnapshotCache(_dir);
         var provider = new FakeProvider("ornek", () => Ok("ornek", 30));
@@ -229,7 +229,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task Antigravity_KotaSonrakiTurdaBosGelseOncekiPencereleriKorur()
+    public async Task Antigravity_QuotaEmptyInTheNextRound_KeepsThePreviousWindows()
     {
         var first = new UsageSnapshot(
             ProviderId: "antigravity",
@@ -267,7 +267,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task HataDurumundaSonIyiVeriBayatNotuylaGosterilir()
+    public async Task OnError_TheLastGoodDataIsShownWithAStaleNote()
     {
         var cache = new SnapshotCache(_dir);
         cache.Save(Ok("ornek", 55) with { FetchedAt = DateTimeOffset.UtcNow.AddMinutes(-12) });
@@ -292,7 +292,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task CacheYokkenHataOlduguGibiYayinlanir()
+    public async Task WithoutCache_TheErrorIsPublishedAsIs()
     {
         var provider = new FakeProvider("ornek",
             () => Snapshot.Empty("ornek", ProviderStatus.AuthRequired, "Giriş gerekli"));
@@ -309,7 +309,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task DevreAcikkenSaglayiciTekrarSorgulanmaz()
+    public async Task WhileTheCircuitIsOpen_TheProviderIsNotQueriedAgain()
     {
         var cagriSayisi = 0;
 
@@ -330,7 +330,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task ManuelTurDevreyiAtlar()
+    public async Task ManualRound_SkipsTheCircuit()
     {
         var cagriSayisi = 0;
 
@@ -349,7 +349,7 @@ public sealed class RefreshSchedulerTests : IDisposable
     }
 
     [Fact]
-    public async Task KaynakPatlarsaScheduleCokmez()
+    public async Task IfASourceBlowsUp_ScheduleDoesNotCrash()
     {
         var provider = new FakeProvider("ornek", () => throw new InvalidOperationException("beklenmedik"));
 

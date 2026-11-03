@@ -21,7 +21,7 @@ public sealed class PricingLogTests
     }
 
     [Fact]
-    public void AyniOran_TekSatirYazilir_DegisinceYenidenYazilir()
+    public void SameRate_IsWrittenOnce_ChangeRewrites()
     {
         var model = $"gunluk-testi-{Guid.NewGuid():N}";
         var needle = $"model-rate model={model} ";

@@ -9,7 +9,7 @@ namespace Ration.Tests;
 public sealed class OpenCodeTests
 {
     [Fact]
-    public void AuthContent_OpencodeGoAnahtariniOkur()
+    public void AuthContent_ReadsTheOpencodeGoKey()
     {
         var credentials = OpenCodeCredentialStore.TryRead(
             contentOverride: """{"opencode-go":{"key":"sentetik-key"}}""");
@@ -30,7 +30,7 @@ public sealed class OpenCodeTests
     }
 
     [Fact]
-    public void Parser_DolarLimitYuzdeleriniDogruPencerelereKoyar()
+    public void Parser_PutsDollarLimitPercentagesInTheRightWindows()
     {
         const string json = """
         {
@@ -52,7 +52,7 @@ public sealed class OpenCodeTests
     }
 
     [Fact]
-    public async Task RemoteUsage_BearerHeaderiGonderir()
+    public async Task RemoteUsage_SendsTheBearerHeader()
     {
         var handler = new RecordingHandler(request =>
         {
@@ -75,7 +75,7 @@ public sealed class OpenCodeTests
     }
 
     [Fact]
-    public async Task LocalReader_CanliDbYerineKopyayiSorgular()
+    public async Task LocalReader_QueriesTheCopyInsteadOfTheLiveDb()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ration-opencode-{Guid.NewGuid():N}");
         var databasePath = Path.Combine(root, "opencode.db");

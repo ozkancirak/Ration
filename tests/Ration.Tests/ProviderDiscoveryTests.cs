@@ -16,7 +16,7 @@ public class ProviderDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void JsonSemasi_TurleriYazar_DegerleriYazmaz()
+    public void JsonSchema_WritesTypes_NotValues()
     {
         Directory.CreateDirectory(_dir);
         const string secretMail = "gizli-kullanici-orn-ek@example.com";
@@ -43,7 +43,7 @@ public class ProviderDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void JsonlDosyalari_Orneklenir_DegerYazilmaz()
+    public void JsonlFiles_AreSampled_NoValueIsWritten()
     {
         Directory.CreateDirectory(_dir);
         File.WriteAllLines(Path.Combine(_dir, "oturum.jsonl"), new[]
@@ -62,7 +62,7 @@ public class ProviderDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void JsonOlmayanDosyalar_YalnizcaYolVeBoyutlaListelenir()
+    public void NonJsonFiles_AreListedWithPathAndSizeOnly()
     {
         Directory.CreateDirectory(_dir);
         File.WriteAllText(Path.Combine(_dir, "notlar.txt"), "gizli-not-icerigi-qqq");
@@ -75,7 +75,7 @@ public class ProviderDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void OlmayanDizin_ZarifceBildirilir()
+    public void MissingDirectory_IsReportedGracefully()
     {
         var report = ProviderDiscovery.Discover(
             "gemini", Path.Combine(Path.GetTempPath(), $"ration-yok-{Guid.NewGuid():N}"));
@@ -85,7 +85,7 @@ public class ProviderDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void BilinmeyenSaglayicininKokuYoktur()
+    public void UnknownProvider_HasNoRoot()
     {
         Assert.Null(ProviderDiscovery.RootsFor("bilinmeyen-saglayici"));
         Assert.NotNull(ProviderDiscovery.RootsFor("gemini"));

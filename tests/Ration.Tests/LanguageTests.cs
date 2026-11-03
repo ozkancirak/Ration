@@ -23,7 +23,7 @@ public sealed class LanguageTests
     }
 
     [Fact]
-    public void Tag_GidisDonus()
+    public void Tag_RoundTrips()
     {
         foreach (var language in Enum.GetValues<AppLanguage>())
         {
@@ -35,7 +35,7 @@ public sealed class LanguageTests
     }
 
     [Fact]
-    public void Bildirim_Ingilizce()
+    public void Notification_InEnglish()
     {
         var alerts = InEnglish(() => QuotaAlerts.Evaluate(
             new UsageSnapshot("claude",
@@ -52,7 +52,7 @@ public sealed class LanguageTests
     }
 
     [Fact]
-    public void Tempo_Ingilizce()
+    public void Pace_InEnglish()
     {
         var window = new UsageWindow(
             WindowKind.Session, 100, 100, 100, Now.AddHours(2), "5-hour", TimeSpan.FromHours(5));
