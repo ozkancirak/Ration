@@ -5,7 +5,7 @@ using Ration.Core.Diagnostics;
 
 namespace Ration.Core.Settings;
 
-/// <summary>Eski sürümlerin HKCU\Software\Ration altına yazdığı değerler.</summary>
+/// <summary>Values that older versions wrote under HKCU\Software\Ration.</summary>
 public interface ILegacyRegistryValues
 {
     object? Read(string name);
@@ -13,10 +13,10 @@ public interface ILegacyRegistryValues
 }
 
 /// <summary>
-/// v0.3.0 öncesi tercihler ayrı dosyalarda (language.json, theme.json, refresh.json, tray.json,
-/// notifications.json) ve kayıt defterindeydi. İlk açılışta bunlar SettingsStore'a alınır, eski
-/// kaynaklar silinir. Mevcut bir değerin üzerine yazılmaz; bu yüzden her açılışta çalıştırmak
-/// güvenlidir ve geri alınacak bir şey bırakmaz.
+/// Before v0.3.0 the preferences lived in separate files (language.json, theme.json, refresh.json, tray.json,
+/// notifications.json) and in the registry. On first launch they are moved into SettingsStore and the old
+/// sources are deleted. An existing value is never overwritten; so it is safe to run on every launch
+/// and leaves nothing to undo.
 /// </summary>
 public static class LegacyPreferenceImport
 {
@@ -25,7 +25,7 @@ public static class LegacyPreferenceImport
     private static readonly string[] Themes = ["system", "light", "dark"];
     private const int MaxFired = 200;
 
-    /// <summary>Alınan değer sayısını döndürür.</summary>
+    /// <summary>Returns the number of values imported.</summary>
     public static int Run(SettingsStore store, string dataDirectory, ILegacyRegistryValues? registry = null)
     {
         var imported = 0;
@@ -56,7 +56,7 @@ public static class LegacyPreferenceImport
 
             JsonObject? root = null;
             try { root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject; }
-            catch (JsonException) { /* bozuk dosya: alınacak değer yok, yine de silinir */ }
+            catch (JsonException) { /* corrupt file: nothing to import, it is deleted anyway */ }
 
             var count = root is null ? 0 : import(root);
             File.Delete(path);
@@ -64,7 +64,7 @@ public static class LegacyPreferenceImport
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Silinemezse bir sonraki açılışta tekrar denenir; değerler zaten alındığı için zararsız.
+            // If it cannot be deleted, it is retried at the next launch; harmless since the values were already imported.
             Trace.Error("settings", $"legacy {name} failed type={ex.GetType().Name}");
             return 0;
         }

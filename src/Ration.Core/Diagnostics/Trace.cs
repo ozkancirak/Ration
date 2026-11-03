@@ -4,10 +4,10 @@ using Ration.Core.Providers;
 namespace Ration.Core.Diagnostics;
 
 /// <summary>
-/// Ration'ın kalıcı, gizlilik-korumalı günlük yazıcısı.
+/// Ration's persistent, privacy-preserving log writer.
 ///
-/// Tek süreç içindeki bütün pencereler aynı kilidi paylaşır. Mesajlar yalnızca
-/// metadata içermelidir; ham sağlayıcı yanıtları için RawResponse kullanılır.
+/// All windows in a single process share the same lock. Messages must contain
+/// metadata only; use RawResponse for raw provider responses.
 /// </summary>
 public static class Trace
 {
@@ -28,7 +28,7 @@ public static class Trace
     {
         get
         {
-            // Testler gerçek tanı günlüğünü kirletmesin (sahte 429/401 yanıtları görünüyordu).
+            // So tests do not pollute the real diagnostic log (fake 429/401 responses were showing up).
             var overridden = Environment.GetEnvironmentVariable("RATION_LOG_PATH");
             if (!string.IsNullOrWhiteSpace(overridden)) return overridden;
 
@@ -46,8 +46,8 @@ public static class Trace
         Write(category, $"error={message}");
 
     /// <summary>
-    /// Ham JSON yanıtlarını zorunlu olarak RawResponseRedactor'dan geçirir.
-    /// Ayrıştırılamayan içerik de redactor tarafından güvenli metne çevrilir.
+    /// Forces raw JSON responses through RawResponseRedactor.
+    /// Content that cannot be parsed is also turned into safe text by the redactor.
     /// </summary>
     public static void RawResponse(string category, string rawJson) =>
         Write(category, RawResponseRedactor.Redact(rawJson));
@@ -124,11 +124,11 @@ public static class Trace
             }
             catch (IOException)
             {
-                // Tanı günlükleri uygulamanın çalışmasını asla durdurmaz.
+                // Diagnostic logs never stop the app from working.
             }
             catch (UnauthorizedAccessException)
             {
-                // Tanı günlükleri uygulamanın çalışmasını asla durdurmaz.
+                // Diagnostic logs never stop the app from working.
             }
         }
     }

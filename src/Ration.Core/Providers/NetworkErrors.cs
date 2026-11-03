@@ -4,8 +4,8 @@ using System.Net.Sockets;
 namespace Ration.Core.Providers;
 
 /// <summary>
-/// Ağ hatasını kullanıcıya anlatır. "Çevrimdışı" ile "sunucu sorunu" ayrılır ki bağlantı
-/// yokken kota hatası gibi görünmesin.
+/// Explains a network error to the user. "Offline" is told apart from "server problem" so that
+/// it does not look like a quota error when there is no connection.
 /// </summary>
 public static class NetworkErrors
 {
@@ -35,8 +35,8 @@ public static class NetworkErrors
     }
 
     /// <summary>
-    /// HttpClient zaman aşımı, iç istisnası <see cref="TimeoutException"/> olan bir
-    /// <see cref="TaskCanceledException"/> olarak gelir; kullanıcı iptali bunu taşımaz.
+    /// An HttpClient timeout arrives as a <see cref="TaskCanceledException"/> whose inner exception is a
+    /// <see cref="TimeoutException"/>; a user cancellation does not carry it.
     /// </summary>
     public static bool IsTimeout(Exception ex)
     {

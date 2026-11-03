@@ -6,9 +6,9 @@ using Ration.Core.Providers;
 namespace Ration.Core.Settings;
 
 /// <summary>
-/// Kullanıcı tercihlerinin tek dosyası: <c>%LOCALAPPDATA%\Ration\settings.json</c>. Düz bir JSON
-/// nesnesidir, anahtarlar camelCase. Bozuk ya da okunamayan dosya boş sayılır; yazma geçici dosya
-/// üzerinden yapılır, yarım yazılmış ayar kalmaz.
+/// The single file of user preferences: <c>%LOCALAPPDATA%\Ration\settings.json</c>. A plain JSON
+/// object with camelCase keys. A corrupt or unreadable file counts as empty; writing goes through a
+/// temp file, so no half-written setting remains.
 /// </summary>
 public sealed class SettingsStore
 {
@@ -22,7 +22,7 @@ public sealed class SettingsStore
         _root = Read();
     }
 
-    /// <summary>Uygulamanın tek örneği.</summary>
+    /// <summary>The app's single instance.</summary>
     public static SettingsStore Default { get; } = new(KnownPaths.CacheDir);
 
     public string Path => _path;
@@ -77,7 +77,7 @@ public sealed class SettingsStore
 
     public void Remove(string key) => Write(key, null);
 
-    /// <summary>Dosyayı siler ve bellekteki değerleri sıfırlar.</summary>
+    /// <summary>Deletes the file and resets the in-memory values.</summary>
     public void Clear()
     {
         lock (_gate)

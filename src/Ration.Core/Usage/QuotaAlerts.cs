@@ -5,10 +5,11 @@ namespace Ration.Core.Usage;
 public sealed record QuotaAlert(string Key, string Title, string Body);
 
 /// <summary>
-/// Kota bildirimi kararı (saf; gösterim App katmanında). Ana pencerelerde (oturum/haftalık)
-/// kalan kota eşiğin (varsayılan %20) altına inince "azaldı", bitince "doldu" bildirilir. Her eşik her
-/// pencere döngüsünde bir kez: anahtar sıfırlanma zamanını içerir, yeni döngü yeni anahtar.
-/// Bayat (Degraded) veride bildirim üretilmez; eski veriye göre alarm çalmak yanlıştır.
+/// Quota notification decision (pure; display is in the App layer). In the main windows (session/weekly),
+/// "running low" is notified when the remaining quota falls below the threshold (default 20%), and "used up"
+/// when it runs out. Each threshold fires once per window cycle: the key includes the reset time, a new cycle
+/// means a new key. No notification is produced for stale (Degraded) data; raising an alarm based on old
+/// data is wrong.
 /// </summary>
 public static class QuotaAlerts
 {
@@ -27,17 +28,17 @@ public static class QuotaAlerts
         foreach (var window in snapshot.Windows)
         {
             if (window.Kind is not (WindowKind.Session or WindowKind.Weekly)) continue;
-            // Model bazlı ek limitler (gpt-reserve vb.) tepsi hesabında olduğu gibi dışarıda.
+            // Per-model additional limits (gpt-reserve etc.) are left out, as in the tray calculation.
             if (window.Label?.Contains("gpt-", StringComparison.OrdinalIgnoreCase) == true) continue;
 
             var remaining = Math.Clamp(100 - window.Percent, 0, 100);
             var (level, threshold) = remaining <= 0 ? (L.T("used up", "doldu"), "0") : remaining <= lowRemaining ? (L.T("running low", "azaldı"), lowRemaining.ToString("0", System.Globalization.CultureInfo.InvariantCulture)) : (null, null);
             if (level is null) continue;
 
-            // Claude'da Haftalık, Haftalık · Opus, Haftalık · Sonnet aynı türdedir; etiket ayırır.
+            // In Claude, Weekly, Weekly · Opus and Weekly · Sonnet are the same kind; the label tells them apart.
             var windowName = window.Kind == WindowKind.Session ? L.T("Session", "Oturum") : window.Label ?? L.T("Weekly", "Haftalık");
-            // Sıfırlanma zamanı bazı kaynaklarda "N sn sonra"dan hesaplanır ve sorgudan sorguya
-            // birkaç saniye kayar; 10 dk dilime yuvarlanmazsa aynı bildirim tekrar tekrar gelir.
+            // In some sources the reset time is computed from "in N seconds" and drifts by a few seconds
+            // from query to query; if it is not rounded to a 10-minute slice, the same notification comes again and again.
             var cycle = window.ResetsAt is { } r ? ((r.ToUnixTimeSeconds() + 300) / 600).ToString() : "-";
             var key = $"{snapshot.ProviderId}|{window.GroupName}|{window.Kind}|{window.Label}|{cycle}|{threshold}";
             if (alreadyFired.Contains(key)) continue;

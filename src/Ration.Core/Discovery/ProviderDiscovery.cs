@@ -2,13 +2,13 @@ using System.Text.Json;
 
 namespace Ration.Core.Discovery;
 
-/// <summary>Keşfedilen tek dosya: yol + boyut + (JSON ise) şema. DEĞER YOK.</summary>
+/// <summary>The single discovered file: path + size + (if JSON) schema. NO VALUES.</summary>
 public sealed record DiscoveredFile(
     string Path,
     long Size,
     IReadOnlyList<string>? Schema);
 
-/// <summary>Bir sağlayıcının dizin keşif raporu.</summary>
+/// <summary>A provider's directory discovery report.</summary>
 public sealed record DiscoveryReport(
     string Provider,
     IReadOnlyList<string> Roots,
@@ -16,11 +16,11 @@ public sealed record DiscoveryReport(
     IReadOnlyList<string> Notes);
 
 /// <summary>
-/// Sağlayıcı keşfi: dosya YOLLARI + anahtar yolları + değer TÜRLERİ (+ string uzunluğu).
-/// <see cref="Cost.JsonlSchemaProbe"/> felsefesi: hiçbir DEĞER çıktığa girmez —
-/// token, e-posta, id, hesap adı bu raporda görünemez (daha önce bir kez yaşandı).
-/// Dosyalar salt okunur açılır (FileShare.ReadWrite), kilit tutulmaz.
-/// Bu modül AĞA ÇIKMAZ ve provider kodu üretmez; yalnızca keşif.
+/// Provider discovery: file PATHS + key paths + value TYPES (+ string length).
+/// The philosophy of <see cref="Cost.JsonlSchemaProbe"/>: no VALUE enters the output —
+/// tokens, emails, ids and account names cannot appear in this report (this has already happened once).
+/// Files are opened read-only (FileShare.ReadWrite) and no lock is held.
+/// This module NEVER touches the network and does not generate provider code; it only discovers.
 /// </summary>
 public static class ProviderDiscovery
 {
@@ -31,7 +31,7 @@ public static class ProviderDiscovery
     private const int MaxKeysPerFile = 300;
     private const int MaxDepth = 6;
 
-    /// <summary>Bilinen kökler. Tahmin yok: yalnızca istenen dizinler taranır.</summary>
+    /// <summary>Known roots. No guessing: only the requested directories are scanned.</summary>
     public static IReadOnlyList<string>? RootsFor(string provider)
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -68,8 +68,8 @@ public static class ProviderDiscovery
             List<string> entries;
             try
             {
-                // Derinlik öncelikli: köktekiler (kimlik/ayar adayları) önce,
-                // derin yedek ağaçları sonra — cap derinlikte kaybolmasın.
+                // Ordered by depth: files at the root (credential/settings candidates) come first and
+                // deep backup trees last, so the cap is not used up on the deep ones.
                 entries = Directory
                     .EnumerateFiles(root, "*", SearchOption.AllDirectories)
                     .OrderBy(f => f.Count(c => c == Path.DirectorySeparatorChar))
@@ -148,7 +148,7 @@ public static class ProviderDiscovery
                     using var document = JsonDocument.Parse(line);
                     Walk(document.RootElement, string.Empty, paths, 0);
                 }
-                catch (JsonException) { /* yarım satır: atla */ }
+                catch (JsonException) { /* partial line: skip */ }
                 if (paths.Count >= MaxKeysPerFile) break;
             }
         }
@@ -179,7 +179,7 @@ public static class ProviderDiscovery
                 break;
 
             case JsonValueKind.Array:
-                // Dizinin yalnızca ilk elemanının şekli yeterli.
+                // The shape of only the first array element is enough.
                 foreach (var item in element.EnumerateArray())
                 {
                     Walk(item, $"{prefix}[]", into, depth + 1);
@@ -188,7 +188,7 @@ public static class ProviderDiscovery
                 break;
 
             case JsonValueKind.String:
-                // Uzunluk bilgisi yeter; içerik ASLA yazılmaz.
+                // The length is enough; the content is NEVER written.
                 into.Add($"{prefix} : String(len={element.GetString()?.Length ?? 0})");
                 break;
 

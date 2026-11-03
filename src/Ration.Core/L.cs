@@ -11,8 +11,8 @@ public enum AppLanguage
 }
 
 /// <summary>
-/// İki dilli metin. Çevirisi çağrı yerinde yan yana durur: <c>L.T("Refresh", "Yenile")</c>.
-/// Dil açılışta bir kez belirlenir; değişince uygulama kendini yeniden başlatır (tema gibi).
+/// Bilingual text. The translation sits next to it at the call site: <c>L.T("Refresh", "Yenile")</c>.
+/// The language is decided once at startup; when it changes, the app restarts itself (like the theme).
 /// </summary>
 public static class L
 {
@@ -20,7 +20,7 @@ public static class L
 
     public static string T(string en, string tr) => Turkish ? tr : en;
 
-    /// <summary>Kayıtlı seçim (settings.json, "language"); yoksa Sistem.</summary>
+    /// <summary>The saved choice (settings.json, "language"); if none, System.</summary>
     public static AppLanguage Preference
     {
         get => FromTag(SettingsStore.Default.GetString(SettingKey));
@@ -37,8 +37,8 @@ public static class L
     };
 
     /// <summary>
-    /// Tarih, sayı ve ay adları arayüz diliyle uyuşsun. Bölge biçimi zaten aynı dildeyse
-    /// (en-GB, tr-TR) kullanıcınınki korunur; değilse dilin varsayılanına geçilir.
+    /// Makes dates, numbers and month names match the UI language. If the regional format is already in the same
+    /// language (en-GB, tr-TR) the user's own is kept; otherwise it switches to the language's default.
     /// </summary>
     public static void ApplyCulture()
     {

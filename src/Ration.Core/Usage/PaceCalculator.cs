@@ -2,15 +2,15 @@ using Ration.Core.Model;
 
 namespace Ration.Core.Usage;
 
-/// <summary>Tempo hesabı sonucu: kota pencere bitmeden tükenir mi?</summary>
-/// <param name="Tempo">kullanılan oran − geçen oran (−1..+1). Pozitif = önden gitme.</param>
-/// <param name="DepletesIn">Mevcut tempoyla %100'e ulaşma süresi tahmini.</param>
+/// <summary>Result of the pace calculation: will the quota run out before the window ends?</summary>
+/// <param name="Tempo">used ratio − elapsed ratio (−1..+1). Positive = ahead of pace.</param>
+/// <param name="DepletesIn">Estimated time to reach 100% at the current pace.</param>
 public sealed record PaceResult(double Tempo, TimeSpan DepletesIn);
 
 /// <summary>
-/// "Kotam pencere bitmeden tükenir mi?" sorusunun saf hesabı.
-/// UI'da hesaplama yapılmaz; burası çağrılır, yazı <see cref="Format"/> ile alınır.
-/// Gösterilmeyecek durumlarda <see cref="Calculate"/> null döner — uydurma tahmin üretilmez.
+/// The pure calculation behind the question "will my quota run out before the window ends?".
+/// No calculation is done in the UI; it calls here and gets the text via <see cref="Format"/>.
+/// In cases that should not be shown, <see cref="Calculate"/> returns null — no made-up estimate is produced.
 /// </summary>
 public static class PaceCalculator
 {
@@ -19,7 +19,7 @@ public static class PaceCalculator
 
     public static PaceResult? Calculate(UsageWindow window, DateTimeOffset now)
     {
-        // Tükenmiş pencerede tempo değil rozet gösterilir; boş pencerede hiç satır yok.
+        // In an exhausted window a badge is shown instead of the pace; in an empty window there is no row at all.
         if (window.Percent >= 100) return null;
         if (window.Percent <= 0) return null;
         if (window.ResetsAt is null) return null;
@@ -27,7 +27,7 @@ public static class PaceCalculator
 
         var remaining = window.ResetsAt.Value - now;
         var elapsedRatio = Math.Clamp((length - remaining) / length, 0, 1);
-        if (elapsedRatio < MinimumHistoricalRatio) return null; // çok yeni pencere, güvenilir tempo yok
+        if (elapsedRatio < MinimumHistoricalRatio) return null; // very new window, no reliable pace
 
         var used = window.Percent / 100.0;
         var tempo = used - elapsedRatio;
@@ -44,8 +44,8 @@ public static class PaceCalculator
 
         if (pace.Tempo > 0.05)
         {
-            // Önden gitme matematiksel olarak her zaman pencere bitmeden tükenir;
-            // bu dal çelişkiye karşı güvenlik ağıdır (kayan nokta tozu).
+            // Being ahead of pace mathematically always means running out before the window ends;
+            // this branch is a safety net against contradiction (floating-point dust).
             if (pace.DepletesIn >= remaining) return L.T("Comfortable · lasts until reset", "Rahat · pencere sonuna yeter");
             if (pace.DepletesIn < SoonThreshold) return L.T("Running hot · runs out soon at this pace", "Hızlı gidiyorsun · bu tempoda birazdan biter");
             return L.T($"Running hot · runs out in {FormatDuration(pace.DepletesIn)} at this pace", $"Hızlı gidiyorsun · bu tempoda {FormatDuration(pace.DepletesIn)} sonra biter");
@@ -56,7 +56,7 @@ public static class PaceCalculator
         return L.T("On pace", "Dengeli tempo");
     }
 
-    /// <summary>%100 pencerede tempo yerine gösterilen rozet yazısı.</summary>
+    /// <summary>Badge text shown instead of the pace in a 100% window.</summary>
     public static string FormatConsumedBadge(UsageWindow window, DateTimeOffset now)
     {
         if (window.ResetsAt is not { } reset) return L.T("Used up", "Tükendi");
@@ -65,7 +65,7 @@ public static class PaceCalculator
         return L.T($"Used up · resets in {FormatDuration(remaining)}", $"Tükendi · {FormatDuration(remaining)} sonra sıfırlanır");
     }
 
-    /// <summary>"53 dk", "2 sa 10 dk", "2 gün 1 sa" — süreleri kısa yazar.</summary>
+    /// <summary>"53m", "2h 10m", "2d 1h" — writes durations compactly.</summary>
     public static string FormatDuration(TimeSpan span)
     {
         if (span < TimeSpan.Zero) span = TimeSpan.Zero;

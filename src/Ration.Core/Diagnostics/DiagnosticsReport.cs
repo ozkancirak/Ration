@@ -4,9 +4,9 @@ using System.Text.RegularExpressions;
 namespace Ration.Core.Diagnostics;
 
 /// <summary>
-/// Destek isterken yapıştırılacak tanı metni: sürüm, işletim sistemi ve son günlük satırları.
-/// Günlük zaten e-posta ve gizli değerleri maskeler; burada kullanıcı klasörü yolları da silinir,
-/// çünkü Windows kullanıcı adını taşır.
+/// Diagnostic text to paste when asking for support: version, operating system and the last log lines.
+/// The log already masks emails and secret values; here the user folder paths are removed too,
+/// because they carry the Windows user name.
 /// </summary>
 public static class DiagnosticsReport
 {
@@ -39,14 +39,14 @@ public static class DiagnosticsReport
     {
         if (!string.IsNullOrWhiteSpace(userProfile))
         {
-            // Aynı klasör hem ters hem düz eğik çizgiyle yazılmış olabilir.
+            // The same folder may be written with backslashes or forward slashes.
             var pattern = string.Join(
                 @"[\\/]+",
                 userProfile.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries).Select(Regex.Escape));
             text = Regex.Replace(text, pattern, "%USERPROFILE%", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         }
 
-        // Başka sürücüdeki ya da başka kullanıcıya ait profiller de kullanıcı adı taşır.
+        // Profiles on other drives or belonging to other users also carry a user name.
         return UsersFolder.Replace(text, @"<drive>:\Users\<user>");
     }
 }

@@ -4,18 +4,18 @@ using System.Text.Json;
 namespace Ration.Core.Providers;
 
 /// <summary>
-/// Ham uç nokta yanıtlarını gösterilebilir hale getirir.
+/// Makes raw endpoint responses presentable.
 ///
-/// Kota uç noktaları token döndürmez ama kimlik bilgisi döndürür: e-posta,
-/// kullanıcı ve hesap kimlikleri. Tanı çıktısı bir sohbete, bir issue'ya ya da
-/// bir log dosyasına yapıştırılacağı için bunlar maskelenmeden gösterilmez
-/// Tanı çıktısı yalnızca metadata gösterir.
+/// Quota endpoints do not return tokens but do return identity information: email,
+/// user and account ids. Since diagnostic output gets pasted into a chat, an issue or
+/// a log file, these are not shown unmasked.
+/// Diagnostic output shows metadata only.
 /// </summary>
 public static class RawResponseRedactor
 {
-    // Köşeli parantez yok: böylece çıktıyı üretirken HTML-safe encoding'i kapatmamız
-    // gerekmiyor. Kapatsaydık, sağlayıcıdan gelen ham metin ileride bir diagnostics
-    // ekranında gösterildiğinde escape edilmeden basilırdı.
+    // No square brackets: this way we do not have to turn off HTML-safe encoding when producing the
+    // output. Had we turned it off, raw text from the provider would be printed unescaped when it is
+    // later shown in a diagnostics screen.
     public const string Placeholder = "[redacted]";
 
     private static readonly HashSet<string> SensitiveKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -26,7 +26,7 @@ public static class RawResponseRedactor
         "projectId", "session_id", "sessionId", "request_id", "requestId",
         "bucket_id", "bucketId",
         "model_id", "modelId", "uuid", "id",
-        // kimlik doğrulama (kota yanıtlarında beklenmez ama güvenlik ağı)
+        // authentication (not expected in quota responses but a safety net)
         "token", "id_token", "access_token", "refresh_token", "accessToken",
         "refreshToken", "api_key", "apiKey", "session_key", "sessionKey",
         "csrf_token", "csrfToken", "host_bridge_token", "hostBridgeToken",
@@ -34,8 +34,8 @@ public static class RawResponseRedactor
     };
 
     /// <summary>
-    /// Hassas alanların değerini maskeleyerek JSON'u biçimli döndürür.
-    /// Ayrıştırılamayan yanıt hiç gösterilmez — körlemesine basmak sızıntı riskidir.
+    /// Returns the JSON formatted, with the values of sensitive fields masked.
+    /// A response that cannot be parsed is never shown — printing it blindly risks a leak.
     /// </summary>
     public static string Redact(string json)
     {
@@ -46,7 +46,7 @@ public static class RawResponseRedactor
             using var document = JsonDocument.Parse(json);
             using var buffer = new MemoryStream();
 
-            // Varsayılan (HTML-safe) encoder bilerek korunuyor — bkz. Placeholder notu.
+            // The default (HTML-safe) encoder is kept on purpose — see the Placeholder note.
             using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
             {
                 WriteElement(writer, document.RootElement);

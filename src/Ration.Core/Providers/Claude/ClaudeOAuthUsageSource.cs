@@ -9,16 +9,16 @@ using RationTrace = Ration.Core.Diagnostics.Trace;
 namespace Ration.Core.Providers.Claude;
 
 /// <summary>
-/// Yerel dosyadaki OAuth token ile Anthropic kota uç noktasını sorgular.
-/// Kind = LocalFile'dır: kimlik yerel dosyadan gelir.
+/// Queries Anthropic's quota endpoint with the OAuth token from the local file.
+/// Kind = LocalFile: the credential comes from the local file.
 /// </summary>
 public sealed class ClaudeOAuthUsageSource : IUsageSource
 {
     public const string UsageEndpoint = "https://api.anthropic.com/api/oauth/usage";
     public const string OAuthBetaHeader = "oauth-2025-04-20";
 
-    // Saat kayması ya da bozuk dosya yüzünden sağlayıcı sonsuza dek susturulmasın:
-    // bundan uzak bekleme süreleri hem yazılırken kısılır hem okunurken yok sayılır.
+    // Do not let the provider be silenced forever because of clock skew or a corrupt file:
+    // wait times further out than this are both clamped when written and ignored when read.
     private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromHours(1);
 
     private readonly HttpClient _http;
@@ -28,8 +28,8 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
     public SourceKind Kind => SourceKind.LocalFile;
 
     /// <summary>
-    /// Tanı amaçlı son ham yanıt (<c>ration usage --raw</c>).
-    /// Kota verisidir; token içermez.
+    /// Last raw response, for diagnostics (<c>ration usage --raw</c>).
+    /// It is quota data; it contains no token.
     /// </summary>
     public string? LastRawResponse { get; private set; }
 
@@ -71,8 +71,8 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
                 L.T("~/.claude/.credentials.json not found or has no claudeAiOauth.", "~/.claude/.credentials.json bulunamadı ya da claudeAiOauth içermiyor."), Kind);
         }
 
-        // 429 sonrası sunucunun istediği süre dolmadan tekrar sorma; bekleme zamanı diskte
-        // tutulur ki uygulama yeniden başlatılınca da uyulsun.
+        // After a 429, do not ask again before the time the server asked for has passed; the wait time
+        // is kept on disk so that it is honored after an app restart too.
         if (ReadRetryAfter() is { } until && until > DateTimeOffset.UtcNow)
         {
             RationTrace.Info("provider.http", $"provider=claude skipped=retry-after until={until:O}");
@@ -248,14 +248,14 @@ public sealed class ClaudeOAuthUsageSource : IUsageSource
 }
 
 /// <summary>
-/// Yanıt şeması resmî olarak belgelenmediği için ayrıştırma KASITLI olarak toleranslıdır:
-/// bir pencere düz sayı da olabilir, { utilization, resets_at } nesnesi de.
-/// Tanınmayan alan sessizce atlanır — eksik veri gösteririz, uydurma veri üretmeyiz.
+/// The response schema is not officially documented, so parsing is DELIBERATELY tolerant:
+/// a window can be a plain number or a { utilization, resets_at } object.
+/// An unrecognized field is skipped silently — we show missing data, we do not make data up.
 /// </summary>
 public static class ClaudeUsageParser
 {
-    // Pencere uzunluğu anahtardan türetilir: five_hour → 5 saat,
-    // seven_day* → 7 gün. Yanıt uzunluğu taşımaz, anahtar taşır.
+    // The window length is derived from the key: five_hour → 5 hours,
+    // seven_day* → 7 days. The response carries no length, the key does.
     private static readonly (string Key, WindowKind Kind, string Label, TimeSpan Length)[] KnownWindows =
     {
         ("five_hour",        WindowKind.Session, L.T("5-hour", "5 saatlik"),       TimeSpan.FromHours(5)),
@@ -288,10 +288,10 @@ public static class ClaudeUsageParser
         return result;
     }
 
-    // Yeni yanıtta modele özel haftalıklar (Fable gibi) seven_day_* alanlarında değil,
-    // limits[] içinde "weekly_scoped" olarak gelir; limits[] içindeki diğer girdiler
-    // five_hour / seven_day'i yineler. Yüzdesi ya da model adı olmayan girdi atılır:
-    // 0'a çevrilirse gerçek bir modelin altında API'nin hiç göndermediği "%0" çizilir.
+    // In the new response, model-specific weekly limits (such as Fable) come not in the seven_day_* fields
+    // but as "weekly_scoped" entries in limits[]; the other entries in limits[] repeat
+    // five_hour / seven_day. An entry without a percentage or model name is dropped:
+    // if it were turned into 0, a "0%" the API never sent would be drawn under a real model.
     private static void AddScopedWeeklyLimits(JsonElement root, List<UsageWindow> result)
     {
         if (!root.TryGetProperty("limits", out var limits) || limits.ValueKind != JsonValueKind.Array) return;
@@ -309,7 +309,7 @@ public static class ClaudeUsageParser
 
             var label = L.T($"Weekly · {name}", $"Haftalık · {name}");
 
-            // Eski alan hâlâ doluysa (seven_day_opus gibi) aynı pencere iki kez eklenmez.
+            // If the old field is still populated (like seven_day_opus), the same window is not added twice.
             if (result.Any(w => string.Equals(w.Label, label, StringComparison.OrdinalIgnoreCase))) continue;
 
             var window = ReadWindow(entry, WindowKind.Weekly, label, TimeSpan.FromDays(7));

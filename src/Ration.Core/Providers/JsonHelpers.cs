@@ -5,8 +5,8 @@ namespace Ration.Core.Providers;
 internal static class JsonHelpers
 {
     /// <summary>
-    /// Zaman damgasını ISO-8601 string veya Unix epoch (saniye ya da milisaniye)
-    /// olarak okur. Tanınmayan biçimde null döner — uydurma tarih üretmez.
+    /// Reads a timestamp as an ISO-8601 string or a Unix epoch (seconds or milliseconds).
+    /// Returns null for an unrecognized format — it does not make up a date.
     /// </summary>
     public static DateTimeOffset? ReadTimestamp(JsonElement element)
     {
@@ -18,8 +18,8 @@ internal static class JsonHelpers
 
         if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var epoch))
         {
-            // 100 milyar sınırı saniye ile milisaniyeyi güvenle ayırır:
-            // saniye cinsinden 100e9 yıl 5138'e denk gelir, milisaniye cinsinden 1973'e.
+            // The 100-billion threshold safely tells seconds from milliseconds:
+            // in seconds 100e9 corresponds to the year 5138, in milliseconds to 1973.
             return epoch > 100_000_000_000L
                 ? DateTimeOffset.FromUnixTimeMilliseconds(epoch)
                 : DateTimeOffset.FromUnixTimeSeconds(epoch);
@@ -28,13 +28,13 @@ internal static class JsonHelpers
         return null;
     }
 
-    /// <summary>Alan string ise değerini, yoksa ya da başka türdeyse null döndürür.</summary>
+    /// <summary>Returns the value if the field is a string, null if it is missing or of another type.</summary>
     public static string? ReadString(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
 
-    /// <summary>Verilen isimlerden ilk sayısal alanı döndürür; yoksa null.</summary>
+    /// <summary>Returns the first numeric field among the given names; null if there is none.</summary>
     public static double? ReadFirstNumber(JsonElement element, params string[] names)
     {
         foreach (var name in names)

@@ -17,8 +17,8 @@ public sealed class CodexOAuthUsageSource : IUsageSource
     public SourceKind Kind => SourceKind.LocalFile;
 
     /// <summary>
-    /// Tanı amaçlı son ham yanıt. Token içermez ama e-posta ve hesap kimliği içerir;
-    /// gösterilmeden önce <see cref="RawResponseRedactor"/> ile maskelenmelidir.
+    /// Last raw response, for diagnostics. It contains no token but does contain an email and account id;
+    /// it must be masked with <see cref="RawResponseRedactor"/> before being shown.
     /// </summary>
     public string? LastRawResponse { get; private set; }
 
@@ -117,7 +117,7 @@ public sealed record CodexUsageData(
     CreditBalance? Credits);
 
 /// <summary>
-/// wham/usage yanıtını ayrıştırır. Doğrulanmış şema (19.09.2026):
+/// Parses the wham/usage response. Verified schema (2026-09-19):
 ///
 ///   plan_type: "plus"
 ///   rate_limit.primary_window   { used_percent, limit_window_seconds, reset_after_seconds, reset_at }
@@ -125,9 +125,9 @@ public sealed record CodexUsageData(
 ///   additional_rate_limits[]    { limit_name, normal_model_slug, rate_limit { primary_window, ... } }
 ///   credits                     { has_credits, unlimited, balance }
 ///
-/// Pencere adı ve türü <c>limit_window_seconds</c>'tan TÜRETİLİR, sabit yazılmaz:
-/// sağlayıcı pencere süresini değiştirirse etiket kendiliğinden doğru kalır.
-/// Ayrıştırma yine de toleranslıdır; alan yoksa uydurma veri üretilmez.
+/// The window name and kind are DERIVED from <c>limit_window_seconds</c>, not hard-coded:
+/// if the provider changes the window duration, the label stays correct on its own.
+/// Parsing is still tolerant; if a field is missing, no data is made up.
 /// </summary>
 public static class CodexUsageParser
 {
@@ -140,7 +140,7 @@ public static class CodexUsageParser
     private static readonly string[] ResetInNames =
         { "reset_after_seconds", "resets_in_seconds", "seconds_until_reset" };
 
-    /// <summary>Geriye dönük kolaylık: yalnızca pencereler.</summary>
+    /// <summary>Backwards-compatible convenience: windows only.</summary>
     public static IReadOnlyList<UsageWindow> ParseWindows(string json) => Parse(json).Windows;
 
     public static CodexUsageData Parse(string json)
@@ -155,7 +155,7 @@ public static class CodexUsageParser
             return new CodexUsageData(windows, null, null);
         }
 
-        // Ana kotalar. rate_limit sarmalayıcısı yoksa kökte ara.
+        // Main quotas. If there is no rate_limit wrapper, look at the root.
         var container = root;
 
         if (root.TryGetProperty("rate_limit", out var rateLimit) &&
@@ -172,7 +172,7 @@ public static class CodexUsageParser
         TryAddWindow(container, "primary_window", WindowKind.Session, prefix: null, windows);
         TryAddWindow(container, "secondary_window", WindowKind.Weekly, prefix: null, windows);
 
-        // Model bazlı ek kotalar (ör. "gpt-reserve" tükendiğinde bunu görmek isteriz).
+        // Per-model additional quotas (e.g. we want to see when "gpt-reserve" runs out).
         if (root.TryGetProperty("additional_rate_limits", out var additional) &&
             additional.ValueKind == JsonValueKind.Array)
         {
@@ -245,14 +245,14 @@ public static class CodexUsageParser
         var label = DescribeWindow(windowSeconds, fallbackKind);
         if (!string.IsNullOrWhiteSpace(prefix)) label = $"{prefix} · {label}";
 
-        // Pencere uzunluğu yanıttan doğrudan gelir (limit_window_seconds).
+        // The window length comes directly from the response (limit_window_seconds).
         TimeSpan? length = windowSeconds is > 0 ? TimeSpan.FromSeconds(windowSeconds.Value) : null;
 
         var clamped = Math.Clamp(percent.Value, 0, 100);
         into.Add(new UsageWindow(KindFromSeconds(windowSeconds, fallbackKind), clamped, 100, clamped, resetsAt, label, length));
     }
 
-    /// <summary>Pencere uzunluğundan insan okunur ad üretir; süre bilinmiyorsa türe düşer.</summary>
+    /// <summary>Produces a human-readable name from the window length; falls back to the kind if the duration is unknown.</summary>
     public static string DescribeWindow(double? windowSeconds, WindowKind fallbackKind)
     {
         if (windowSeconds is not > 0)
@@ -306,7 +306,7 @@ public static class CodexUsageParser
             return null;
         }
 
-        // balance string ("0") ya da sayı olarak gelebiliyor.
+        // balance can arrive as a string ("0") or a number.
         decimal? balance = null;
 
         if (credits.TryGetProperty("balance", out var balanceElement))

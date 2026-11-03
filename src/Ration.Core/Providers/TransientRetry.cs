@@ -3,13 +3,13 @@ using System.Net;
 namespace Ration.Core.Providers;
 
 /// <summary>
-/// Geçici ağ hatalarında tek yeniden deneme (CodexBar'ın "transient idempotent" politikası).
+/// A single retry on transient network errors (CodexBar's "transient idempotent" policy).
 ///
-/// Yalnızca GET gibi tekrarı zararsız istekler için kullanılır. Yeniden denenenler: bağlantı
-/// kopması, boş/bozuk yanıt ve 408/500/502/503/504 (sunucu <c>Retry-After</c> verirse en çok
-/// 10 sn beklenir). Yeniden DENENMEYENLER: çevrimdışı/DNS hatası ve sertifika hatası (tekrar
-/// denemek fayda etmez), 429 (hız sınırı, çağıranın kendi kuralı var), zaman aşımı (zaten uzun
-/// bekledi; ikinci bir bekleme turu uzatır) ve iptal.
+/// Used only for requests whose repetition is harmless, like GET. Retried: connection
+/// drops, empty/corrupt responses and 408/500/502/503/504 (if the server sends <c>Retry-After</c>,
+/// it waits at most 10 s). NOT retried: offline/DNS errors and certificate errors (retrying does not
+/// help), 429 (rate limit, the caller has its own rule), timeouts (it already waited long; a second
+/// wait round would stretch things) and cancellation.
 /// </summary>
 public static class TransientRetry
 {
@@ -17,9 +17,9 @@ public static class TransientRetry
     private static readonly TimeSpan DefaultDelay = TimeSpan.FromSeconds(1);
 
     /// <param name="createRequest">
-    /// Her deneme için yeni istek üretir (<see cref="HttpRequestMessage"/> yeniden gönderilemez).
+    /// Creates a new request for every attempt (an <see cref="HttpRequestMessage"/> cannot be sent again).
     /// </param>
-    /// <param name="baseDelay">İlk bekleme; testler için ayarlanabilir.</param>
+    /// <param name="baseDelay">The first wait; adjustable for tests.</param>
     public static async Task<HttpResponseMessage> SendAsync(
         HttpClient http,
         Func<HttpRequestMessage> createRequest,
@@ -39,7 +39,7 @@ public static class TransientRetry
         }
         catch (HttpRequestException ex) when (IsTransient(ex))
         {
-            // Aşağıdaki ikinci deneme.
+            // The second attempt below.
         }
 
         await Task.Delay(delay, ct).ConfigureAwait(false);

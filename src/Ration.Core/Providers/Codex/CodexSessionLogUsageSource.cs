@@ -5,18 +5,18 @@ using Ration.Core.Model;
 namespace Ration.Core.Providers.Codex;
 
 /// <summary>
-/// Ağsız ikinci kaynak: ~/.codex/sessions/**/*.jsonl içindeki rate_limits payload'ı.
-/// CodexProvider zincirinde OAuth'tan SONRA gelir; ağ başarısız olunca devreye girer.
+/// Second source without network: the rate_limits payload in ~/.codex/sessions/**/*.jsonl.
+/// It comes AFTER OAuth in the CodexProvider chain; it kicks in when the network fails.
 ///
-/// GİZLİLİK: satırlardan YALNIZCA payload.rate_limits (yüzdeler,
-/// pencere süreleri) ve zaman damgası okunur. Mesaj metni, prompt, araç çıktısı
-/// hiçbir şekilde ayrıştırılmaz, saklanmaz, loglanmaz.
-/// Dosyalar Codex CLI tarafından yazılıyor olabilir: FileShare.ReadWrite ile açılır,
-/// satır satır akıtılır, kilit tutulmaz.
+/// PRIVACY: from the lines ONLY payload.rate_limits (percentages,
+/// window durations) and the timestamp are read. Message text, prompts and tool output
+/// are never parsed, stored or logged.
+/// The files may be being written by the Codex CLI: they are opened with FileShare.ReadWrite,
+/// streamed line by line and no lock is held.
 /// </summary>
 public sealed class CodexSessionLogUsageSource : IUsageSource
 {
-    /// <summary>Çok eski dosyalara inmeden dur; tazelik zaten StaleReason'da görünür.</summary>
+    /// <summary>Stop before reaching very old files; freshness is already visible in StaleReason.</summary>
     private const int MaxFilesScanned = 50;
 
     private readonly string _sessionsDir;
@@ -68,8 +68,8 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
         {
             ct.ThrowIfCancellationRequested();
 
-            // İleriden tarayıp SON geçerli satırı tutmak, sondan geriye tarayıp
-            // İLKİ almaya denktir; tek geçişle O(1) bellekte yapılır.
+            // Scanning forward and keeping the LAST valid line is equivalent to scanning backward
+            // from the end and taking the FIRST one; it is done in a single pass with O(1) memory.
             if (TryReadLatest(file) is { } hit)
             {
                 var age = FormatAge(DateTimeOffset.UtcNow - hit.At);
@@ -80,8 +80,8 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
                     Cost: null,
                     Status: hit.Data.Windows.Count > 0 ? ProviderStatus.Ok : ProviderStatus.Degraded,
                     ResolvedVia: Kind,
-                    // Bu kaynak ağ yanıtı değil; ölçümün zamanını koru. Okuma
-                    // anını FetchedAt yapmak eski kotayı yeni alınmış gösterir.
+                    // This source is not a network response; keep the time of the measurement. Using the time
+                    // of reading as FetchedAt would make an old quota look freshly fetched.
                     FetchedAt: hit.At,
                     StaleReason: hit.Data.Windows.Count > 0
                         ? L.T($"from session log · {age}", $"oturum kaydından · {age}")
@@ -154,13 +154,13 @@ public sealed class CodexSessionLogUsageSource : IUsageSource
 }
 
 /// <summary>
-/// Oturum satırındaki rate_limits zarfını ayrıştırır. Şema wham/usage yanıtından
-/// farklıdır (primary/window_minutes/resets_at), bu yüzden ayrı okunur; pencere
-/// adı/türü türetme (<see cref="CodexUsageParser"/>) aynen yeniden kullanılır.
+/// Parses the rate_limits envelope in a session line. The schema differs from the wham/usage
+/// response (primary/window_minutes/resets_at), so it is read separately; the window
+/// name/kind derivation (<see cref="CodexUsageParser"/>) is reused as it is.
 /// </summary>
 public static class CodexSessionLogParser
 {
-    /// <summary>Satırda kullanılabilir rate_limits varsa true + veri ve satır zamanı.</summary>
+    /// <summary>true plus the data and the line time if the line has usable rate_limits.</summary>
     public static bool TryParseLine(
         JsonElement root,
         DateTimeOffset fileTime,
@@ -182,7 +182,7 @@ public static class CodexSessionLogParser
             return false;
         }
 
-        // Satır zamanı: önce satırdaki timestamp, yoksa dosya mtime'ı.
+        // Line time: the timestamp in the line first, otherwise the file mtime.
         if (root.TryGetProperty("timestamp", out var ts) &&
             JsonHelpers.ReadTimestamp(ts) is { } parsed)
         {
@@ -221,7 +221,7 @@ public static class CodexSessionLogParser
         var percent = JsonHelpers.ReadFirstNumber(element, "used_percent");
         if (percent is null) return;
 
-        // Oturum zarfı süreyi dakika verir (wham saniye verirdi).
+        // The session envelope gives the duration in minutes (wham gave seconds).
         var minutes = JsonHelpers.ReadFirstNumber(element, "window_minutes");
         double? windowSeconds = minutes is > 0 ? minutes.Value * 60 : null;
 

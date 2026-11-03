@@ -3,7 +3,7 @@ using Ration.Core.Settings;
 
 namespace Ration.Core.Updates;
 
-/// <summary>Son denetimin sonucu SettingsStore'da tutulur.</summary>
+/// <summary>The result of the last check is kept in SettingsStore.</summary>
 public sealed class SettingsUpdateStateStore(SettingsStore settings) : IUpdateStateStore
 {
     private const string CheckedAtKey = "updateCheckedAt";

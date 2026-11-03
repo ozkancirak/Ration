@@ -3,8 +3,8 @@ namespace Ration.Core.Updates;
 public static class UpdateLinks
 {
     /// <summary>
-    /// Sürüm notlarının sayfası: GitHub'daki sürüm etiketi (v0.3.0). Depo adresi https değilse
-    /// (yerel klasör, geliştirme kaynağı) bağlantı yoktur.
+    /// The release notes page: the release tag on GitHub (v0.3.0). If the repo address is not https
+    /// (local folder, development source) there is no link.
     /// </summary>
     public static Uri? ReleaseNotes(string repositoryUrl, string? version)
     {

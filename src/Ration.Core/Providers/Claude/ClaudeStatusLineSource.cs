@@ -6,17 +6,17 @@ using Ration.Core.Model;
 namespace Ration.Core.Providers.Claude;
 
 /// <summary>
-/// Claude Code statusLine köprüsü. Claude Code her durum satırı yenilemesinde oturum
-/// JSON'unu komutun stdin'ine verir; içinde <c>rate_limits.five_hour</c> ve
-/// <c>rate_limits.seven_day</c> ({ used_percentage, resets_at }) bulunur.
+/// Claude Code statusLine bridge. On every status line refresh, Claude Code passes the session
+/// JSON to the command's stdin; it contains <c>rate_limits.five_hour</c> and
+/// <c>rate_limits.seven_day</c> ({ used_percentage, resets_at }).
 ///
-/// Neden: OAuth kota uç noktası token süresi dolunca 401, sık sorguda 429 döner.
-/// statusLine verisi ağ ve token gerektirmez, hız sınırına takılmaz.
+/// Why: the OAuth quota endpoint returns 401 when the token expires and 429 on frequent queries.
+/// The statusLine data needs no network or token and is not subject to the rate limit.
 ///
-/// GİZLİLİK: stdin'de konuşma bağlamı, çalışma dizini ve maliyet de vardır. Yalnızca
-/// dört sayı diske yazılır; geri kalan hiçbir alan okunmaz ya da saklanmaz.
-/// Kullanıcının ~/.claude/settings.json dosyasına Ration yazmaz;
-/// statusLine'ı kullanıcı kendisi bağlar.
+/// PRIVACY: stdin also contains the conversation context, working directory and cost. Only
+/// four numbers are written to disk; no other field is read or stored.
+/// Ration does not write to the user's ~/.claude/settings.json;
+/// the user wires up the statusLine themselves.
 /// </summary>
 public static class ClaudeStatusLine
 {
@@ -24,7 +24,7 @@ public static class ClaudeStatusLine
 
     public sealed record Limits(double FiveHour, DateTimeOffset? FiveHourResetsAt, double SevenDay, DateTimeOffset? SevenDayResetsAt);
 
-    /// <summary>stdin JSON'undan kota alanlarını okur; eksikse null (Claude Code bazen boş gönderir).</summary>
+    /// <summary>Reads the quota fields from the stdin JSON; null if they are missing (Claude Code sometimes sends it empty).</summary>
     public static Limits? Parse(string json)
     {
         try
@@ -45,7 +45,7 @@ public static class ClaudeStatusLine
         }
     }
 
-    /// <summary>Kota alanları tamsa atomik olarak diske yazar. Eksik veri önceki tam kaydı ezmez.</summary>
+    /// <summary>Writes atomically to disk if the quota fields are complete. Incomplete data does not overwrite the previous complete record.</summary>
     public static Limits? Capture(string json, string? path = null, DateTimeOffset? now = null)
     {
         var limits = Parse(json);
@@ -72,7 +72,7 @@ public static class ClaudeStatusLine
         return limits;
     }
 
-    /// <summary>Diskteki son kayıt ve yakalanma zamanı.</summary>
+    /// <summary>The last record on disk and the time it was captured.</summary>
     public static (Limits Limits, DateTimeOffset CapturedAt)? Read(string? path = null)
     {
         path ??= DefaultPath;
@@ -113,7 +113,7 @@ public static class ClaudeStatusLine
         DateTimeOffset? resetsAt = null;
         if (window.TryGetProperty("resets_at", out var reset))
         {
-            // Unix saniyesi ondalıklı da gelebilir (1790157600.5); ReadTimestamp yalnızca tam sayı okur.
+            // Unix seconds can also arrive with a fraction (1790157600.5); ReadTimestamp only reads whole numbers.
             resetsAt = reset.ValueKind == JsonValueKind.Number && !reset.TryGetInt64(out _)
                 ? DateTimeOffset.FromUnixTimeSeconds((long)reset.GetDouble())
                 : JsonHelpers.ReadTimestamp(reset);
@@ -123,8 +123,8 @@ public static class ClaudeStatusLine
 }
 
 /// <summary>
-/// statusLine köprüsünün yazdığı dosyadan Claude kotası. OAuth'tan sonra denenir:
-/// taze kayıt (Claude Code açıkken) Ok, eskisi bayatlık notuyla Degraded döner.
+/// Claude quota from the file written by the statusLine bridge. Tried after OAuth:
+/// a fresh record (while Claude Code is open) returns Ok, an older one returns Degraded with a staleness note.
 /// </summary>
 public sealed class ClaudeStatusLineUsageSource : IUsageSource
 {

@@ -6,7 +6,7 @@ using Ration.Core.Providers;
 
 namespace Ration.Core.Cost;
 
-/// <summary>Milyon token başına fiyat (sağlayıcının para biriminde, varsayılan USD).</summary>
+/// <summary>Price per million tokens (in the provider's currency, USD by default).</summary>
 public sealed record ModelRate(
     decimal InputPerMillion,
     decimal OutputPerMillion,
@@ -14,11 +14,11 @@ public sealed record ModelRate(
     decimal CacheWritePerMillion);
 
 /// <summary>
-/// Model fiyat tablosu.
+/// Model price table.
 ///
-/// Sağlayıcı fiyatları sık değişir; kodun içine gömülen bir fiyat listesi zamanla
-/// sessizce yanlışlaşır ve kullanıcı yanlış maliyeti doğru sanır. Fiyatlar
-/// haftalık kaynak cache'inden ve kullanıcının override dosyasından okunur:
+/// Provider prices change often; a price list baked into the code silently goes wrong
+/// over time and the user takes a wrong cost for a right one. Prices are read from
+/// the weekly source cache and from the user's override file:
 ///
 ///   %LOCALAPPDATA%\Ration\pricing.json
 ///   %LOCALAPPDATA%\Ration\pricing-overrides.json
@@ -27,9 +27,9 @@ public sealed record ModelRate(
 ///     "gpt-6":         { "input": 1.25, "output": 10.00 }
 ///   }
 ///
-/// Anahtar eşleşmesi: önce birebir, sonra en uzun önek. Böylece "claude-sonnet"
-/// girdisi "claude-sonnet-4-5-20260101" modelini de karşılar.
-/// Fiyatı bulunamayan model maliyete KATILMAZ ve ayrıca raporlanır.
+/// Key matching: exact first, then longest prefix. So the "claude-sonnet"
+/// entry also covers the model "claude-sonnet-4-5-20260101".
+/// A model with no price is NOT included in the cost and is reported separately.
 /// </summary>
 public sealed class PricingTable
 {
@@ -75,7 +75,7 @@ public sealed class PricingTable
 
     public static string DefaultPath => Path.Combine(KnownPaths.CacheDir, "pricing.json");
 
-    /// <summary>Dosya yoksa ya da bozuksa boş tablo döner — asla exception atmaz.</summary>
+    /// <summary>Returns an empty table if the file is missing or corrupt — never throws an exception.</summary>
     public static PricingTable LoadOrEmpty(string? path = null)
     {
         var useDefaultChain = path is null;
@@ -213,8 +213,8 @@ public sealed class PricingTable
     }
 
     /// <summary>
-    /// Bu tablodaki fiyatları koruyup fallback tablosundan yalnızca eksikleri ekler.
-    /// Böylece kaynak zincirinde ilk bulunan kayıt kazanır.
+    /// Keeps the prices in this table and adds only the missing ones from the fallback table.
+    /// So the first record found in the source chain wins.
     /// </summary>
     public PricingTable MergeMissing(PricingTable fallback, out int added)
     {
@@ -240,9 +240,9 @@ public sealed class PricingTable
     }
 
     /// <summary>
-    /// LiteLLM fiyatlarını uygulamanın per-million formatına çevirir.
-    /// Sağlayıcı/region öneklerinin sonundaki model adı da alias olarak eklenir;
-    /// böylece loglardaki "claude-sonnet-..." ve "gpt-..." adları eşleşir.
+    /// Converts LiteLLM prices to the app's per-million format.
+    /// The model name at the end of provider/region prefixes is also added as an alias,
+    /// so the "claude-sonnet-..." and "gpt-..." names in the logs match.
     /// </summary>
     public static PricingTable FromLiteLlmJson(
         string json,
@@ -284,8 +284,8 @@ public sealed class PricingTable
     }
 
     /// <summary>
-    /// models.dev /api.json şemasını okur: provider.models[model].cost.
-    /// cost değerleri README'deki sözleşmeye göre milyon token başına USD'dir.
+    /// Reads the models.dev /api.json schema: provider.models[model].cost.
+    /// The cost values are USD per million tokens, per the contract in the README.
     /// </summary>
     public static PricingTable FromModelsDevJson(
         string json,
@@ -584,8 +584,8 @@ public static class CostEstimator
     private const decimal Million = 1_000_000m;
 
     /// <summary>
-    /// Fiyatı bilinen modellerin maliyetini toplar. Bilinmeyen modeller toplama
-    /// katılmaz ve <see cref="CostReport.ModelsWithoutPricing"/> ile raporlanır.
+    /// Totals the cost of models whose price is known. Unknown models are not
+    /// included in the total and are reported through <see cref="CostReport.ModelsWithoutPricing"/>.
     /// </summary>
     public static CostReport Estimate(CostScanResult scan, PricingTable pricing)
         => Estimate(scan, pricing, freeModels: null);
@@ -652,9 +652,9 @@ public static class CostEstimator
     }
 
     /// <summary>
-    /// OpenCode gibi token raporunu zaten üretmiş kaynaklar için aynı fiyat
-    /// hesabını uygular. Model kırılımı yoksa güvenilir bir API karşılığı
-    /// çıkarılamaz; bu durumda yalnızca token sayıları korunur.
+    /// Applies the same price calculation to sources that already produce a token report,
+    /// such as OpenCode. Without a per-model breakdown no reliable API equivalent can be
+    /// derived; in that case only the token counts are kept.
     /// </summary>
     public static CostReport Estimate(CostReport usage, PricingTable pricing)
         => Estimate(usage, pricing, aliases: null, freeModels: null);
@@ -710,8 +710,8 @@ public static class CostEstimator
         };
     }
 
-    // Aynı model ve oran her taramada yeniden yazılırsa günlük (256 KB'ta döner) bunlarla dolar ve
-    // yararlı kayıtlar silinir. Oran ya da kaynak değişince mesaj değişir, yeniden yazılır.
+    // If the same model and rate were rewritten on every scan, the log (which rolls over at 256 KB) would fill up
+    // with them and useful records would be deleted. The message changes when the rate or source changes, and is then rewritten.
     private static readonly HashSet<string> LoggedRates = new(StringComparer.Ordinal);
 
     private static void LogRate(string model, string resolved, ModelRate rate, string source)

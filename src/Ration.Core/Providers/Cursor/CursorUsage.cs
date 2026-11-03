@@ -10,16 +10,16 @@ namespace Ration.Core.Providers.Cursor;
 public sealed record CursorUsageData(IReadOnlyList<UsageWindow> Windows, string? PlanName);
 
 /// <summary>
-/// cursor.com/api/usage-summary yanıtını ayrıştırır. Şema resmî olarak belgelenmedi; bu yüzden
-/// ayrıştırma KASITLI olarak toleranslıdır ve tanımadığı alanı sessizce atlar: eksik veri
-/// gösteririz, uydurma veri üretmeyiz. Beklenen biçim:
+/// Parses the cursor.com/api/usage-summary response. The schema is not officially documented, so
+/// parsing is DELIBERATELY tolerant and silently skips fields it does not recognize: we show missing
+/// data, we do not make data up. Expected format:
 ///
 ///   membershipType            "pro" | "free" | ...
 ///   billingCycleStart / End   ISO-8601
-///   individualUsage.plan      { used, limit, totalPercentUsed? }   (dahil kullanım)
-///   individualUsage.onDemand  { enabled, used, limit }             (isteğe bağlı harcama)
+///   individualUsage.plan      { used, limit, totalPercentUsed? }   (included usage)
+///   individualUsage.onDemand  { enabled, used, limit }             (optional spend)
 ///
-/// used/limit birimi (istek ya da sent) önemsizdir; yalnızca oran kullanılır.
+/// The unit of used/limit (requests or cents) does not matter; only the ratio is used.
 /// </summary>
 public static class CursorUsageParser
 {
@@ -60,7 +60,7 @@ public static class CursorUsageParser
         return new CursorUsageData(windows, FormatPlan(ReadString(root, "membershipType")));
     }
 
-    /// <summary>"pro" → "Pro", "free_trial" → "Free trial"; boşsa null.</summary>
+    /// <summary>"pro" → "Pro", "free_trial" → "Free trial"; null if empty.</summary>
     public static string? FormatPlan(string? membership)
     {
         if (string.IsNullOrWhiteSpace(membership)) return null;
@@ -92,8 +92,8 @@ public static class CursorUsageParser
             return null;
         }
 
-        // Dahil kullanım hakkı olmayan plan (ör. ücretsiz): limit 0 ve kullanım 0 "%0 kullanıldı"
-        // değil "sınır yok" demektir; pencere gösterilmez.
+        // A plan with no included usage (e.g. free): limit 0 and usage 0 mean "no limit",
+        // not "0% used"; the window is not shown.
         if (limit is not > 0 && percent <= 0) return null;
 
         return new Usage(used ?? 0, limit is > 0 ? limit : null, Math.Clamp(percent, 0, 100));
@@ -109,14 +109,14 @@ public static class CursorUsageParser
 }
 
 /// <summary>
-/// api2.cursor.sh GetCurrentPeriodUsage yanıtını ayrıştırır (canlı yanıttan doğrulanan biçim):
+/// Parses the api2.cursor.sh GetCurrentPeriodUsage response (format verified against a live response):
 ///
-///   billingCycleStart / End   epoch milisaniye, METİN ("1791664956282")
+///   billingCycleStart / End   epoch milliseconds, as TEXT ("1791664956282")
 ///   planUsage                 { totalPercentUsed, autoPercentUsed, apiPercentUsed } (0-100)
-///   spendLimitUsage           { overallLimit, individualLimit, pooledLimit ... } (isteğe bağlı harcama)
+///   spendLimitUsage           { overallLimit, individualLimit, pooledLimit ... } (optional spend)
 ///
-/// Yalnızca yüzde bildirilir (kullanılan miktar/limit yok). Şema belgesiz ve değişebiliyor:
-/// plan yüzdesi yoksa null döner ve çağıran eski <c>usage-summary</c> yoluna düşer.
+/// Only percentages are reported (no used amount/limit). The schema is undocumented and can change:
+/// if there is no plan percentage it returns null and the caller falls back to the old <c>usage-summary</c> path.
 /// </summary>
 public static class CursorCurrentPeriodParser
 {
@@ -140,7 +140,7 @@ public static class CursorCurrentPeriodParser
         var planName = CursorUsageParser.FormatPlan(membershipType);
         var windows = new List<UsageWindow>();
 
-        // Ücretsiz/iptal edilmiş hesapta dahil kullanım yok: "%0 kullanıldı" değil "sınır yok" demektir.
+        // A free/cancelled account has no included usage: that means "no limit", not "0% used".
         var free = string.Equals(membershipType?.Trim(), "free", StringComparison.OrdinalIgnoreCase);
         if (!(free && used <= 0))
         {
@@ -148,8 +148,8 @@ public static class CursorCurrentPeriodParser
             var start = ReadEpochMillis(root, "billingCycleStart");
             TimeSpan? length = start is { } s && resetsAt is { } e && e > s ? e - s : null;
 
-            // Dönem uzunluğu belirler: yeni planlarda 7 günlük havuz haftalık, eskisi aylık sayılır
-            // (haftalık pencere tepsi ikonuna da girer, aylık girmez).
+            // The period length decides: in new plans a 7-day pool counts as weekly, the old one as monthly
+            // (a weekly window also goes into the tray icon, a monthly one does not).
             var kind = length is { } span && span <= TimeSpan.FromDays(8) ? WindowKind.Weekly : WindowKind.Monthly;
 
             UsageWindow Window(double percentUsed, string label)
@@ -160,7 +160,7 @@ public static class CursorCurrentPeriodParser
 
             windows.Add(Window(used, L.T("Plan", "Plan")));
 
-            // Auto/Composer ve API havuzları ayrı sayılıyor; bildirilmişse ayrı pencere olarak gösterilir.
+            // The Auto/Composer and API pools are counted separately; if reported, they are shown as separate windows.
             if (auto is { } autoPercent && IsFinite(autoPercent)) windows.Add(Window(autoPercent, "Auto"));
             if (api is { } apiPercent && IsFinite(apiPercent)) windows.Add(Window(apiPercent, "API"));
         }
@@ -170,7 +170,7 @@ public static class CursorCurrentPeriodParser
 
     private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
 
-    /// <summary>İsteğe bağlı harcama (limit) tanımlı mı? Tanımlıysa eski özet yanıtından okunur.</summary>
+    /// <summary>Is an optional spend (limit) defined? If so, it is read from the old summary response.</summary>
     public static bool HasSpendLimit(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -184,7 +184,7 @@ public static class CursorCurrentPeriodParser
     private static DateTimeOffset? ReadEpochMillis(JsonElement root, string name) =>
         ReadLong(root, name) is { } millis && millis > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(millis) : null;
 
-    // Sayı ya da sayı gibi metin ("1791664956282").
+    // A number or number-like text ("1791664956282").
     private static long? ReadLong(JsonElement element, string name)
     {
         if (!element.TryGetProperty(name, out var value)) return null;
@@ -198,17 +198,17 @@ public static class CursorCurrentPeriodParser
 }
 
 /// <summary>
-/// Cursor uygulamasının yerel oturum belirtecini yalnızca Cursor'ın kendi adreslerine gönderip
-/// plan kullanımını okur: önce api2.cursor.sh güncel dönem uç noktası, olmazsa cursor.com özeti.
-/// Belirteç yerel dosyadan gelir (Kind = LocalFile); Ration onu yenilemez, kaydetmez, günlüğe yazmaz.
+/// Sends the Cursor app's local session token only to Cursor's own addresses and reads the plan usage:
+/// first the api2.cursor.sh current-period endpoint, otherwise the cursor.com summary.
+/// The token comes from a local file (Kind = LocalFile); Ration does not refresh it, save it or write it to the log.
 /// </summary>
 public sealed class CursorUsageSource : IUsageSource
 {
     public const string UsageEndpoint = "https://cursor.com/api/usage-summary";
 
     /// <summary>
-    /// Güncel fatura dönemi; özet uç noktası bayat aylık dönemde 0 gösterebiliyor (CodexBar ve
-    /// CodeZeno'da bildirildi). Belgesiz iç servis: başarısız olursa özete düşülür.
+    /// Current billing period; the summary endpoint can show 0 in a stale monthly period (reported in CodexBar and
+    /// CodeZeno). Undocumented internal service: if it fails, we fall back to the summary.
     /// </summary>
     public const string CurrentPeriodEndpoint = "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage";
 
@@ -235,8 +235,8 @@ public sealed class CursorUsageSource : IUsageSource
 
     public SourceKind Kind => SourceKind.LocalFile;
 
-    // Kurulu değilse "kullanılabilir kaynak yok" yerine açık bir NotInstalled durumu dönmesi için
-    // kaynak her zaman denenir.
+    // The source is always tried so that, when Cursor is not installed, an explicit NotInstalled
+    // state is returned instead of "no usable source".
     public Task<bool> IsAvailableAsync(CancellationToken ct = default) => Task.FromResult(true);
 
     public async Task<UsageSnapshot> FetchAsync(CancellationToken ct = default)
@@ -250,7 +250,7 @@ public sealed class CursorUsageSource : IUsageSource
         var session = _session();
         if (session is null)
         {
-            // Giriş yapılmış ama belirteç şifreli (Cursor 3.27+): "giriş yapın" demek yanıltır.
+            // Signed in but the token is encrypted (Cursor 3.27+): saying "sign in" would mislead.
             return Snapshot.Empty("cursor", ProviderStatus.AuthRequired,
                 _encryptedToken()
                     ? L.T("Cursor stores its sign-in encrypted and Ration cannot read it yet.", "Cursor girişi şifreli saklıyor ve Ration henüz okuyamıyor.")
@@ -270,9 +270,9 @@ public sealed class CursorUsageSource : IUsageSource
     }
 
     /// <summary>
-    /// Güncel dönem uç noktası. Belgesiz iç servis olduğu için hiçbir hata (yetki, ağ, şema) kullanıcıya
-    /// gösterilmez; null dönünce eski <c>usage-summary</c> yoluna düşülür ve durumu o belirler.
-    /// İsteğe bağlı harcama limiti tanımlıysa da null döner: o pencere yalnız özet yanıtında var.
+    /// Current-period endpoint. Because it is an undocumented internal service, no error (authorization, network,
+    /// schema) is shown to the user; when it returns null, the old <c>usage-summary</c> path is used and it decides the status.
+    /// It also returns null if an optional spend limit is defined: that window exists only in the summary response.
     /// </summary>
     private async Task<CursorUsageData?> TryFetchCurrentPeriodAsync(CursorSession session, CancellationToken ct)
     {
@@ -394,10 +394,10 @@ public sealed class CursorProvider : IUsageProvider
     public IReadOnlyList<IUsageSource> Sources { get; }
 
     /// <param name="http">
-    /// Verilmezse çerez kabı kapalı özel bir istemci kurulur: belirteç elle Cookie başlığına konur,
-    /// yanıttaki Set-Cookie başka isteklere taşınmaz.
+    /// If not provided, a private client with the cookie container disabled is created: the token is put into the
+    /// Cookie header by hand, and Set-Cookie in the response is not carried to other requests.
     /// </param>
-    /// <param name="decryptToken">Cursor 3.27+ şifreli belirtecini çözen platform işlevi (isteğe bağlı).</param>
+    /// <param name="decryptToken">Platform function that decrypts the Cursor 3.27+ encrypted token (optional).</param>
     public CursorProvider(HttpClient? http = null, Func<string, string?>? decryptToken = null)
     {
         Sources = [new CursorUsageSource(http ?? CreateClient(), decryptToken: decryptToken)];
@@ -405,8 +405,8 @@ public sealed class CursorProvider : IUsageProvider
 
     private static HttpClient CreateClient()
     {
-        // Yönlendirme izlenmez: belirteç elle Cookie başlığında taşınıyor, 3xx ile başka bir
-        // adrese gitmemeli. Yönlendirme "beklenmedik yanıt" olarak görünür.
+        // Redirects are not followed: the token is carried in the Cookie header by hand and must not
+        // go to another address via a 3xx. A redirect shows up as an "unexpected response".
         var client = new HttpClient(new SocketsHttpHandler { UseCookies = false, AllowAutoRedirect = false })
         {
             Timeout = TimeSpan.FromSeconds(20),

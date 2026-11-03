@@ -1,9 +1,9 @@
 namespace Ration.Core.Model;
 
 /// <summary>
-/// UsageSnapshot üretmek için kısayollar.
-/// FetchAsync asla null dönmez ve asla exception sızdırmaz —
-/// hata durumunda da dolu bir snapshot döner.
+/// Shortcuts for producing a UsageSnapshot.
+/// FetchAsync never returns null and never leaks an exception —
+/// even on error it returns a populated snapshot.
 /// </summary>
 public static class Snapshot
 {

@@ -7,9 +7,9 @@ using Ration.Core.Providers;
 namespace Ration.Core.Cost;
 
 /// <summary>
-/// LiteLLM ve models.dev fiyatlarını haftalık olarak indirip Ration'ın kendi
-/// cache'ine yazar. Ağ kesintisi hiçbir zaman mevcut cache'i silmez veya açılışı
-/// bloklamaz; kullanıcı override'ları yalnızca eksik kayıtları tamamlar.
+/// Downloads LiteLLM and models.dev prices weekly and writes them to Ration's own
+/// cache. A network outage never deletes the existing cache or blocks startup;
+/// user overrides only fill in missing records.
 /// </summary>
 public static class PricingTableUpdater
 {
@@ -36,7 +36,7 @@ public static class PricingTableUpdater
         await Gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            // Başka bir pencere aynı anda indirmiş olabilir.
+            // Another window may have downloaded at the same time.
             current = now ?? DateTimeOffset.UtcNow;
             if (!IsDue(path, current)) return false;
 

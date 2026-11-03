@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace Ration.Core.Providers.Antigravity;
 
 /// <summary>
-/// Antigravity cli.log içindeki portu yalnızca salt-okunur gözlemle bulur.
-/// Süreç command line'ı Windows katmanında WMI ile okunur; burada yalnızca
-/// log parser'ı ve port doğrulaması yaşar.
+/// Finds the port in the Antigravity cli.log by read-only observation only.
+/// The process command line is read via WMI in the Windows layer; only the
+/// log parser and the port validation live here.
 /// </summary>
 public static class AntigravityPortFinder
 {

@@ -1,9 +1,9 @@
 namespace Ration.Core.Settings;
 
 /// <summary>
-/// Genel kısayol: değiştirici bayrakları (Win32 MOD_* değerleri) ve sanal tuş kodu. Ayarda
-/// "Ctrl+Alt+R" biçiminde durur. Yazı yazarken tetiklenmesin diye en az bir Ctrl/Alt/Win
-/// değiştiricisi ve harf, rakam ya da F1-F24 tuşu ister.
+/// Global hotkey: modifier flags (Win32 MOD_* values) and the virtual key code. It is stored in the settings
+/// as "Ctrl+Alt+R". So that it does not fire while typing, it requires at least one Ctrl/Alt/Win
+/// modifier and a letter, digit or F1-F24 key.
 /// </summary>
 public readonly record struct Hotkey(int Modifiers, int VirtualKey)
 {

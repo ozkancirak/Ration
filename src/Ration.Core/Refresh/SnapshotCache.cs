@@ -6,13 +6,13 @@ using Ration.Core.Providers;
 namespace Ration.Core.Refresh;
 
 /// <summary>
-/// Son başarılı snapshot'ları diske yazar.
+/// Writes the last successful snapshots to disk.
 ///
-/// Amaç: uygulama açılır açılmaz dolu görünsün ve bir sağlayıcı hata verdiğinde
-/// boş kutu yerine "12 dk önceki veri" gösterilebilsin.
+/// Purpose: to look populated as soon as the app opens, and so that when a provider
+/// fails, "data from 12 min ago" can be shown instead of an empty box.
 ///
-/// Yazılabilir tek yer Ration'ın kendi cache dizinidir; sağlayıcı dosyalarına
-/// asla dokunulmaz.
+/// The only writable place is Ration's own cache directory; provider files
+/// are never touched.
 /// </summary>
 public sealed class SnapshotCache
 {
@@ -72,8 +72,8 @@ public sealed class SnapshotCache
             var path = PathFor(snapshot.ProviderId);
             var temporary = path + ".tmp";
 
-            // Önce geçici dosyaya yaz, sonra taşı: yazma sırasında çökersek
-            // yarım bir dosya kalıp bir sonraki açılışta okunamaz hale gelmesin.
+            // Write to a temp file first, then move it: if we crash while writing, a half-written file
+            // must not remain and become unreadable at the next startup.
             using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
             {
                 JsonSerializer.Serialize(stream, snapshot, Options);
@@ -81,7 +81,7 @@ public sealed class SnapshotCache
 
             File.Move(temporary, path, overwrite: true);
         }
-        catch (IOException) { /* cache yazılamadıysa sorun değil, veri yine de gösterilir */ }
+        catch (IOException) { /* if the cache could not be written, no problem, the data is still shown */ }
         catch (UnauthorizedAccessException) { }
     }
 
@@ -101,7 +101,7 @@ public sealed class SnapshotCache
 
     private string PathFor(string providerId)
     {
-        // Sağlayıcı kimliği dosya adına giriyor; yol kaçışına izin verme.
+        // The provider id goes into the file name; do not allow path escapes.
         var safe = string.Concat(providerId.Select(c =>
             char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '_'));
 

@@ -5,13 +5,13 @@ using System.Text.Json;
 namespace Ration.Core.Providers.Cursor;
 
 /// <summary>
-/// Cursor 3.27'den beri oturum belirtecini Electron <c>safeStorage</c> ile şifreleyip
-/// <c>cursor-safe-storage:v1:</c> + base64 olarak saklıyor. Windows'ta Chromium'un os_crypt
-/// düzeni kullanılır: <c>"v10" | nonce(12) | şifreli metin | etiket(16)</c>, AES-256-GCM; anahtar
-/// Cursor'ın <c>Local State</c> dosyasındaki <c>os_crypt.encrypted_key</c> değerinin DPAPI ile
-/// açılmış halidir. Bu sınıf yalnızca saf kripto kısmını yapar (DPAPI platform katmanında).
-/// Biçim gerçek bir Cursor 3.27 kurulumunda doğrulanmadı; çözülemeyen değer null döner ve
-/// çağıran "şifreli, okunamıyor" mesajına düşer.
+/// Since Cursor 3.27 the session token has been encrypted with Electron <c>safeStorage</c> and stored as
+/// <c>cursor-safe-storage:v1:</c> + base64. On Windows Chromium's os_crypt layout is used:
+/// <c>"v10" | nonce(12) | ciphertext | tag(16)</c>, AES-256-GCM; the key is the DPAPI-unprotected form of the
+/// <c>os_crypt.encrypted_key</c> value in Cursor's <c>Local State</c> file. This class only does the pure
+/// crypto part (DPAPI lives in the platform layer).
+/// The format has not been verified on a real Cursor 3.27 install; a value that cannot be decrypted returns
+/// null and the caller falls back to the "encrypted, cannot be read" message.
 /// </summary>
 public static class CursorTokenCipher
 {
@@ -20,8 +20,8 @@ public static class CursorTokenCipher
     private const int TagLength = 16;
     private static readonly byte[] DpapiMarker = "DPAPI"u8.ToArray();
 
-    /// <param name="value">Saklanan değer, <see cref="CursorSessionStore.EncryptedTokenPrefix"/> dahil.</param>
-    /// <param name="key">32 baytlık AES anahtarı.</param>
+    /// <param name="value">The stored value, including <see cref="CursorSessionStore.EncryptedTokenPrefix"/>.</param>
+    /// <param name="key">The 32-byte AES key.</param>
     public static string? TryDecrypt(string value, byte[] key)
     {
         if (!value.StartsWith(CursorSessionStore.EncryptedTokenPrefix, StringComparison.Ordinal) || key.Length != 32)
@@ -57,8 +57,8 @@ public static class CursorTokenCipher
     }
 
     /// <summary>
-    /// <c>Local State</c> JSON'undan DPAPI ile korunmuş anahtar bloğunu çıkarır ("DPAPI" öneki atılır).
-    /// Yoksa ya da biçim farklıysa null.
+    /// Extracts the DPAPI-protected key blob from the <c>Local State</c> JSON (the "DPAPI" prefix is dropped).
+    /// null if it is missing or the format differs.
     /// </summary>
     public static byte[]? TryReadProtectedKey(string localStateJson)
     {

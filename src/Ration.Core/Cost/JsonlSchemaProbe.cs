@@ -3,12 +3,11 @@ using System.Text.Json;
 namespace Ration.Core.Cost;
 
 /// <summary>
-/// JSONL dosyalarının ŞEKLİNİ çıkarır: yalnızca anahtar yolları ve değer türleri.
+/// Extracts the SHAPE of JSONL files: only key paths and value types.
 ///
-/// Oturum logları konuşma içeriği barındırır. Şemayı öğrenmek için o dosyaları
-/// olduğu gibi okumak/paylaşmak gizlilik ihlalidir. Bu sonda yalnızca
-/// "payload.info.input_tokens : Number" gibi satırlar üretir — hiçbir değer,
-/// hiçbir metin, hiçbir kimlik dışarı çıkmaz.
+/// Session logs contain conversation content. Reading or sharing those files as they
+/// are, just to learn the schema, is a privacy violation. This probe only produces lines like
+/// "payload.info.input_tokens : Number" — no value, no text and no id ever comes out.
 /// </summary>
 public static class JsonlSchemaProbe
 {
@@ -62,7 +61,7 @@ public static class JsonlSchemaProbe
                         using var document = JsonDocument.Parse(line);
                         Walk(document.RootElement, prefix: string.Empty, paths, depth: 0);
                     }
-                    catch (JsonException) { /* yarım satır: atla */ }
+                    catch (JsonException) { /* partial line: skip */ }
                 }
             }
             catch (IOException) { }
@@ -87,7 +86,7 @@ public static class JsonlSchemaProbe
                 break;
 
             case JsonValueKind.Array:
-                // Dizinin yalnızca ilk elemanının şekli yeterli.
+                // The shape of only the first array element is enough.
                 foreach (var item in element.EnumerateArray())
                 {
                     Walk(item, $"{prefix}[]", into, depth + 1);
@@ -96,7 +95,7 @@ public static class JsonlSchemaProbe
                 break;
 
             default:
-                // Yalnızca yol ve TÜR yazılır — değer asla.
+                // Only the path and TYPE are written — never the value.
                 into.Add($"{prefix} : {element.ValueKind}");
                 break;
         }

@@ -13,12 +13,11 @@ public sealed record ClaudeCredentials(
 }
 
 /// <summary>
-/// ~/.claude/.credentials.json dosyasını SALT OKUNUR açar.
+/// Opens ~/.claude/.credentials.json READ-ONLY.
 ///
-/// FileShare.ReadWrite ile açılıp hemen kapatılır: Claude Code aynı anda bu dosyayı
-/// yazıyor olabilir, kilit tutmak onun oturumunu bozar. Token süresi dolmuşsa
-/// token yine de sunucuya gönderilir; Ration refresh token tüketmez ve kaynak dosyaya
-/// ASLA dokunmaz.
+/// It is opened with FileShare.ReadWrite and closed right away: Claude Code may be writing this file
+/// at the same time, and holding a lock would break its session. If the token has expired, it is still
+/// sent to the server; Ration does not consume the refresh token and NEVER touches the source file.
 /// </summary>
 public static class ClaudeCredentialStore
 {
@@ -33,8 +32,8 @@ public static class ClaudeCredentialStore
                 path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             using var doc = JsonDocument.Parse(stream);
 
-            // Claude Code 2.1.x'te dosyada yalnızca mcpOAuth bulunabiliyor;
-            // bu bizim için kullanılabilir bir kimlik değil.
+            // In Claude Code 2.1.x the file may contain only mcpOAuth;
+            // that is not a usable credential for us.
             if (!doc.RootElement.TryGetProperty("claudeAiOauth", out var oauth) ||
                 oauth.ValueKind != JsonValueKind.Object)
             {
@@ -94,7 +93,7 @@ public sealed class ClaudeProvider : IUsageProvider
         Sources = new IUsageSource[]
         {
             new ClaudeOAuthUsageSource(http),
-            // OAuth 401 (oturum süresi) ya da 429 verdiğinde Claude Code statusLine kaydı.
+            // The Claude Code statusLine record, used when OAuth gives 401 (session expired) or 429.
             new ClaudeStatusLineUsageSource(),
         };
     }

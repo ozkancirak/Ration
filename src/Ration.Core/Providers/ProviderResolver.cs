@@ -6,9 +6,9 @@ namespace Ration.Core.Providers;
 public static class ProviderResolver
 {
     /// <summary>
-    /// Kaynak zincirini öncelik sırasıyla dener; ilk <see cref="ProviderStatus.Ok"/>
-    /// dönen kazanır. Hiçbiri başarılı olmazsa ilk anlamlı hata döner.
-    /// Sözleşme gereği asla null dönmez ve asla exception sızdırmaz.
+    /// Tries the source chain in priority order; the first one returning <see cref="ProviderStatus.Ok"/>
+    /// wins. If none succeeds, the first meaningful error is returned.
+    /// By contract it never returns null and never leaks an exception.
     /// </summary>
     public static async Task<UsageSnapshot> ResolveAsync(
         IUsageProvider provider,
@@ -45,7 +45,7 @@ public static class ProviderResolver
             }
             catch (Exception ex)
             {
-                // Kaynaklar exception sızdırmamalı; bu yalnızca güvenlik ağı.
+                // Sources must not leak exceptions; this is only a safety net.
                 snapshot = Snapshot.Empty(
                     provider.Id,
                     ProviderStatus.Error,
@@ -62,7 +62,7 @@ public static class ProviderResolver
 
             if (snapshot.Status == ProviderStatus.Ok) return snapshot;
 
-            // Veri içeren bayat sonuç (örn. statusLine kaydı), veri içermeyen hatadan iyidir.
+            // A stale result that contains data (e.g. a statusLine record) is better than an error that contains none.
             if (snapshot.Status == ProviderStatus.Degraded && snapshot.Windows.Count > 0)
             {
                 staleWithData ??= snapshot;

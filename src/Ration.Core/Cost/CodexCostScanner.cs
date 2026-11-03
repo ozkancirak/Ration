@@ -4,18 +4,18 @@ using Ration.Core.Providers;
 namespace Ration.Core.Cost;
 
 /// <summary>
-/// ~/.codex/sessions/YYYY/MM/DD/*.jsonl içindeki token_count olaylarını toplar.
+/// Totals the token_count events in ~/.codex/sessions/YYYY/MM/DD/*.jsonl.
 ///
-/// UYARI: Claude'un aksine bu şema henüz gerçek veriyle doğrulanmadı. Ayrıştırma
-/// toleranslı yazıldı ve tanımadığı satırı sessizce atlar; hiçbir koşulda uydurma
-/// sayı üretmez. Şemayı görmek için: ration cost --schema
+/// WARNING: unlike Claude, this schema has not been verified against real data yet. Parsing
+/// is tolerant and silently skips lines it does not recognize; under no circumstances does it
+/// make up numbers. To see the schema: ration cost --schema
 ///
-/// GİZLİLİK: yalnızca sayılar ve model adı okunur, konuşma içeriği hiç açılmaz.
+/// PRIVACY: only numbers and the model name are read; conversation content is never opened.
 ///
-/// Çift sayım koruması: bir olay "bu adımda kullanılan" (last_token_usage) ya da
-/// "oturum toplamı" (total_token_usage) bildirebilir. total_token_usage varsa
-/// kümülatif ilerleme delta olarak alınır; yalnızca last_token_usage varsa aynı
-/// bildirimin tekrarı tekilleştirilir.
+/// Double-count protection: an event can report either "used in this step" (last_token_usage)
+/// or "session total" (total_token_usage). If total_token_usage is present, the cumulative
+/// progress is taken as a delta; if only last_token_usage is present, a repeat of the same
+/// report is de-duplicated.
 /// </summary>
 public static class CodexCostScanner
 {
@@ -46,8 +46,8 @@ public static class CodexCostScanner
             return new CostScanResult(tally, since, now, 0, L.T("Directory could not be read (permission).", "Dizin okunamadı (yetki)."));
         }
 
-        // Bazı oturumlarda (ör. codex-auto-review) olaylar model adı taşımaz; Codex modeli kendi
-        // durum veritabanında oturum dosyasına göre tutar. Yoksa "(bilinmeyen model)" çıkıyordu.
+        // In some sessions (e.g. codex-auto-review) events carry no model name; Codex keeps the model
+        // per session file in its own state database. Without this lookup the result was "(unknown model)".
         var threadModels = ReadThreadModels(Path.GetDirectoryName(Path.GetFullPath(directory)));
 
         foreach (var file in files)
@@ -110,8 +110,8 @@ public static class CodexCostScanner
                 var info = FindTokenCountInfo(root);
                 if (info is null) continue;
 
-                // total_token_usage kümülatiftir. Aynı olayda hem total hem last
-                // varsa yalnızca total kullanılır; iki alanı toplamak yanlıştır.
+                // total_token_usage is cumulative. If one event has both total and last,
+                // only total is used; adding the two fields would be wrong.
                 var total = ReadUsage(info.Value, "total_token_usage");
                 if (total is not null)
                 {
@@ -156,8 +156,8 @@ public static class CodexCostScanner
     {
         long[]? previous = null;
 
-        // Normal Codex logları kronolojiktir; sıralama, dosyanın kısmi yeniden
-        // yazıldığı durumda sayaç delta'sının ters dönmesini de engeller.
+        // Normal Codex logs are chronological; the ordering also keeps the counter delta
+        // from going backwards when a file is partially rewritten.
         foreach (var item in events.OrderBy(item => item.At ?? DateTimeOffset.MaxValue))
         {
             if (!IncludeInPeriod(item.At, since, ref periodKnown))
@@ -189,8 +189,8 @@ public static class CodexCostScanner
         {
             if (!IncludeInPeriod(item.At, since, ref periodKnown)) continue;
 
-            // Aynı JSON satırı/olay iki kez yazılmışsa kullanım artırılmaz. Olay
-            // kimliği varsa onu, yoksa sağlayıcı kullanım vektörünü kullan.
+            // If the same JSON line/event was written twice, usage is not increased. Use the
+            // event id if there is one, otherwise the provider's usage vector.
             var fingerprint = item.Identity is { Length: > 0 }
                 ? $"id\0{item.Identity}"
                 : $"usage\0{item.Model}\0{string.Join(',', item.Usage)}";
@@ -231,13 +231,13 @@ public static class CodexCostScanner
             Math.Max(0, current[4] - previous[4]),
         };
 
-    // Reasoning alt küme olduğu için büyüklük karşılaştırmasına dahil edilmez.
+    // Reasoning is a subset, so it is not included in the size comparison.
     private static long Sum(long[] usage) => usage[0] + usage[1] + usage[2] + usage[3];
 
-    /// <summary>token_count olayının bilgi nesnesini bulur; yoksa null.</summary>
+    /// <summary>Finds the info object of a token_count event; null if there is none.</summary>
     private static JsonElement? FindTokenCountInfo(JsonElement root)
     {
-        // Biçim 1: { type: "event_msg", payload: { type: "token_count", info: {...} } }
+        // Format 1: { type: "event_msg", payload: { type: "token_count", info: {...} } }
         if (root.TryGetProperty("payload", out var payload) &&
             payload.ValueKind == JsonValueKind.Object &&
             IsTokenCount(payload))
@@ -247,7 +247,7 @@ public static class CodexCostScanner
                 : payload;
         }
 
-        // Biçim 2: { type: "token_count", info: {...} }
+        // Format 2: { type: "token_count", info: {...} }
         if (IsTokenCount(root))
         {
             return root.TryGetProperty("info", out var info) && info.ValueKind == JsonValueKind.Object
@@ -278,21 +278,21 @@ public static class CodexCostScanner
             ReadLong(element, "cached_input_tokens"),
             ReadLong(element, "cache_read_input_tokens"));
 
-        // Codex input_tokens cache dahil toplam girdidir. Cache'i ikinci kez
-        // saymamak için sağlayıcı sınırında normal girdiye ayır.
+        // Codex input_tokens is the total input including cache. To avoid counting the
+        // cache twice, split it out into normal input at the provider boundary.
         var input = Math.Max(0, rawInput - cacheRead);
 
-        // Codex "cache_write_input_tokens" der. İkinci ad yalnızca toleranslı
-        // okuma içindir; iki isim aynı değeri taşıyorsa iki kez toplama.
+        // Codex says "cache_write_input_tokens". The second name exists only for tolerant
+        // reading; if both names carry the same value, do not add them twice.
         var cacheWrite = Math.Max(
             ReadLong(element, "cache_write_input_tokens"),
             ReadLong(element, "cache_creation_input_tokens"));
 
-        // reasoning_output_tokens, output_tokens'ın ALT KÜMESİdır; ayrı tutulur,
-        // toplama eklenmez (eklenirse çıktı iki kez sayılır).
+        // reasoning_output_tokens is a SUBSET of output_tokens; it is tracked separately
+        // and not added to the total (adding it would count the output twice).
         var reasoning = ReadLong(element, "reasoning_output_tokens");
 
-        // Hiçbir token alanı yoksa bu bir kullanım nesnesi değildir.
+        // If there is no token field, this is not a usage object.
         if (input == 0 && output == 0 && cacheRead == 0 && cacheWrite == 0 && reasoning == 0) return null;
 
         return new[] { input, output, cacheRead, cacheWrite, reasoning };
@@ -364,9 +364,9 @@ public static class CodexCostScanner
     }
 
     /// <summary>
-    /// Codex'in durum veritabanından (~/.codex/state_N.sqlite, threads tablosu) oturum dosyası
-    /// → model eşlemesi. Salt okunur; yalnızca rollout_path ve model sütunları okunur, konuşma
-    /// içeriğine dokunulmaz. Veritabanı yoksa ya da şema değişmişse boş döner.
+    /// Session file → model mapping from Codex's state database (~/.codex/state_N.sqlite, threads table).
+    /// Read-only; only the rollout_path and model columns are read, conversation
+    /// content is never touched. Returns empty if the database is missing or its schema changed.
     /// </summary>
     private static Dictionary<string, string> ReadThreadModels(string? codexHome)
     {
@@ -399,7 +399,7 @@ public static class CodexCostScanner
         }
         catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UnauthorizedAccessException or ArgumentException)
         {
-            // Codex şemasını değiştirirse yalnızca bu yedek kaybolur; tarama sürer.
+            // If Codex changes its schema, only this fallback is lost; the scan continues.
         }
 
         return result;

@@ -1,12 +1,12 @@
 namespace Ration.Core.Updates;
 
-/// <summary>Otomatik güncelleme denetiminin ne zaman yapılacağı.</summary>
+/// <summary>When the automatic update check is made.</summary>
 public static class UpdateSchedule
 {
-    /// <summary>Başarılı denetimden sonra bir sonrakine kadar.</summary>
+    /// <summary>After a successful check, until the next one.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromHours(24);
 
-    /// <summary>Başarısız denetimden sonra; çevrimdışı açılışta günlerce beklenmez.</summary>
+    /// <summary>After a failed check; so we do not wait for days after an offline startup.</summary>
     public static readonly TimeSpan RetryInterval = TimeSpan.FromHours(2);
 
     public static bool IsDue(UpdateCheckResult? last, DateTimeOffset now)
@@ -14,7 +14,7 @@ public static class UpdateSchedule
         if (last is null) return true;
 
         var elapsed = now - last.CheckedAt;
-        // Saat geri alındıysa (negatif süre) kayıt güvenilmezdir; yeniden denetle.
+        // If the clock was set back (negative duration) the record is unreliable; check again.
         if (elapsed < TimeSpan.Zero) return true;
         return elapsed >= (last.Succeeded ? Interval : RetryInterval);
     }

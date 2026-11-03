@@ -4,9 +4,8 @@ using Ration.Core.Providers;
 namespace Ration.Core.Cost;
 
 /// <summary>
-/// Sağlayıcı iç model adlarını LiteLLM anahtarlarına bağlayan, kullanıcı tarafından
-/// güncellenebilir tablo. Varsayılan dosya uygulamanın Assets klasöründen ilk okumada
-/// Ration önbelleğine kopyalanır.
+/// User-updatable table that maps provider-internal model names to LiteLLM keys.
+/// The default file is copied from the app's Assets folder to Ration's cache on first read.
 /// </summary>
 public sealed class ModelAliasTable
 {

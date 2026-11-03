@@ -10,30 +10,30 @@ namespace Ration.Core.Refresh;
 
 public sealed record RefreshOptions
 {
-    /// <summary>Turlar arası bekleme. Manuel mod için TimeSpan.Zero verilmez; Start çağrılmaz.</summary>
+    /// <summary>Wait between rounds. TimeSpan.Zero is not passed for manual mode; Start is not called.</summary>
     public TimeSpan Interval { get; init; } = TimeSpan.FromMinutes(15);
 
-    /// <summary>Aynı anda kaç sağlayıcı sorgulanabilir.</summary>
+    /// <summary>How many providers can be queried at the same time.</summary>
     public int MaxConcurrency { get; init; } = 3;
 
-    /// <summary>Sağlayıcı başına rastgele gecikme; hepsi aynı saniyede ateşlemesin.</summary>
+    /// <summary>Random delay per provider, so that they do not all fire in the same second.</summary>
     public TimeSpan MaxJitter { get; init; } = TimeSpan.FromSeconds(20);
 
-    /// <summary>Açılışta diskteki son veriyi hemen yayınla (boş ekran gösterme).</summary>
+    /// <summary>On startup, publish the last data on disk immediately (do not show an empty screen).</summary>
     public bool EmitCachedOnStart { get; init; } = true;
 }
 
 /// <summary>
-/// Sağlayıcıları periyodik olarak yeniler.
+/// Refreshes the providers periodically.
 ///
-/// UI'dan tamamen bağımsızdır: olayları düz .NET event'i olarak yayar, çağıran taraf
-/// kendi thread'ine marshal eder (WinUI'da DispatcherQueue.TryEnqueue).
+/// Completely independent of the UI: it publishes events as plain .NET events, and the caller
+/// marshals to its own thread (DispatcherQueue.TryEnqueue in WinUI).
 ///
-/// Davranış kuralları:
-/// - Sonuç Ok/Degraded ise cache'e yazılır ve yayınlanır.
-/// - Hata ise devre kesici tetiklenir ve mümkünse SON İYİ VERİ bayatlık notuyla
-///   yayınlanır — boş kutu göstermek, eski veri göstermekten kötüdür.
-/// - Devre açıkken sağlayıcı hiç sorgulanmaz.
+/// Behavior rules:
+/// - If the result is Ok/Degraded it is written to the cache and published.
+/// - On error the circuit breaker is triggered and, where possible, the LAST GOOD DATA is
+///   published with a staleness note — showing an empty box is worse than showing old data.
+/// - While the circuit is open the provider is never queried.
 /// </summary>
 public sealed class RefreshScheduler : IAsyncDisposable
 {
@@ -46,15 +46,15 @@ public sealed class RefreshScheduler : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private long _intervalTicks;
 
-    // Aynı sağlayıcının uçuştaki yenilemesi. İkinci istek (ör. açılışta arka plan turu + panel
-    // açılışı) yeni bir istek atmaz, bitmesini bekler.
+    // The in-flight refresh of the same provider. A second request (e.g. the background round at startup
+    // plus opening the panel) does not send a new request, it waits for the first to finish.
     private readonly object _flightGate = new();
     private readonly Dictionary<string, Flight> _flights = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed class Flight
     {
-        // İptal edilirse jitter beklemesi kısalır: kullanıcı bekleyen bir yenilemeye katıldı.
-        // Zamanlayıcısı ya da kaydı olmadığı için Dispose edilmez (geç gelen katılımcı güvenle çağırır).
+        // If cancelled, the jitter wait is cut short: the user joined a refresh that was already waiting.
+        // It is not disposed because it has no timer or registration (a late joiner can call it safely).
         public CancellationTokenSource SkipJitter { get; } = new();
 
         public TaskCompletionSource Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -82,16 +82,16 @@ public sealed class RefreshScheduler : IAsyncDisposable
             StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <summary>Bilinen son snapshot'lar. UI ilk çizimini buradan yapabilir.</summary>
+    /// <summary>Last known snapshots. The UI can make its first paint from here.</summary>
     public IReadOnlyDictionary<string, UsageSnapshot> Current => _current;
 
     public TimeSpan Interval => TimeSpan.FromTicks(Volatile.Read(ref _intervalTicks));
 
-    /// <summary>Canlı ayar değişikliğini sonraki arka plan turuna uygular.</summary>
+    /// <summary>Applies a live setting change to the next background round.</summary>
     public void SetInterval(TimeSpan interval) =>
         Volatile.Write(ref _intervalTicks, NormalizeInterval(interval).Ticks);
 
-    /// <summary>Ekran kilitli ya da pil tasarrufundayken çağrılır.</summary>
+    /// <summary>Called when the screen is locked or battery saver is on.</summary>
     public void Pause() => _paused = true;
 
     public void Resume() => _paused = false;
@@ -135,13 +135,13 @@ public sealed class RefreshScheduler : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // normal kapanış
+            // normal shutdown
         }
     }
 
     /// <param name="skipJitter">
-    /// Kullanıcı sonucu bekliyorsa (Yenile düğmesi, panel açılışı) rastgele bekleme atlanır;
-    /// jitter yalnızca arka plan turlarının aynı saniyede ateşlememesi içindir.
+    /// If the user is waiting for the result (Refresh button, panel opening), the random wait is skipped;
+    /// jitter exists only so that background rounds do not fire in the same second.
     /// </param>
     public async Task RefreshAllAsync(
         CancellationToken ct = default,
@@ -214,7 +214,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
 
         try
         {
-            // Jitter: tüm sağlayıcılar aynı saniyede ateşlerse hem ağ hem UI dalgalanır.
+            // Jitter: if all providers fire in the same second, both the network and the UI stutter.
             if (_options.MaxJitter > TimeSpan.Zero && !flight.SkipJitter.IsCancellationRequested)
             {
                 var jitterMs = Random.Shared.Next(0, (int)_options.MaxJitter.TotalMilliseconds + 1);
@@ -225,7 +225,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 {
-                    // Kullanıcı sonucu bekliyor: kalan bekleme atlanır.
+                    // The user is waiting for the result: the remaining wait is skipped.
                 }
             }
 
@@ -248,7 +248,7 @@ public sealed class RefreshScheduler : IAsyncDisposable
 
             breaker.RecordFailure(DateTimeOffset.UtcNow);
 
-            // Son iyi veriyi bayat notuyla göster; yoksa hatanın kendisini göster.
+            // Show the last good data with a stale note; if there is none, show the error itself.
             var cached = _cache.TryLoad(provider.Id);
             Publish(cached is null ? snapshot : MarkStale(cached, snapshot.StaleReason));
         }

@@ -12,15 +12,15 @@ public sealed record UpdateCheckResult(
 public enum UpdateDownloadResult
 {
     Downloaded,
-    /// <summary>Denetim yeni sürüm bulamadı (ya da kaynak artık sunmuyor).</summary>
+    /// <summary>The check found no new version (or the source no longer offers it).</summary>
     NothingToDownload,
-    /// <summary>Ağ, disk ya da doğrulama hatası; uygulama etkilenmez, yeniden denenebilir.</summary>
+    /// <summary>Network, disk or verification error; the app is unaffected and it can be retried.</summary>
     Failed,
-    /// <summary>Başka bir indirme sürüyor.</summary>
+    /// <summary>Another download is in progress.</summary>
     Busy,
 }
 
-/// <summary>Son denetimin sonucunun saklandığı yer.</summary>
+/// <summary>Where the result of the last check is stored.</summary>
 public interface IUpdateStateStore
 {
     UpdateCheckResult? Load();
@@ -28,8 +28,8 @@ public interface IUpdateStateStore
 }
 
 /// <summary>
-/// Güncelleme denetimi. Kaynak ve saklama enjekte edilir; paket yalnızca kullanıcı
-/// eylemiyle indirilir.
+/// Update check. The source and storage are injected; the package is downloaded only
+/// by user action.
 /// </summary>
 public sealed class UpdateService
 {
@@ -48,13 +48,13 @@ public sealed class UpdateService
 
     public UpdateCheckResult? LastResult => _store.Load();
 
-    /// <summary>Her denetimden sonra (başarılı ya da değil) tetiklenir; herhangi bir iş parçacığından gelebilir.</summary>
+    /// <summary>Fired after every check (successful or not); can come from any thread.</summary>
     public event Action<UpdateCheckResult>? ResultChanged;
 
-    /// <summary>Kurulumdan çalışıyor mu; değilse denetimin anlamı yoktur.</summary>
+    /// <summary>Is it running from an install; if not, the check is meaningless.</summary>
     public bool IsInstalled => _source.IsInstalled;
 
-    /// <summary>Bulunan güncelleme indirildi ve uygulanmaya hazır.</summary>
+    /// <summary>The found update has been downloaded and is ready to be applied.</summary>
     public bool IsDownloaded { get; private set; }
 
     public async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
@@ -88,8 +88,8 @@ public sealed class UpdateService
     }
 
     /// <summary>
-    /// Bulunan güncellemeyi indirir. Önceki oturumdan kalma "güncelleme var" bilgisinde kaynak
-    /// nesnesi bellekte yoktur; o zaman önce yeniden bulunur. Başarısızlık uygulamayı etkilemez.
+    /// Downloads the found update. For an "update available" notice left over from a previous session, the source
+    /// object is not in memory; in that case it is found again first. A failure does not affect the app.
     /// </summary>
     public async Task<UpdateDownloadResult> DownloadAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
@@ -101,7 +101,7 @@ public sealed class UpdateService
             Remember(update);
             if (update is null) return UpdateDownloadResult.NothingToDownload;
 
-            // Kaynak yüzdeyi 0-100 dışında verebilir; arayüze hep geçerli bir değer gider.
+            // The source may report a percentage outside 0-100; a valid value always goes to the UI.
             await _source.DownloadAsync(update, percent => progress?.Report(Math.Clamp(percent, 0, 100)), cancellationToken)
                 .ConfigureAwait(false);
             progress?.Report(100);
@@ -121,8 +121,8 @@ public sealed class UpdateService
     }
 
     /// <summary>
-    /// İndirilmiş güncellemeyi çıkışta uygulanacak şekilde zamanlar. True dönerse çağıran
-    /// uygulamadan çıkmalıdır; güncelleme çıkıştan sonra kurulur ve uygulama yeniden açılır.
+    /// Schedules the downloaded update to be applied on exit. If it returns true, the caller
+    /// must exit the app; the update is installed after exit and the app is reopened.
     /// </summary>
     public bool ApplyOnExitAndRestart()
     {
@@ -141,9 +141,9 @@ public sealed class UpdateService
     }
 
     /// <summary>
-    /// Saklanan "güncelleme var" bilgisi güncellemeden sonra bayat kalır; sürüm şu anki sürümden
-    /// gerçekten yeni mi. SemVer sırası: ön sürüm eki (-beta.2) aynı numaralı kararlı sürümden eski,
-    /// ön sürümler kendi aralarında tanımlayıcı tanımlayıcı karşılaştırılır (beta.2 &gt; beta.1).
+    /// The stored "update available" notice stays stale after an update: is the version really newer than the
+    /// current one. SemVer order: a prerelease suffix (-beta.2) is older than the stable version with the same
+    /// number, and prereleases are compared identifier by identifier among themselves (beta.2 &gt; beta.1).
     /// </summary>
     public static bool IsNewer(string? available, string current)
     {
@@ -163,7 +163,7 @@ public sealed class UpdateService
             var leftNumeric = int.TryParse(l[i], out var ln);
             var rightNumeric = int.TryParse(r[i], out var rn);
             int order = leftNumeric && rightNumeric ? ln.CompareTo(rn)
-                : leftNumeric ? -1   // sayısal tanımlayıcı harfliden düşüktür
+                : leftNumeric ? -1   // a numeric identifier is lower than an alphanumeric one
                 : rightNumeric ? 1
                 : string.CompareOrdinal(l[i], r[i]);
             if (order != 0) return order;

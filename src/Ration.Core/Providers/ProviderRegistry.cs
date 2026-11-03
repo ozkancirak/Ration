@@ -8,8 +8,8 @@ using Ration.Core.Providers.OpenCode;
 namespace Ration.Core.Providers;
 
 /// <summary>
-/// Uygulamanın sağlayıcı bileşimini tek yerde tutar. UI sağlayıcıların
-/// hangilerinin var olduğunu bilmez; yalnızca bu kaydın çıktısını tüketir.
+/// Keeps the app's provider composition in one place. The UI does not know which providers
+/// exist; it only consumes the output of this registry.
 /// </summary>
 public static class ProviderRegistry
 {

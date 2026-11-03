@@ -4,13 +4,13 @@ using Ration.Core.Providers;
 namespace Ration.Core.Cost;
 
 /// <summary>
-/// ~/.claude/projects/**/*.jsonl içindeki asistan yanıtlarının token sayımlarını toplar.
+/// Totals the token counts of assistant replies in ~/.claude/projects/**/*.jsonl.
 ///
-/// GİZLİLİK: bu tarayıcı yalnızca sayıları ve kimlikleri okur. Konuşma içeriği
-/// (message.content) hiç açılmaz, hiçbir yere yazılmaz, hiçbir çıktıya girmez.
+/// PRIVACY: this scanner only reads counts and ids. Conversation content
+/// (message.content) is never opened, written anywhere or included in any output.
 ///
-/// Dosyalar Claude Code tarafından aktif olarak yazılıyor olabilir; bu yüzden
-/// FileShare.ReadWrite ile ve satır satır akıtılarak okunur (tümü belleğe alınmaz).
+/// Claude Code may be writing the files while we read them, so they are read
+/// with FileShare.ReadWrite and streamed line by line (never loaded into memory whole).
 /// </summary>
 public static class ClaudeCostScanner
 {
@@ -28,7 +28,7 @@ public static class ClaudeCostScanner
             return new CostScanResult(tally, since, now, 0, L.T($"Directory not found: {directory}", $"Dizin bulunamadı: {directory}"));
         }
 
-        // Aynı yanıt birden fazla satırda görünebilir (yeniden yazım, devam kaydı).
+        // The same reply can appear on several lines (rewrite, resume record).
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var filesScanned = 0;
         var periodKnown = true;
@@ -62,8 +62,8 @@ public static class ClaudeCostScanner
                     ReadLine(line, since, seen, tally, ref periodKnown);
                 }
             }
-            catch (IOException) { /* dosya kilitli ya da silinmiş: atla */ }
-            catch (UnauthorizedAccessException) { /* atla */ }
+            catch (IOException) { /* file is locked or deleted: skip */ }
+            catch (UnauthorizedAccessException) { /* skip */ }
         }
 
         return new CostScanResult(tally, since, now, filesScanned)
@@ -105,8 +105,8 @@ public static class ClaudeCostScanner
                 return;
             }
 
-            // Dönem filtresi olay zamanına göre yapılır. Zaman damgası yoksa
-            // sayıyı kaybetme; fakat sonucu kesin bir takvim dönemi diye sunma.
+            // The period filter uses the event time. If there is no timestamp,
+            // do not lose the count, but do not present the result as an exact calendar period.
             DateTimeOffset? timestamp = null;
             if (root.TryGetProperty("timestamp", out var timestampElement))
             {
@@ -116,16 +116,16 @@ public static class ClaudeCostScanner
             if (timestamp is null) periodKnown = false;
             else if (timestamp < since) return;
 
-            // Tekilleştirme: message.id + requestId
+            // De-duplication: message.id + requestId
             var messageId = ReadString(message, "id");
             var requestId = ReadString(root, "requestId") ?? ReadString(root, "request_id");
             var key = $"{messageId}|{requestId}";
 
             if (messageId is not null && !seen.Add(key)) return;
 
-            // output_tokens_details.thinking_tokens, output_tokens'ın ALT KÜMESİdir
-            // (Codex'teki reasoning_output_tokens ile aynı desen): ayrı tutulur,
-            // toplama eklenmez.
+            // output_tokens_details.thinking_tokens is a SUBSET of output_tokens
+            // (the same pattern as reasoning_output_tokens in Codex): it is tracked
+            // separately and not added to the total.
             var thinking = 0L;
             if (usage.TryGetProperty("output_tokens_details", out var details) &&
                 details.ValueKind == JsonValueKind.Object)
@@ -144,7 +144,7 @@ public static class ClaudeCostScanner
         }
         catch (JsonException)
         {
-            // Yarım yazılmış son satır normaldir; sessizce atla.
+            // A half-written last line is normal; skip it silently.
         }
     }
 

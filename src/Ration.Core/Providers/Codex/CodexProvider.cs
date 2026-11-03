@@ -6,8 +6,8 @@ namespace Ration.Core.Providers.Codex;
 public sealed record CodexCredentials(string AccessToken, string? AccountId);
 
 /// <summary>
-/// ~/.codex/auth.json dosyasını SALT OKUNUR açar.
-/// Bu dosya kullanıcının Codex CLI oturumudur; yazılmaz, kilitlenmez.
+/// Opens ~/.codex/auth.json READ-ONLY.
+/// This file is the user's Codex CLI session; it is not written or locked.
 /// </summary>
 public static class CodexCredentialStore
 {
@@ -68,7 +68,7 @@ public sealed class CodexProvider : IUsageProvider
         Sources = new IUsageSource[]
         {
             new CodexOAuthUsageSource(http),
-            // Ağsız ikinci kaynak: yalnızca OAuth başarısız olunca devreye girer.
+            // Second source without network: kicks in only when OAuth fails.
             new CodexSessionLogUsageSource(),
         };
     }

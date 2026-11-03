@@ -1,19 +1,19 @@
 namespace Ration.Core.Refresh;
 
 /// <summary>
-/// Sağlayıcı başına üstel geri çekilme.
+/// Per-provider exponential backoff.
 ///
-/// Bir sağlayıcı arka arkaya hata veriyorsa (ağ yok, token ölmüş, uç nokta 500)
-/// her turda tekrar denemek ne kullanıcıya fayda sağlar ne de sağlayıcıya.
-/// Başarısızlık sayısı arttıkça bekleme süresi ikiye katlanır, bir tavanda durur.
-/// İlk başarıda sıfırlanır.
+/// If a provider fails repeatedly (no network, dead token, endpoint returning 500),
+/// retrying on every round helps neither the user nor the provider.
+/// The wait doubles as the failure count grows and stops at a ceiling.
+/// It resets on the first success.
 /// </summary>
 public sealed class CircuitBreaker
 {
     private readonly TimeSpan _initialBackoff;
     private readonly TimeSpan _maxBackoff;
 
-    // Arka plan turu ile elle yenileme aynı anda sonuç kaydedebilir.
+    // A background round and a manual refresh can record a result at the same time.
     private readonly object _gate = new();
     private DateTimeOffset _openUntil = DateTimeOffset.MinValue;
 
@@ -27,7 +27,7 @@ public sealed class CircuitBreaker
 
     public TimeSpan CurrentBackoff { get; private set; } = TimeSpan.Zero;
 
-    /// <summary>Devre açıksa bu sağlayıcı bu turda atlanır.</summary>
+    /// <summary>If the circuit is open, this provider is skipped in this round.</summary>
     public bool IsOpen(DateTimeOffset now)
     {
         lock (_gate) return now < _openUntil;
@@ -54,8 +54,8 @@ public sealed class CircuitBreaker
         {
             ConsecutiveFailures++;
 
-            // 30s, 60s, 120s, ... tavana kadar. Üs kaydırmayla hesaplanır;
-            // uzun kesintilerde taşmaması için önce tavanla karşılaştırılır.
+            // 30s, 60s, 120s, ... up to the ceiling. Computed by bit shifting;
+            // it is compared with the ceiling first so that it cannot overflow on long outages.
             var multiplier = Math.Min(ConsecutiveFailures - 1, 20);
             var ticks = _initialBackoff.Ticks * (1L << multiplier);
 

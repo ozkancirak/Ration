@@ -1,19 +1,19 @@
 namespace Ration.Core.Providers;
 
 /// <summary>
-/// Sağlayıcı dosyalarının diskteki yerleri.
+/// Where the providers' files live on disk.
 ///
-/// DİKKAT: buradaki sağlayıcı yolları SALT OKUNURDUR.
-/// Bu dosyalar kullanıcının Claude Code / Codex CLI oturumlarının kendisidir;
-/// yazmak, taşımak veya kilitlemek kullanıcıyı kendi CLI'ından düşürür.
-/// Ration'ın yazabileceği tek yer <see cref="CacheDir"/>.
+/// CAUTION: the provider paths here are READ-ONLY.
+/// These files are the user's own Claude Code / Codex CLI sessions;
+/// writing, moving or locking them would sign the user out of their own CLI.
+/// The only place Ration may write is <see cref="CacheDir"/>.
 /// </summary>
 public static class KnownPaths
 {
     public static string Home =>
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    // --- Claude (salt okunur) ---
+    // --- Claude (read-only) ---
 
     public static string ClaudeHome
     {
@@ -31,8 +31,8 @@ public static class KnownPaths
     public static string ClaudeProjectsDir => Path.Combine(ClaudeHome, "projects");
 
     /// <summary>
-    /// Claude Desktop'ın olası yerel oturum günlükleri. Salt okunur keşif içindir;
-    /// ClaudeCostScanner bunları şema doğrulanmadan taramaz.
+    /// Possible local session logs of Claude Desktop. For read-only discovery only;
+    /// ClaudeCostScanner does not scan them until the schema is verified.
     /// </summary>
     public static IReadOnlyList<string> ClaudeDesktopSessionRoots
     {
@@ -59,7 +59,7 @@ public static class KnownPaths
         }
     }
 
-    // --- Codex (salt okunur) ---
+    // --- Codex (read-only) ---
 
     public static string CodexHome
     {
@@ -76,7 +76,7 @@ public static class KnownPaths
 
     public static string CodexSessionsDir => Path.Combine(CodexHome, "sessions");
 
-    // --- Antigravity (salt okunur) ---
+    // --- Antigravity (read-only) ---
 
     public static string DefaultGeminiCliHome => Path.Combine(Home, ".gemini");
 
@@ -99,7 +99,7 @@ public static class KnownPaths
             ? Path.Combine(root, "antigravity-cli", "cli.log")
             : null;
 
-    // --- OpenCode (salt okunur) ---
+    // --- OpenCode (read-only) ---
 
     public static string OpenCodeDataHome
     {
@@ -129,14 +129,14 @@ public static class KnownPaths
 
     public static string OpenCodeDatabaseCacheDir => Path.Combine(CacheDir, "cache", "opencode");
 
-    // --- Cursor (salt okunur) ---
+    // --- Cursor (read-only) ---
 
-    /// <summary>Cursor uygulamasının VS Code tarzı durum veritabanı; oturum belirteci burada durur.</summary>
+    /// <summary>The Cursor app's VS Code-style state database; the session token lives here.</summary>
     public static string CursorStateDatabaseFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Cursor", "User", "globalStorage", "state.vscdb");
 
-    /// <summary>Cursor'ın Electron <c>Local State</c> dosyası; şifreli belirtecin anahtarı burada (DPAPI korumalı).</summary>
+    /// <summary>Cursor's Electron <c>Local State</c> file; the key of the encrypted token is here (DPAPI-protected).</summary>
     public static string CursorLocalStateFile => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Cursor", "Local State");
@@ -147,7 +147,7 @@ public static class KnownPaths
 
     public static string PricingOverridesFile => Path.Combine(CacheDir, "pricing-overrides.json");
 
-    // --- Ration'ın kendi alanı (yazılabilir tek yer) ---
+    // --- Ration's own area (the only writable place) ---
 
     public static string CacheDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

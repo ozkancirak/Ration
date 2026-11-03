@@ -13,16 +13,16 @@ public sealed record CursorSession(
     string? MembershipType,
     string? SubscriptionStatus)
 {
-    // Süresi dolmak üzere olan belirteç gönderilmez; Ration belirteci yenilemez.
+    // A token that is about to expire is not sent; Ration does not refresh the token.
     private static readonly TimeSpan Margin = TimeSpan.FromSeconds(60);
 
     public bool IsUsable(DateTimeOffset now) => ExpiresAt > now + Margin;
 }
 
 /// <summary>
-/// Cursor uygulamasının yerel durum veritabanından (state.vscdb, ItemTable) oturum belirtecini
-/// SALT OKUNUR okur. Dosyaya yazılmaz, belirteç yenilenmez, çerez ya da tarayıcı verisine
-/// dokunulmaz. Belirteç hiçbir yere yazılmaz; günlüğe de girmez.
+/// Reads the session token READ-ONLY from the Cursor app's local state database (state.vscdb, ItemTable).
+/// Nothing is written to the file, the token is not refreshed, and cookies or browser data are not touched.
+/// The token is written nowhere and does not go into the log.
 /// </summary>
 public static class CursorSessionStore
 {
@@ -31,13 +31,13 @@ public static class CursorSessionStore
     private const string StatusKey = "cursorAuth/stripeSubscriptionStatus";
 
     /// <summary>
-    /// Cursor 3.27'den beri saklanan belirteç şifreli ve bu önekle başlıyor; düz JWT değil.
+    /// Since Cursor 3.27 the stored token is encrypted and starts with this prefix; it is not a plain JWT.
     /// </summary>
     public const string EncryptedTokenPrefix = "cursor-safe-storage:v1:";
 
     /// <param name="decrypt">
-    /// Şifreli değeri (önek dahil) çözen platform işlevi; yoksa ya da null dönerse şifreli belirteç
-    /// oturum sayılmaz. Çözülen belirteç de yine JWT olarak doğrulanır.
+    /// Platform function that decrypts the encrypted value (prefix included); if it is missing or returns
+    /// null, the encrypted token does not count as a session. A decrypted token is still validated as a JWT.
     /// </param>
     public static CursorSession? TryRead(string? path = null, Func<string, string?>? decrypt = null)
     {
@@ -61,8 +61,8 @@ public static class CursorSessionStore
     }
 
     /// <summary>
-    /// Belirteç var ama Cursor onu şifrelemiş. "Giriş yapılmamış" ile karıştırılmasın diye ayrı
-    /// sorulur; değer okunmaz, yalnızca önekine bakılır.
+    /// The token exists but Cursor has encrypted it. Asked separately so that it is not confused with
+    /// "not signed in"; the value is not read, only its prefix is checked.
     /// </summary>
     public static bool HasEncryptedToken(string? path = null) =>
         ReadValues(path ?? KnownPaths.CursorStateDatabaseFile) is { } values &&
@@ -124,8 +124,8 @@ public static class CursorSessionStore
         }
     }
 
-    // VS Code durum veritabanı değeri metin ya da BLOB olarak tutabilir; BOM'suz ASCII'nin
-    // UTF-16LE hali araya NUL baytları koyar, UTF-8 olarak okunursa belirteç bozulur.
+    // The VS Code state database may store the value as text or as a BLOB; the UTF-16LE form of BOM-less
+    // ASCII puts NUL bytes in between, and if it is read as UTF-8 the token gets corrupted.
     private static string? ReadText(object value)
     {
         if (value is string text) return text;
@@ -136,8 +136,8 @@ public static class CursorSessionStore
     }
 
     /// <summary>
-    /// JWT yükünden süre sonu (exp) ve kullanıcı kimliği (sub, "github|user_..." biçiminde son
-    /// parça) okunur. İmza doğrulanmaz; yalnızca bu belirteç hâlâ gönderilebilir mi diye bakılır.
+    /// The expiry (exp) and the user id (sub, last part of the "github|user_..." form) are read from the JWT
+    /// payload. The signature is not verified; it only checks whether this token can still be sent.
     /// </summary>
     internal static bool TryReadClaims(string token, out string userId, out DateTimeOffset expiresAt)
     {

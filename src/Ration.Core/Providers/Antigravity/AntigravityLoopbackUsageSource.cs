@@ -72,7 +72,7 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
             body => RationTrace.RawResponse("provider.raw", body));
     }
 
-    // Tur 7 test çağrı biçimini korur.
+    // Keeps the call shape that the round 7 test relies on.
     public AntigravityLoopbackUsageSource(
         HttpClient http,
         string? logPath,
@@ -142,7 +142,7 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
 
             if (probe.StatusCode != (int)HttpStatusCode.OK) continue;
 
-            // İlk HTTP 200, içerik bozuk olsa bile seçilen porttur.
+            // The first HTTP 200 is the selected port, even if its content is corrupt.
             _cachedEndpoint = new CachedEndpoint(
                 candidate.Port,
                 probe.Scheme,
@@ -166,8 +166,8 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
             var windows = parsed.Windows;
             var resolvedCandidate = candidate with { Scheme = probe.Scheme };
 
-            // Kota ve token kullanımı iki bağımsız kaynaktır. Kota hazır olur olmaz
-            // yayınla; token taraması bunu geciktiremez ve boş dönerek kotayı silemez.
+            // Quota and token usage are two independent sources. Publish the quota as soon as it
+            // is ready; the token scan cannot delay it and cannot wipe the quota by coming back empty.
             SnapshotUpdated?.Invoke(new UsageSnapshot(
                 ProviderId: "antigravity",
                 Windows: windows,
@@ -518,8 +518,8 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
         }
         catch (Exception ex)
         {
-            // A process metadata failure must not prevent the log fallback; ama sessiz
-            // kalmasın: yutulan hata anahtarsız porta düşüp her yerde 401 alınmasına yol açıyordu.
+            // A process metadata failure must not prevent the log fallback; but it must not stay silent
+            // either: a swallowed error led to falling back to the keyless port and getting a 401 everywhere.
             RationTrace.Error("provider.source", $"provider=antigravity endpoint-discovery failed type={ex.GetType().Name} hr=0x{ex.HResult:X8} inner={ex.InnerException?.GetType().Name}");
         }
 
@@ -580,9 +580,9 @@ public sealed class AntigravityLoopbackUsageSource : IProgressiveUsageSource
         };
 
     /// <summary>
-    /// Dil sunucusu kendinden imzalı sertifikayla yalnızca 127.0.0.1'de dinler; doğrulama bu yüzden
-    /// kapalıdır. Doğrulama kapalıyken yönlendirme izlenmez: sunucu başka bir adrese yönlendirse
-    /// bile istek (CSRF başlığıyla) oraya gitmez.
+    /// The language server listens only on 127.0.0.1 with a self-signed certificate; that is why validation
+    /// is off. While validation is off, redirects are not followed: even if the server redirects to another
+    /// address, the request (with the CSRF header) does not go there.
     /// </summary>
     public static SocketsHttpHandler CreateLoopbackHandler() => new()
     {

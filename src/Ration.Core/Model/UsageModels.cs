@@ -32,15 +32,15 @@ public sealed record UsageWindow(
     double? Limit,
     double Percent,
     DateTimeOffset? ResetsAt,
-    // Aynı türden birden fazla pencere olabilir (haftalık genel / Opus / Sonnet).
-    // UI'da gösterilecek kısa ad; null ise Kind yeterlidir.
+    // There can be several windows of the same kind (weekly overall / Opus / Sonnet).
+    // Short name shown in the UI; if null, Kind is enough.
     string? Label = null,
-    // Pencerenin toplam uzunluğu (tempo hesabı için). Kaynak vermiyorsa null;
-    // null iken tempo satırı gösterilmez, uydurma tahmin üretilmez.
+    // Total length of the window (for the pace calculation). Null if the source does not provide it;
+    // while null, the pace line is not shown and no made-up estimate is produced.
     TimeSpan? WindowLength = null,
-    // Antigravity gibi sağlayıcılar pencereleri iki seviyeli gruplar altında verir.
+    // Providers such as Antigravity return windows under two-level groups.
     string? GroupName = null,
-    // Grup açıklaması, model adları gibi ikinci seviyedeki bağlamı taşır.
+    // The group description carries second-level context, such as model names.
     string? GroupDescription = null);
 
 public sealed record CreditBalance(
@@ -65,15 +65,15 @@ public sealed record CostReport(
     string Currency,
     DateTimeOffset PeriodStart,
     DateTimeOffset PeriodEnd,
-    // Token'lar loglardan kesin okunur; TotalCost bir TAHMİNdır ve yalnızca fiyatı
-    // bilinen modelleri kapsar. Fiyatı bilinmeyen modeller aşağıda listelenir ki
-    // eksik maliyet sessizce düşük görünmesin.
+    // Tokens are read exactly from the logs; TotalCost is an ESTIMATE and covers only models
+    // whose price is known. Models with unknown prices are listed below so that
+    // the missing cost does not silently look low.
     long InputTokens = 0,
     long OutputTokens = 0,
     long CacheReadTokens = 0,
     long CacheCreationTokens = 0,
-    // Akıl yürütme token'ları OutputTokens'ın alt kümesidir; bilgi amaçlı tutulur,
-    // toplama ve maliyete ikinci kez eklenmez.
+    // Reasoning tokens are a subset of OutputTokens; kept for information, and
+    // not added a second time to the total or the cost.
     long ReasoningTokens = 0,
     IReadOnlyList<string>? ModelsWithoutPricing = null,
     IReadOnlyList<ModelTokenUsage>? Models = null,
@@ -81,7 +81,7 @@ public sealed record CostReport(
     // false means the local scan included an event without a usable timestamp;
     // the UI must not label that total as an exact "last 30 days" period.
     bool PeriodKnown = true,
-    // Yerel güne göre token toplamları (günlük çubuk grafik). Maliyet değil, token.
+    // Token totals by local day (daily bar chart). Tokens, not cost.
     IReadOnlyList<Ration.Core.Cost.DailyTokens>? Daily = null)
 {
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
@@ -96,11 +96,11 @@ public sealed record UsageSnapshot(
     SourceKind? ResolvedVia,
     DateTimeOffset FetchedAt,
     string? StaleReason,
-    // Sağlayıcının bildirdiği plan adı ("plus", "max"...). Bilgi amaçlıdır,
-    // kota hesabına girmez; bilinmiyorsa null.
+    // Plan name reported by the provider ("plus", "max"...). For information only,
+    // not part of the quota calculation; null if unknown.
     string? PlanName = null,
-    // Sağlayıcı kotası olmayan yerel modların kullanıcıya açıklayacağı durum.
+    // The state explained to the user for local modes that have no provider quota.
     string? StatusDetail = null,
-    // OpenCode gibi kaynaklarda kimlik değerleri değil, yalnızca yapılandırılmış
-    // sağlayıcı adları gösterilir.
+    // For sources like OpenCode, only the names of configured providers are shown,
+    // not credential values.
     IReadOnlyList<string>? ConfiguredProviders = null);

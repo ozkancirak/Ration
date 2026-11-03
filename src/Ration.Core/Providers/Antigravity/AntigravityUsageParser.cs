@@ -60,8 +60,8 @@ public static class AntigravityUsageParser
             }
         }
 
-        // RetrieveUserQuotaSummary plan döndürmez. Plan bilgisi ayrı GetUserStatus
-        // çağrısından gelir; kota gövdesinden tahminde bulunmak rozetleri kirletir.
+        // RetrieveUserQuotaSummary does not return the plan. The plan comes from a separate GetUserStatus
+        // call; guessing it from the quota body would pollute the badges.
         return new ParseResult(windows, null);
     }
 

@@ -1,26 +1,26 @@
 namespace Ration.Core.Updates;
 
-/// <summary>Kaynağın bulduğu güncelleme. <paramref name="Package"/> kaynağa özgü, dışarıya kapalı veridir.</summary>
+/// <summary>The update the source found. <paramref name="Package"/> is source-specific data that is closed to the outside.</summary>
 public sealed record AvailableUpdate(string Version, object? Package = null);
 
 /// <summary>
-/// Güncelleme paketlerinin geldiği yer. Gerçek uygulama Velopack kullanır; testler sahte kaynak verir,
-/// bu yüzden hiçbir test ağa veya kurulum dizinine dokunmaz.
+/// Where update packages come from. The real app uses Velopack; tests supply a fake source,
+/// so no test touches the network or the install directory.
 /// </summary>
 public interface IUpdateSource
 {
-    /// <summary>Uygulama bir kurulumdan mı çalışıyor (taşınabilir zip ve geliştirme değil).</summary>
+    /// <summary>Is the app running from an install (not the portable zip or development)?</summary>
     bool IsInstalled { get; }
 
-    /// <summary>Yeni sürüm yoksa null.</summary>
+    /// <summary>null if there is no new version.</summary>
     Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken);
 
-    /// <summary>Paketi indirir ve doğrular; uygulamaya dokunmaz. <paramref name="progress"/> yüzde bildirir.</summary>
+    /// <summary>Downloads and verifies the package; does not touch the app. <paramref name="progress"/> reports percent.</summary>
     Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken);
 
     /// <summary>
-    /// İndirilmiş paketi, bu süreç çıkınca uygulanacak ve uygulama yeniden açılacak şekilde
-    /// zamanlar. Süreci kendisi kapatmaz; çıkışı çağıran yapar ki tepsi simgesi düzgün temizlensin.
+    /// Schedules the downloaded package to be applied when this process exits, and the app to be reopened.
+    /// It does not close the process itself; the caller does the exit so that the tray icon is cleaned up properly.
     /// </summary>
     void ApplyOnExitAndRestart(AvailableUpdate update);
 }

@@ -6,25 +6,25 @@ public sealed record ModelTokens(
     long OutputTokens,
     long CacheReadTokens,
     long CacheCreationTokens,
-    // Akıl yürütme / düşünme token'ları. Hem Codex (reasoning_output_tokens) hem
-    // Claude (output_tokens_details.thinking_tokens) bunu OutputTokens'ın ALT KÜMESİ
-    // olarak bildirir — bu yüzden toplama eklenmez, yalnızca görünürlük için tutulur.
+    // Reasoning / thinking tokens. Both Codex (reasoning_output_tokens) and
+    // Claude (output_tokens_details.thinking_tokens) report this as a SUBSET of OutputTokens
+    // — so it is not added to the total, only kept for visibility.
     long ReasoningTokens = 0)
 {
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
 }
 
 /// <summary>
-/// Model bazında token toplayıcı.
+/// Per-model token accumulator.
 ///
-/// Token sayıları loglardan KESİN okunur — burada tahmin yoktur. Maliyet ayrı bir
-/// katmandır (<see cref="PricingTable"/>), çünkü fiyatlar değişkendir ve eksik
-/// fiyat bilgisiyle üretilen "kesin" maliyet, hiç maliyet göstermemekten kötüdür.
+/// Token counts are read EXACTLY from the logs — there is no estimation here. Cost is a separate
+/// layer (<see cref="PricingTable"/>), because prices change and an "exact" cost produced from
+/// incomplete price information is worse than showing no cost at all.
 /// </summary>
 public sealed class TokenTally
 {
     private readonly Dictionary<string, long[]> _byModel = new(StringComparer.OrdinalIgnoreCase);
-    // Yerel güne göre model kırılımı: günlük grafik ve tek taramadan "bugün" raporu için.
+    // Per-model breakdown by local day: for the daily chart and a "today" report from a single scan.
     private readonly Dictionary<DateOnly, TokenTally> _byDay = new();
 
     private const int Input = 0;
@@ -58,7 +58,7 @@ public sealed class TokenTally
         bucket[CacheCreate] += cacheCreationTokens;
         bucket[Reasoning] += reasoningTokens;
 
-        // Zamanı bilinmeyen olay gün kovasına girmez (grafikte ve "bugün"de yok).
+        // An event with an unknown time does not go into a day bucket (not in the chart and not in "today").
         if (at is { } time)
         {
             var day = DateOnly.FromDateTime(time.ToLocalTime().DateTime);
@@ -101,8 +101,8 @@ public sealed class TokenTally
             .ToList();
 
     /// <summary>
-    /// <paramref name="day"/> ve sonrasındaki olaylar. 30 günlük taramadan "bugün" raporunu
-    /// türetir; aynı dosyaları ikinci kez okumaya gerek kalmaz.
+    /// Events on and after <paramref name="day"/>. Derives the "today" report from the 30-day scan;
+    /// there is no need to read the same files a second time.
     /// </summary>
     public TokenTally SinceDay(DateOnly day)
     {

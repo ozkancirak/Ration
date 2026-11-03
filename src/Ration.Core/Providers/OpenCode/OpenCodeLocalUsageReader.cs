@@ -9,16 +9,16 @@ using Ration.Core.Model;
 namespace Ration.Core.Providers.OpenCode;
 
 /// <summary>
-/// OpenCode veritabanını salt okunur okur. Önce doğrudan salt okunur bağlantı denenir:
-/// SQLite okuyucusu DB dosyasını değiştirmez, WAL modunda OpenCode'un yazmasını engellemez.
-/// Önceden her okumada DB kopyalanıyordu; 1,1 GB'lık bir DB ile her yenilemede 1,1 GB
-/// disk yazımı ve yarıda kalan kopyalardan GB'larca kalıntı demekti. Doğrudan açılamazsa
-/// (kilit vb.) eski yol: tek kullanımlık klasöre kopyalayıp oku.
+/// Reads the OpenCode database read-only. A direct read-only connection is tried first:
+/// the SQLite reader does not modify the DB file and, in WAL mode, does not block OpenCode from writing.
+/// Previously the DB was copied on every read; with a 1.1 GB DB that meant 1.1 GB of
+/// disk writes on every refresh and GBs of leftovers from interrupted copies. If it cannot be opened
+/// directly (lock etc.), the old path: copy to a single-use folder and read.
 /// </summary>
 public static class OpenCodeLocalUsageReader
 {
-    // Veritabanı ve WAL dosyası değişmediyse son rapor yeniden kullanılır: büyük veritabanını her
-    // yenilemede baştan sorgulamak (bu makinede 1,2 GB, medyan 2,7 sn) gereksiz.
+    // If the database and the WAL file have not changed, the last report is reused: querying a large database
+    // from scratch on every refresh (1.2 GB on this machine, median 2.7 s) is unnecessary.
     private static readonly ConcurrentDictionary<string, (string Key, CostReport Report)> LastReports =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -43,7 +43,7 @@ public static class OpenCodeLocalUsageReader
         return report;
     }
 
-    /// <summary>Kopya yolunda izin verilen en büyük toplam boyut (veritabanı + WAL + SHM).</summary>
+    /// <summary>Largest total size allowed on the copy path (database + WAL + SHM).</summary>
     public const long MaxCopyBytes = 256L * 1024 * 1024;
 
     public static bool FitsForCopy(string databasePath, long maxBytes)
@@ -64,9 +64,9 @@ public static class OpenCodeLocalUsageReader
     }
 
     /// <summary>
-    /// Rapora giren her şeyin parmak izi: veritabanı ve WAL boyutu/zamanı, ücretsiz model listesi
-    /// ve UTC gün (30 günlük pencere ve "bugün" sayacı gün değişince değişir). Okunamazsa null:
-    /// önbellek kullanılmaz.
+    /// Fingerprint of everything that goes into the report: database and WAL size/time, the free model list
+    /// and the UTC day (the 30-day window and the "today" counter change when the day changes). If it cannot
+    /// be read, null: the cache is not used.
     /// </summary>
     public static string? ChangeKey(string databasePath, string? freeModelPath, DateTimeOffset now)
     {
@@ -101,11 +101,11 @@ public static class OpenCodeLocalUsageReader
         }
         catch (SqliteException)
         {
-            // Doğrudan okunamadı; kopya üzerinden dene.
+            // Could not be read directly; try via a copy.
         }
 
-        // Çok büyük veritabanını her yenilemede kopyalamak (bu makinede 1,2 GB) diski ve zamanı
-        // yer; kilitliyse bu tur atlanır, sonraki tur yeniden denenir.
+        // Copying a very large database on every refresh (1.2 GB on this machine) eats disk and time;
+        // if it is locked, this round is skipped and the next round tries again.
         if (!FitsForCopy(databasePath, MaxCopyBytes))
         {
             Trace.Info("provider.source", "provider=opencode copy=skipped reason=database-too-large");
@@ -152,7 +152,7 @@ public static class OpenCodeLocalUsageReader
             DataSource = path,
             Mode = SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Private,
-            // Havuzlanmış bağlantı dosya tanıtıcısını açık tutar; her okumadan sonra bırak.
+            // A pooled connection keeps the file handle open; release it after every read.
             Pooling = false,
             DefaultTimeout = 5,
         }.ToString();
@@ -197,7 +197,7 @@ public static class OpenCodeLocalUsageReader
             Daily: daily);
     }
 
-    /// <summary>Günlük grafik için yerel güne göre token toplamı (oturum oluşturulma günü).</summary>
+    /// <summary>Token total by local day for the daily chart (session creation day).</summary>
     private static IReadOnlyList<DailyTokens> ReadDaily(SqliteConnection connection, DateTimeOffset periodStart)
     {
         using var command = connection.CreateCommand();
@@ -224,7 +224,7 @@ public static class OpenCodeLocalUsageReader
         return result;
     }
 
-    /// <summary>Süreç kopyalama sırasında kapanırsa kalan eski okuma klasörlerini siler.</summary>
+    /// <summary>Deletes the leftover old read folders if the process closes during copying.</summary>
     private static void CleanupStaleCopies(string cacheDirectory)
     {
         try

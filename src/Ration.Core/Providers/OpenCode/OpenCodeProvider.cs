@@ -23,8 +23,8 @@ public sealed record OpenCodeAuthInfo(
 }
 
 /// <summary>
-/// OpenCode auth.json'ı salt okunur okur. OPENCODE_AUTH_CONTENT ayarlıysa
-/// dosyanın önüne geçer; bu değer de hiçbir zaman loglanmaz.
+/// Reads OpenCode's auth.json read-only. If OPENCODE_AUTH_CONTENT is set,
+/// it takes precedence over the file; this value is also never logged.
 /// </summary>
 public static class OpenCodeCredentialStore
 {
