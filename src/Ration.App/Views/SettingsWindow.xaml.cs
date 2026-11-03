@@ -154,6 +154,8 @@ public sealed partial class SettingsWindow : Window
 
         ResetNotifyToggle.IsOn = QuotaNotifier.NotifyOnReset;
         ResetNotifyToggle.Toggled += (_, _) => QuotaNotifier.SetNotifyOnReset(ResetNotifyToggle.IsOn);
+        SignInNotifyToggle.IsOn = QuotaNotifier.NotifyOnSignIn;
+        SignInNotifyToggle.Toggled += (_, _) => QuotaNotifier.SetNotifyOnSignIn(SignInNotifyToggle.IsOn);
 
         SetNotificationOptionsEnabled(QuotaNotifier.Enabled);
         LowThresholdSelection.SelectedItem = LowThresholdSelection.Items
@@ -500,6 +502,7 @@ public sealed partial class SettingsWindow : Window
     {
         LowThresholdSelection.IsEnabled = enabled;
         ResetNotifyToggle.IsEnabled = enabled;
+        SignInNotifyToggle.IsEnabled = enabled;
         foreach (var (toggle, _) in NotificationProviderToggles()) toggle.IsEnabled = enabled;
     }
 

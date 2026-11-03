@@ -33,11 +33,19 @@ internal static class QuotaNotifier
     private const string ThresholdKey = "lowQuotaThreshold";
     private const string DisabledProvidersKey = "notificationsDisabledProviders";
     private const string NotifyOnResetKey = "notifyOnReset";
+    private const string NotifyOnSignInKey = "notifyOnSignIn";
+    private const string EverWorkedKey = "signInEverWorked";
+    private const string SignInNotifiedKey = "signInNotified";
+
+    private static readonly CredentialEpisodes _episodes;
 
     public static readonly int[] Thresholds = [10, 20, 30, 50];
 
     /// <summary>Also notify when a used-up window has quota again. Off by default: no new toasts after an update.</summary>
     public static bool NotifyOnReset { get; private set; }
+
+    /// <summary>Also notify, once per failure episode, when a provider that used to work needs a new sign-in. Off by default.</summary>
+    public static bool NotifyOnSignIn { get; private set; }
 
     /// <summary>Remaining-quota threshold (%) for the "running low" notification; an invalid record falls back to the default.</summary>
     public static int LowThreshold { get; private set; }
@@ -49,6 +57,22 @@ internal static class QuotaNotifier
         LowThreshold = Array.IndexOf(Thresholds, stored) >= 0 ? stored : (int)QuotaAlerts.LowRemaining;
         _fired = SettingsStore.Default.GetStrings(FiredKey).ToList();
         NotifyOnReset = SettingsStore.Default.GetBool(NotifyOnResetKey, false);
+        NotifyOnSignIn = SettingsStore.Default.GetBool(NotifyOnSignInKey, false);
+        _episodes = new CredentialEpisodes(
+            SettingsStore.Default.GetStrings(EverWorkedKey),
+            SettingsStore.Default.GetStrings(SignInNotifiedKey));
+    }
+
+    public static void SetNotifyOnSignIn(bool enabled)
+    {
+        NotifyOnSignIn = enabled;
+        SettingsStore.Default.Set(NotifyOnSignInKey, enabled);
+    }
+
+    private static void SaveEpisodes()
+    {
+        SettingsStore.Default.Set(EverWorkedKey, _episodes.EverWorked);
+        SettingsStore.Default.Set(SignInNotifiedKey, _episodes.Notified);
     }
 
     public static void SetNotifyOnReset(bool enabled)
@@ -105,9 +129,14 @@ internal static class QuotaNotifier
 
     public static void Evaluate(UsageSnapshot snapshot, string providerName)
     {
+        // The sign-in state follows the data whether or not toasts are on, so turning them on later still works.
+        if (_episodes.Track(snapshot)) SaveEpisodes();
+
         if (!Enabled || !_registered || !IsProviderEnabled(snapshot.ProviderId)) return;
 
-        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold, NotifyOnReset);
+        var alerts = QuotaAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow, LowThreshold, NotifyOnReset).ToList();
+        var signIn = NotifyOnSignIn ? _episodes.Pending(snapshot, providerName) : null;
+        if (signIn is not null) alerts.Add(signIn);
         if (alerts.Count == 0) return;
 
         foreach (var alert in alerts)
@@ -128,6 +157,13 @@ internal static class QuotaNotifier
             catch (Exception ex)
             {
                 Trace.Error("notify", $"show failed type={ex.GetType().Name}");
+            }
+
+            if (ReferenceEquals(alert, signIn))
+            {
+                // One alert per failure episode: the provider stays quiet until a fetch succeeds again.
+                if (_episodes.MarkNotified(snapshot.ProviderId)) SaveEpisodes();
+                continue;
             }
 
             _fired.Add(alert.Key);

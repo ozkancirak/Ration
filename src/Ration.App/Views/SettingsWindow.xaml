@@ -370,6 +370,12 @@
                                           OnContent="{l:Loc En='On', Tr='Açık'}"
                                           OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                         </controls:SettingsCard>
+                        <controls:SettingsCard Header="{l:Loc En='Sign-in needed', Tr='Giriş gerekli'}"
+                                               Description="{l:Loc En='Notify once when a provider that worked before needs a new sign-in', Tr='Daha önce çalışan bir sağlayıcı yeniden giriş isteyince bir kez bildir'}">
+                            <ToggleSwitch x:Name="SignInNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
                         <controls:SettingsCard Header="Claude Code">
                             <ToggleSwitch x:Name="ClaudeNotifyToggle"
                                           OnContent="{l:Loc En='On', Tr='Açık'}"
