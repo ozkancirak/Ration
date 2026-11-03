@@ -148,6 +148,7 @@ public sealed partial class FlyoutWindow : Window
 
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
         UsageDisplayPreference.Changed += () => DispatcherQueue.TryEnqueue(OnUsageDisplayChanged);
+        TrayWindowPreference.Changed += () => DispatcherQueue.TryEnqueue(RecalculateTrayIcon);
         TabStrip.KeyDown += OnTabStripKeyDown;
         CopyErrorButton.Click += OnCopyErrorClicked;
 
@@ -838,7 +839,7 @@ public sealed partial class FlyoutWindow : Window
                 continue;
             }
 
-            var percent = MainPercent(snapshot);
+            var percent = TrayWindowSelector.Pick(snapshot, TrayWindowChoice.Highest)?.Percent ?? 0;
             var shown = UsageDisplayPreference.ShowUsed ? percent : 100 - percent;
             meter.Value = shown;
             meter.Foreground = tabBrush;
@@ -846,19 +847,6 @@ public sealed partial class FlyoutWindow : Window
                 ? L.T($"{snapshot.ProviderId}, {shown:F0} percent used", $"{snapshot.ProviderId}, yüzde {shown:F0} kullanıldı")
                 : L.T($"{snapshot.ProviderId}, {shown:F0} percent left", $"{snapshot.ProviderId}, yüzde {shown:F0} kaldı"));
         }
-    }
-
-    /// <summary>Same rule as the tray: per-model additional limits (gpt-*) do not enter the tab meter.</summary>
-    private static double MainPercent(UsageSnapshot snapshot)
-    {
-        double max = 0;
-        foreach (var w in snapshot.Windows)
-        {
-            if (w.Kind is not (WindowKind.Session or WindowKind.Weekly)) continue;
-            if (w.Label is not null && w.Label.Contains("gpt-", StringComparison.OrdinalIgnoreCase)) continue;
-            if (w.Percent > max) max = w.Percent;
-        }
-        return max;
     }
 
     // ---- Single provider detail ----
@@ -1607,9 +1595,20 @@ public sealed partial class FlyoutWindow : Window
         Trace.Info("window", "flyout.hide");
     }
 
+    /// <summary>"Claude · Session · 12% left", or "· 88% used" when the percentages show usage; plain without a window name.</summary>
+    private static string TooltipLine(string name, string? windowName, double usedPercent, bool stale)
+    {
+        var title = windowName is null ? name : $"{name} · {windowName}";
+        var note = stale ? L.T(" (old data)", " (eski veri)") : "";
+        return UsageDisplayPreference.ShowUsed
+            ? L.T($"{title} · {usedPercent:F0}% used{note}", $"{title} · %{usedPercent:F0} kullanıldı{note}")
+            : L.T($"{title} · {100 - usedPercent:F0}% left{note}", $"{title} · %{100 - usedPercent:F0} kaldı{note}");
+    }
+
     private void RecalculateTrayIcon()
     {
-        var available = new Dictionary<string, (string Name, double Percent, bool Stale)>(StringComparer.OrdinalIgnoreCase);
+        var available = new Dictionary<string, (string Name, double Percent, bool Stale, string WindowName)>(StringComparer.OrdinalIgnoreCase);
+        var choice = TrayWindowPreference.Current;
 
         foreach (var provider in _providers)
         {
@@ -1619,22 +1618,15 @@ public sealed partial class FlyoutWindow : Window
 
             if (snapshot is not { Status: ProviderStatus.Ok or ProviderStatus.Degraded } || snapshot.Windows.Count == 0) continue;
 
-            // 3. WHICH NUMBER TO SHOW IN THE TRAY ICON:
-            // Per-model additional limits (gpt-reserve etc.) are LEFT OUT of the tray calculation.
-            // Only the main quotas (Session and Weekly) are counted.
-            var mainWindows = snapshot.Windows
-                .Where(w => w.Kind is WindowKind.Session or WindowKind.Weekly &&
-                            !(w.Label != null && w.Label.Contains("gpt-", StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-
-            if (mainWindows.Count > 0)
+            // 3. WHICH NUMBER TO SHOW IN THE TRAY ICON: the window picked by the user's choice
+            // (the most used one by default). Per-model additional limits are left out (TrayWindowSelector).
+            if (TrayWindowSelector.Pick(snapshot, choice) is { } window)
             {
-                var max = mainWindows.Max(w => w.Percent);
-                available[id] = (name, Math.Clamp(max, 0, 100), snapshot.IsStale);
+                available[id] = (name, Math.Clamp(window.Percent, 0, 100), snapshot.IsStale, WindowRow.TitleFor(window));
             }
         }
 
-        (string Name, double Percent, bool Stale)? selected = null;
+        (string Name, double Percent, bool Stale, string WindowName)? selected = null;
         if (_trayProviderId is { } requested)
         {
             if (available.TryGetValue(requested, out var fixedProvider))
@@ -1653,13 +1645,8 @@ public sealed partial class FlyoutWindow : Window
             ? string.Join("\n", available.Values
                 .OrderBy(entry => entry.Equals(value) ? 0 : 1)
                 .ThenByDescending(entry => entry.Percent)
-                .Select(entry => UsageDisplayPreference.ShowUsed
-                    ? L.T(
-                        $"{entry.Name} · {entry.Percent:F0}% used{(entry.Stale ? " (old data)" : "")}",
-                        $"{entry.Name} · %{entry.Percent:F0} kullanıldı{(entry.Stale ? " (eski veri)" : "")}")
-                    : L.T(
-                        $"{entry.Name} · {100 - entry.Percent:F0}% left{(entry.Stale ? " (old data)" : "")}",
-                        $"{entry.Name} · %{100 - entry.Percent:F0} kaldı{(entry.Stale ? " (eski veri)" : "")}")))
+                // Only the first line names the window the icon follows; the tooltip is limited to 127 characters.
+                .Select(entry => TooltipLine(entry.Name, entry.Equals(value) ? entry.WindowName : null, entry.Percent, entry.Stale)))
             : _trayProviderId is { } missing
                 ? L.T($"{TabDisplayName(missing)}: No data", $"{TabDisplayName(missing)}: Veri yok")
                 : L.T("Ration: No data", "Ration: Veri yok");

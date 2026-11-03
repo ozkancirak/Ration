@@ -300,6 +300,20 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="{l:Loc En='Tray window', Tr='Tepsi penceresi'}"
+                                       Description="{l:Loc En='Which quota window the tray icon follows', Tr='Tepsi ikonu hangi kota penceresini izlesin'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE916;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ComboBox x:Name="TrayWindowSelection"
+                              MinWidth="160"
+                              AutomationProperties.Name="{l:Loc En='Tray window', Tr='Tepsi penceresi'}">
+                        <ComboBoxItem Content="{l:Loc En='Most used', Tr='En çok kullanılan'}" Tag="auto" />
+                        <ComboBoxItem Content="{l:Loc En='Session', Tr='Oturum'}" Tag="session" />
+                        <ComboBoxItem Content="{l:Loc En='Weekly', Tr='Haftalık'}" Tag="weekly" />
+                    </ComboBox>
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Start with Windows', Tr='Windows ile Başlat'}"
                                        Description="{l:Loc En='Run Ration in the background when you sign in', Tr='Oturum açıldığında Ration’ı arka planda otomatik çalıştır'}">
                     <controls:SettingsCard.HeaderIcon>

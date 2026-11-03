@@ -92,7 +92,7 @@ public sealed record WindowRow(
 
     private static readonly Regex HourLabel = new(@"^(\d+ saatlik|Saatlik|\d+-hour|Hourly)$", RegexOptions.CultureInvariant);
 
-    private static string TitleFor(UsageWindow window)
+    internal static string TitleFor(UsageWindow window)
     {
         if (string.IsNullOrWhiteSpace(window.Label)) return KindName(window.Kind);
 

@@ -62,6 +62,17 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        TrayWindowSelection.SelectedItem = TrayWindowSelection.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag as string == TrayWindowPreference.ToTag(TrayWindowPreference.Current));
+        TrayWindowSelection.SelectionChanged += (_, _) =>
+        {
+            if (TrayWindowSelection.SelectedItem is ComboBoxItem { Tag: string tag })
+            {
+                TrayWindowPreference.Set(TrayWindowPreference.FromTag(tag));
+            }
+        };
+
         UsageDisplaySelection.SelectedIndex = UsageDisplayPreference.ShowUsed ? 1 : 0;
         UsageDisplaySelection.SelectionChanged += (_, _) =>
             UsageDisplayPreference.Set(UsageDisplaySelection.SelectedItem is ComboBoxItem { Tag: "used" });
