@@ -17,6 +17,9 @@ public static class PaceCalculator
     private static readonly TimeSpan SoonThreshold = TimeSpan.FromMinutes(5);
     private const double MinimumHistoricalRatio = 0.03;
 
+    // Windows of at least this length (30-day pools, calendar months) get a daily target.
+    private static readonly TimeSpan MonthlyThreshold = TimeSpan.FromDays(20);
+
     public static PaceResult? Calculate(UsageWindow window, DateTimeOffset now)
     {
         // In an exhausted window a badge is shown instead of the pace; in an empty window there is no row at all.
@@ -55,6 +58,25 @@ public static class PaceCalculator
 
         return L.T("On pace", "Dengeli tempo");
     }
+
+    /// <summary>
+    /// For monthly allowances: the share of the allowance that can be used per day for the rest of the period
+    /// (remaining percent ÷ days until the reset). Null for short windows, a used-up allowance or an unknown
+    /// reset time. On the last day it is the whole remainder.
+    /// </summary>
+    public static double? DailyTarget(UsageWindow window, DateTimeOffset now)
+    {
+        if (window.WindowLength is not { } length || length < MonthlyThreshold) return null;
+        if (window.ResetsAt is not { } reset || window.Percent >= 100) return null;
+
+        var daysLeft = (reset - now).TotalDays;
+        if (daysLeft <= 0) return null;
+
+        return (100 - window.Percent) / Math.Max(daysLeft, 1);
+    }
+
+    public static string FormatDailyTarget(double percentPerDay) =>
+        L.T($"Daily target ≈ {percentPerDay:0.#}%", $"Günlük hedef ≈ %{percentPerDay:0.#}");
 
     /// <summary>Badge text shown instead of the pace in a 100% window.</summary>
     public static string FormatConsumedBadge(UsageWindow window, DateTimeOffset now)

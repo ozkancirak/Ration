@@ -169,4 +169,61 @@ public class PaceCalculatorTests
         Assert.Equal(TimeSpan.FromHours(5), Assert.Single(windows, w => w.Kind == WindowKind.Session).WindowLength);
         Assert.Equal(TimeSpan.FromDays(7), Assert.Single(windows, w => w.Kind == WindowKind.Weekly).WindowLength);
     }
+
+    private static UsageWindow Monthly(double percent, TimeSpan remaining, DateTimeOffset now, TimeSpan? length = null) =>
+        new(WindowKind.Monthly, percent, 100, percent, now + remaining, "Monthly", length ?? TimeSpan.FromDays(30));
+
+    [Fact]
+    public void DailyTarget_DividesTheRemainingAllowanceByTheDaysLeft()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        // 40% used, 10 days to the reset: 60% left over 10 days.
+        Assert.Equal(6.0, PaceCalculator.DailyTarget(Monthly(40, TimeSpan.FromDays(10), now), now)!.Value, 6);
+    }
+
+    [Fact]
+    public void DailyTarget_OnTheLastDay_IsTheWholeRemainder()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.Equal(30.0, PaceCalculator.DailyTarget(Monthly(70, TimeSpan.FromHours(6), now), now)!.Value, 6);
+    }
+
+    [Theory]
+    [InlineData(5 * 60 * 60)]
+    [InlineData(7 * 24 * 60 * 60)]
+    public void DailyTarget_ShortWindows_HaveNone(int lengthSeconds)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var window = Monthly(40, TimeSpan.FromHours(2), now, TimeSpan.FromSeconds(lengthSeconds));
+
+        Assert.Null(PaceCalculator.DailyTarget(window, now));
+    }
+
+    [Fact]
+    public void DailyTarget_UsedUpOrPastTheReset_HasNone()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.Null(PaceCalculator.DailyTarget(Monthly(100, TimeSpan.FromDays(3), now), now));
+        Assert.Null(PaceCalculator.DailyTarget(Monthly(40, TimeSpan.FromDays(-1), now), now));
+    }
+
+    [Fact]
+    public void DailyTarget_WithoutResetTimeOrLength_HasNone()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var noReset = new UsageWindow(WindowKind.Monthly, 40, 100, 40, null, "Monthly", TimeSpan.FromDays(30));
+        var noLength = new UsageWindow(WindowKind.Monthly, 40, 100, 40, now.AddDays(5), "Monthly", null);
+
+        Assert.Null(PaceCalculator.DailyTarget(noReset, now));
+        Assert.Null(PaceCalculator.DailyTarget(noLength, now));
+    }
+
+    [Fact]
+    public void DailyTarget_Formatting_RoundsToOneDecimal()
+    {
+        Assert.Equal("Günlük hedef ≈ %6", PaceCalculator.FormatDailyTarget(6.0));
+    }
 }

@@ -42,9 +42,7 @@ public sealed record WindowRow(
                 var remaining = Math.Clamp(100 - window.Percent, 0, 100);
                 string? pace = window.Percent >= 100
                     ? PaceCalculator.FormatConsumedBadge(window, now)
-                    : !stale && PaceCalculator.Calculate(window, now) is { } p
-                        ? PaceCalculator.Format(window, p, now)
-                        : null;
+                    : stale ? null : PaceLine(window, now);
 
                 rows.Add(new WindowRow(
                     heading,
@@ -65,6 +63,15 @@ public sealed record WindowRow(
         }
 
         return rows;
+    }
+
+    /// <summary>Pace and, for monthly allowances, the daily target; null when neither applies.</summary>
+    private static string? PaceLine(UsageWindow window, DateTimeOffset now)
+    {
+        var parts = new List<string>(2);
+        if (PaceCalculator.Calculate(window, now) is { } pace) parts.Add(PaceCalculator.Format(window, pace, now));
+        if (PaceCalculator.DailyTarget(window, now) is { } daily) parts.Add(PaceCalculator.FormatDailyTarget(daily));
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
     }
 
     private static readonly Regex HourLabel = new(@"^(\d+ saatlik|Saatlik|\d+-hour|Hourly)$", RegexOptions.CultureInvariant);
