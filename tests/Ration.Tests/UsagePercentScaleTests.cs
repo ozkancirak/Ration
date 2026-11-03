@@ -8,7 +8,7 @@ namespace Ration.Tests;
 public sealed class UsagePercentScaleTests
 {
     [Fact]
-    public void Claude_UtilizationZatenYuzdedir()
+    public void Claude_UtilizationIsAlreadyAPercent()
     {
         var window = Assert.Single(
             ClaudeUsageParser.ParseWindows("""{"five_hour":{"utilization":27.0}}"""));
@@ -17,7 +17,7 @@ public sealed class UsagePercentScaleTests
     }
 
     [Fact]
-    public void Antigravity_RemainingFraction_RationaDonusur()
+    public void Antigravity_RemainingFraction_BecomesUsedPercent()
     {
         var window = Assert.Single(
             AntigravityUsageParser.ParseWindows(
@@ -27,7 +27,7 @@ public sealed class UsagePercentScaleTests
     }
 
     [Fact]
-    public void Codex_UsedPercentZatenYuzdedir()
+    public void Codex_UsedPercentIsAlreadyAPercent()
     {
         var window = Assert.Single(
             CodexUsageParser.ParseWindows(

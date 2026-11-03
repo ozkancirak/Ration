@@ -34,7 +34,7 @@ public class CodexSessionLogTests : IDisposable
         .Replace("__S__", secondary.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     [Fact]
-    public async Task OturumLogu_PencereleriOkur()
+    public async Task SessionLog_ReadsTheWindows()
     {
         WriteSession("a.jsonl", RateLine(31.5, 7.5));
 
@@ -61,7 +61,7 @@ public class CodexSessionLogTests : IDisposable
     }
 
     [Fact]
-    public async Task EnYeniDosya_Ve_SonSatir_Kazanir()
+    public async Task NewestFileAndLastLine_Win()
     {
         var oldPath = WriteSession("old.jsonl", RateLine(10, 10));
         var newPath = WriteSession("new.jsonl", RateLine(20, 20), RateLine(42, 43));
@@ -75,7 +75,7 @@ public class CodexSessionLogTests : IDisposable
     }
 
     [Fact]
-    public async Task ZamanDamgasi_Yoksa_DosyaZamani_Kullanilir()
+    public async Task MissingTimestamp_UsesTheFileTime()
     {
         const string line = """
             {"type":"response","payload":{"rate_limits":{"primary":{"used_percent":11,"window_minutes":300},"secondary":{"used_percent":12,"window_minutes":10080}}}}
@@ -90,7 +90,7 @@ public class CodexSessionLogTests : IDisposable
     }
 
     [Fact]
-    public async Task RateLimits_Yoksa_DegradedDoner()
+    public async Task MissingRateLimits_ReturnsDegraded()
     {
         WriteSession("c.jsonl", """{"type":"response","payload":{"info":{}}}""");
 
@@ -101,7 +101,7 @@ public class CodexSessionLogTests : IDisposable
     }
 
     [Fact]
-    public async Task OlmayanDizin_Kullanilamaz()
+    public async Task MissingDirectory_IsUnavailable()
     {
         var source = new CodexSessionLogUsageSource(Path.Combine(Path.GetTempPath(), $"ration-yok-{Guid.NewGuid():N}"));
 
@@ -109,7 +109,7 @@ public class CodexSessionLogTests : IDisposable
     }
 
     [Fact]
-    public void Zincirde_OAuthTanSonra_Gelir()
+    public void InTheChain_ComesAfterOAuth()
     {
         using var http = new HttpClient();
         var provider = new CodexProvider(http);

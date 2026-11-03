@@ -11,7 +11,7 @@ namespace Ration.Tests;
 public class ProviderParsingTests
 {
     [Fact]
-    public void ClaudeParser_NesneBicimindekiPencereleriOkur()
+    public void ClaudeParser_ReadsObjectShapedWindows()
     {
         const string json = """
         {
@@ -34,7 +34,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_DuzSayiBicimindekiPencereleriOkur()
+    public void ClaudeParser_ReadsPlainNumberWindows()
     {
         const string json = """{ "five_hour": 73, "seven_day": 12 }""";
 
@@ -46,7 +46,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_TaninmayanAlaniAtlar_UydurmaVeriUretmez()
+    public void ClaudeParser_SkipsUnknownFields_DoesNotMakeUpData()
     {
         const string json = """{ "bambaska_bir_alan": { "utilization": 99 } }""";
 
@@ -54,7 +54,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_AralikDisiYuzdeyiKirpar()
+    public void ClaudeParser_ClampsOutOfRangePercent()
     {
         const string json = """{ "five_hour": 140, "seven_day": -5 }""";
 
@@ -65,7 +65,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_EpochSaniyeVeMilisaniyeyiAyirtEder()
+    public void ClaudeParser_TellsEpochSecondsFromMilliseconds()
     {
         const string json = """
         {
@@ -96,7 +96,7 @@ public class ProviderParsingTests
     """;
 
     [Fact]
-    public void ClaudeParser_LimitsDizisindekiModeleOzelHaftalikPenceresiniOkur()
+    public void ClaudeParser_ReadsTheModelScopedWeeklyWindowFromTheLimitsArray()
     {
         var windows = ClaudeUsageParser.ParseWindows(ScopedLimitsJson);
 
@@ -110,7 +110,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_LimitsGirdisindeYuzdeYoksaAtar_SifirUydurmaz()
+    public void ClaudeParser_DropsALimitsEntryWithoutPercent_DoesNotInventZero()
     {
         const string json = """
         {
@@ -129,7 +129,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_EskiAlanVeLimitsAyniModeliIkiKezEklemez()
+    public void ClaudeParser_OldFieldAndLimits_DoNotAddTheSameModelTwice()
     {
         const string json = """
         {
@@ -149,7 +149,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeParser_LimitsDizisiDegilseYoksayar()
+    public void ClaudeParser_IgnoresLimitsThatIsNotAnArray()
     {
         const string json = """{ "five_hour": 5, "limits": { "kind": "weekly_scoped" } }""";
 
@@ -157,7 +157,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void CodexParser_BirincilVeIkincilPencereleriOkur()
+    public void CodexParser_ReadsPrimaryAndSecondaryWindows()
     {
         const string json = """
         {
@@ -181,7 +181,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void CodexParser_RateLimitSarmalayicisiYoksaKokteArar()
+    public void CodexParser_WithoutARateLimitWrapper_LooksAtTheRoot()
     {
         const string json = """{ "primary_window": { "used_percent": 10 } }""";
 
@@ -192,7 +192,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void KimlikOkuyucular_OlmayanDosyaIcinNullDoner()
+    public void CredentialReaders_ReturnNullForAMissingFile()
     {
         var missing = Path.Combine(Path.GetTempPath(), $"ration-yok-{Guid.NewGuid():N}.json");
 
@@ -201,7 +201,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeKimlik_ClaudeAiOauthYoksaNullDoner()
+    public void ClaudeCredentials_ReturnNullWithoutClaudeAiOauth()
     {
         // In Claude Code 2.1.x the file may contain only mcpOAuth; that is not usable.
         var path = Path.Combine(Path.GetTempPath(), $"ration-test-{Guid.NewGuid():N}.json");
@@ -218,7 +218,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void ClaudeKimlik_GecerliDosyayiOkur_VeSuresiDolmusuIsaretler()
+    public void ClaudeCredentials_ReadAValidFile_AndFlagAnExpiredOne()
     {
         var path = Path.Combine(Path.GetTempPath(), $"ration-test-{Guid.NewGuid():N}.json");
         var gecmisZaman = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeMilliseconds();
@@ -250,7 +250,7 @@ public class ProviderParsingTests
     }
 
     [Fact]
-    public void CodexKimlik_TokensBolumunuOkur()
+    public void CodexCredentials_ReadTheTokensSection()
     {
         var path = Path.Combine(Path.GetTempPath(), $"ration-test-{Guid.NewGuid():N}.json");
 

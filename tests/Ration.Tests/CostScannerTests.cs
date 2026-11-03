@@ -68,7 +68,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
             .Replace("__IN__", input.ToString());
 
     [Fact]
-    public void AsistanSatirlarininTokenlariniToplar()
+    public void SumsTheTokensOfAssistantLines()
     {
         WriteJsonl("a.jsonl",
             AssistantLine("msg_1", "req_1", "ornek-model", 100, 50, cacheRead: 10, cacheCreate: 5),
@@ -87,7 +87,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void ClaudeCacheOkumaNormalGirdidenAyridir()
+    public void ClaudeCacheRead_IsSeparateFromNormalInput()
     {
         WriteJsonl("a.jsonl",
             AssistantLine("msg_1", "req_1", "ornek-model", 100, 10, cacheRead: 80));
@@ -101,7 +101,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void ClaudeOlayZamaniDosyaMtimeindanOnceliklidir()
+    public void ClaudeEventTime_TakesPrecedenceOverFileMtime()
     {
         var now = DateTimeOffset.UtcNow.AddMinutes(-1);
         WriteJsonl("a.jsonl", TimestampedLine(now, "msg_1", "req_1", 7));
@@ -116,7 +116,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void AyniYanitiIkiKezSaymaz()
+    public void SameResponse_IsNotCountedTwice()
     {
         // The same message.id + requestId can appear on two lines (resume record, rewrite).
         WriteJsonl("a.jsonl",
@@ -132,7 +132,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void FarkliRequestIdAyriSayilir()
+    public void DifferentRequestId_IsCountedSeparately()
     {
         WriteJsonl("a.jsonl",
             AssistantLine("msg_1", "req_1", "ornek-model", 100, 0),
@@ -144,7 +144,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void AsistanOlmayanVeBozukSatirlariAtlar()
+    public void NonAssistantAndCorruptLines_AreSkipped()
     {
         WriteJsonl("a.jsonl",
             """{"type":"user","message":{"content":"merhaba"}}""",
@@ -158,7 +158,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void DonemDisiSatirlariAtlar()
+    public void LinesOutsideThePeriod_AreSkipped()
     {
         WriteJsonl("a.jsonl",
             TimestampedLine(DateTimeOffset.UtcNow.AddDays(-40), "msg_1", "req_1", 999),
@@ -170,7 +170,7 @@ public sealed class ClaudeCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void OlmayanDizinIcinBosSonucDoner()
+    public void MissingDirectory_ReturnsEmptyResult()
     {
         var result = ClaudeCostScanner.Scan(
             DateTimeOffset.UtcNow.AddDays(-1),
@@ -230,7 +230,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void ModelYazilmayanOturum_CodexDurumVeritabanindanModelAlir()
+    public void SessionWithoutModel_TakesTheModelFromTheCodexStateDatabase()
     {
         // Synthetic Codex home directory: sessions/ + state_5.sqlite (threads: rollout_path, model).
         var home = Path.Combine(_dir, "home");
@@ -254,7 +254,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void CodexCacheGirdisiniNormalGirdidenAyrir()
+    public void CodexCacheInput_IsSeparatedFromNormalInput()
     {
         WriteJsonl(TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 100, 80, 10));
 
@@ -268,7 +268,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void TekrarlananLastUsageIkiKezSayilmaz()
+    public void RepeatedLastUsage_IsNotCountedTwice()
     {
         var line = TokenLine(DateTimeOffset.UtcNow.AddMinutes(-1), 100, 80, 10);
         WriteJsonl(line, line);
@@ -279,7 +279,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void KumulatifToplamYalnizcaDonemIlerlemesiniSayar()
+    public void CumulativeTotal_CountsOnlyTheProgressOfThePeriod()
     {
         var since = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
         WriteJsonl(
@@ -295,7 +295,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void OlayZamaniDosyaMtimeindanOnceliklidir()
+    public void EventTime_TakesPrecedenceOverFileMtime()
     {
         var current = DateTimeOffset.UtcNow.AddMinutes(-1);
         WriteJsonl(
@@ -312,7 +312,7 @@ public sealed class CodexCostScannerTests : IDisposable
     }
 
     [Fact]
-    public void ZamanDamgasiYoksaDonemBelirsizIsaretlenir()
+    public void MissingTimestamp_MarksThePeriodAsUncertain()
     {
         WriteJsonl(TokenLine(null, 7, 0, 0));
 
@@ -325,7 +325,7 @@ public sealed class CodexCostScannerTests : IDisposable
 public class PricingTests
 {
     [Fact]
-    public void EnUzunOnekEslesmesiKazanir()
+    public void LongestPrefixMatch_Wins()
     {
         var table = new PricingTable(new Dictionary<string, ModelRate>
         {
@@ -339,7 +339,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void FiyatiBilinmeyenModelMaliyeteKatilmazAmaRaporlanir()
+    public void ModelWithoutPrice_IsExcludedFromCostButReported()
     {
         var tally = new TokenTally();
         tally.Add("fiyatli-model", 1_000_000, 1_000_000, 0, 0);
@@ -362,7 +362,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void BosTabloylaMaliyetSifirdirAmaTokenlarDurur()
+    public void EmptyTable_GivesZeroCostButTokensRemain()
     {
         var tally = new TokenTally();
         tally.Add("herhangi-model", 1_000, 2_000, 0, 0);
@@ -377,7 +377,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void BilinmeyenOlayZamaniRaporeTasiniyor()
+    public void UnknownEventTime_IsCarriedIntoTheReport()
     {
         var tally = new TokenTally();
         tally.Add("model", 10, 0, 0, 0);
@@ -396,7 +396,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void LiteLlmFiyatlariTokenBasinaDonusturulurVeAliasEklenir()
+    public void LiteLlmPerTokenPrices_AreConvertedAndAliasesAdded()
     {
         var downloadedAt = new DateTimeOffset(2026, 9, 21, 12, 0, 0, TimeSpan.Zero);
         var table = PricingTable.FromLiteLlmJson("""
@@ -422,7 +422,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void ModelsDevMaliyetSemasiniOkur()
+    public void ModelsDevCostSchema_IsRead()
     {
         var table = PricingTable.FromModelsDevJson("""
             {
@@ -452,7 +452,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void FiyatZincirindeIlkKaynakKazanir()
+    public void FirstSourceInThePriceChain_Wins()
     {
         var first = new PricingTable(new Dictionary<string, ModelRate>
         {
@@ -472,7 +472,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void ModelBazliTokenlarVeEnCokKullanilanModelTasincir()
+    public void PerModelTokensAndTheMostUsedModel_AreCarried()
     {
         var tally = new TokenTally();
         tally.Add("az-model", 10, 10, 0, 0);
@@ -492,7 +492,7 @@ public class PricingTests
     }
 
     [Fact]
-    public void UcretsizModelParaliOnekFiyatinaEslenmez()
+    public void FreeModel_IsNotMatchedToAPaidPrefixPrice()
     {
         var freeCatalogPath = Path.Combine(
             Path.GetTempPath(),
@@ -550,7 +550,7 @@ public sealed class JsonlSchemaProbeTests : IDisposable
     }
 
     [Fact]
-    public void AnahtarYollariniVerirDegerleriVermez()
+    public void GivesKeyPathsButNotValues()
     {
         File.WriteAllLines(Path.Combine(_dir, "oturum.jsonl"), new[]
         {
@@ -568,7 +568,7 @@ public sealed class JsonlSchemaProbeTests : IDisposable
     }
 
     [Fact]
-    public void FiltreyleEslesmeyenSatirlariAtlar()
+    public void LinesNotMatchingTheFilter_AreSkipped()
     {
         File.WriteAllLines(Path.Combine(_dir, "oturum.jsonl"), new[]
         {
@@ -584,7 +584,7 @@ public sealed class JsonlSchemaProbeTests : IDisposable
 public sealed class TokenTallyDailyTests
 {
     [Fact]
-    public void GunlukKovalar_YerelGuneGoreAyrilir_ZamaniOlmayanGrafigeGirmez()
+    public void DailyBuckets_SplitByLocalDay_UntimedEventsStayOutOfTheChart()
     {
         var tally = new TokenTally();
         var day1 = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 9, 20)));
@@ -602,7 +602,7 @@ public sealed class TokenTallyDailyTests
     }
 
     [Fact]
-    public void SinceDay_TekTaramadanBugunuModelKirilimiylaTuretir()
+    public void SinceDay_DerivesTodayWithModelBreakdownFromASingleScan()
     {
         var tally = new TokenTally();
         var offset = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 9, 20));

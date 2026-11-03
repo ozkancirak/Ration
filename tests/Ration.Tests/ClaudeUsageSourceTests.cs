@@ -8,7 +8,7 @@ namespace Ration.Tests;
 public sealed class ClaudeUsageSourceTests
 {
     [Fact]
-    public async Task SuresiGecmisToken_YenilemedenGonderilir_Ve401deOturumMesajiDoner()
+    public async Task ExpiredToken_IsSentWithoutRefreshing_AndA401ReturnsTheSessionMessage()
     {
         var handler = new RecordingHandler((request, _) =>
         {
@@ -37,7 +37,7 @@ public sealed class ClaudeUsageSourceTests
     }
 
     [Fact]
-    public async Task Kota429_RetryAfterVeHttpKoduTanidaGorunur()
+    public async Task Quota429_RetryAfterAndHttpCode_AreVisibleInDiagnostics()
     {
         var handler = new RecordingHandler((_, _) =>
         {
@@ -86,7 +86,7 @@ public sealed class ClaudeUsageSourceTests
     [Theory]
     [InlineData("bu bir tarih degil")]
     [InlineData("")]
-    public async Task BozukRetryAfterDosyasi_YoksayilirVeAgaCikilir(string icerik)
+    public async Task CorruptRetryAfterFile_IsIgnored_AndTheNetworkIsUsed(string icerik)
     {
         var (source, handler, retryFile) = RetryAfterKaynagi(icerik);
         try
@@ -103,7 +103,7 @@ public sealed class ClaudeUsageSourceTests
     }
 
     [Fact]
-    public async Task SuresiGecmisRetryAfter_YoksayilirVeAgaCikilir()
+    public async Task ExpiredRetryAfter_IsIgnored_AndTheNetworkIsUsed()
     {
         var (source, handler, retryFile) = RetryAfterKaynagi(DateTimeOffset.UtcNow.AddMinutes(-5).ToString("O"));
         try
@@ -120,7 +120,7 @@ public sealed class ClaudeUsageSourceTests
     }
 
     [Fact]
-    public async Task CokUzakRetryAfter_YoksayilirVeAgaCikilir()
+    public async Task RetryAfterTooFarAhead_IsIgnored_AndTheNetworkIsUsed()
     {
         var (source, handler, retryFile) = RetryAfterKaynagi(DateTimeOffset.UtcNow.AddDays(30).ToString("O"));
         try
@@ -137,7 +137,7 @@ public sealed class ClaudeUsageSourceTests
     }
 
     [Fact]
-    public async Task Kota429_CokUzunRetryAfter_BirSaatleSinirlanir()
+    public async Task Quota429_VeryLongRetryAfter_IsClampedToOneHour()
     {
         var handler = new RecordingHandler((_, _) =>
         {
@@ -222,7 +222,7 @@ public sealed class ClaudeStatusLineTests : IDisposable
     public void Dispose() => File.Delete(_path);
 
     [Fact]
-    public void Yakalama_YalnizcaKotaAlanlariniYazar_VeGeriOkunur()
+    public void Capture_WritesOnlyTheQuotaFields_AndReadsThemBack()
     {
         var limits = ClaudeStatusLine.Capture(Input, _path);
 
@@ -239,7 +239,7 @@ public sealed class ClaudeStatusLineTests : IDisposable
     }
 
     [Fact]
-    public void EksikGirdi_OncekiTamKaydiEzmez()
+    public void IncompleteInput_DoesNotOverwriteThePreviousCompleteRecord()
     {
         ClaudeStatusLine.Capture(Input, _path);
 
@@ -248,7 +248,7 @@ public sealed class ClaudeStatusLineTests : IDisposable
     }
 
     [Fact]
-    public async Task TazeKayitOk_EskiKayitVeriyleBirlikteDegraded()
+    public async Task FreshRecord_IsOk_OldRecordIsDegradedWithData()
     {
         ClaudeStatusLine.Capture(Input, _path, DateTimeOffset.UtcNow);
         var fresh = await new ClaudeStatusLineUsageSource(_path).FetchAsync();
@@ -262,7 +262,7 @@ public sealed class ClaudeStatusLineTests : IDisposable
     }
 
     [Fact]
-    public async Task Resolver_VeriIcerenBayatSonucuHatayaTercihEder()
+    public async Task Resolver_PrefersAStaleResultWithDataOverAnError()
     {
         ClaudeStatusLine.Capture(Input, _path, DateTimeOffset.UtcNow.AddHours(-1));
         var provider = new StubProvider(new FailingSource(), new ClaudeStatusLineUsageSource(_path));

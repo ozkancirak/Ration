@@ -56,7 +56,7 @@ public class CodexSchemaTests
     """;
 
     [Fact]
-    public void AnaPencerelerAdiniPencereUzunlugundanTuretir()
+    public void MainWindows_DeriveTheNameFromTheWindowLength()
     {
         var usage = CodexUsageParser.Parse(GercekSekilliYanit);
 
@@ -70,7 +70,7 @@ public class CodexSchemaTests
     }
 
     [Fact]
-    public void ResetAtEpochSaniyeOlarakOkunur()
+    public void ResetAt_IsReadAsEpochSeconds()
     {
         var usage = CodexUsageParser.Parse(GercekSekilliYanit);
 
@@ -82,7 +82,7 @@ public class CodexSchemaTests
     }
 
     [Fact]
-    public void ModelBazliEkKotalarPencereOlarakEklenir()
+    public void PerModelExtraQuotas_AreAddedAsWindows()
     {
         var usage = CodexUsageParser.Parse(GercekSekilliYanit);
 
@@ -93,7 +93,7 @@ public class CodexSchemaTests
     }
 
     [Fact]
-    public void PlanAdiVeKrediOkunur()
+    public void PlanNameAndCredits_AreRead()
     {
         var usage = CodexUsageParser.Parse(GercekSekilliYanit);
 
@@ -108,13 +108,13 @@ public class CodexSchemaTests
     [InlineData(86400, "Günlük")]
     [InlineData(2592000, "Aylık")]
     [InlineData(259200, "3 günlük")]
-    public void PencereAdiSureyeGoreTuretilir(double saniye, string beklenen)
+    public void WindowName_IsDerivedFromTheDuration(double saniye, string beklenen)
     {
         Assert.Equal(beklenen, CodexUsageParser.DescribeWindow(saniye, WindowKind.Session));
     }
 
     [Fact]
-    public void SureBilinmiyorsaTureDuser()
+    public void UnknownDuration_FallsBackToTheKind()
     {
         Assert.Equal("Haftalık", CodexUsageParser.DescribeWindow(null, WindowKind.Weekly));
         Assert.Equal("Oturum", CodexUsageParser.DescribeWindow(0, WindowKind.Session));
@@ -124,7 +124,7 @@ public class CodexSchemaTests
 public class RawResponseRedactorTests
 {
     [Fact]
-    public void KimlikAlanlariniMaskeler()
+    public void IdentityFields_AreMasked()
     {
         const string json = """
         {
@@ -147,7 +147,7 @@ public class RawResponseRedactorTests
     }
 
     [Fact]
-    public void IcIceGecmisNesneVeDizilerdeDeMaskeler()
+    public void NestedObjectsAndArrays_AreMaskedToo()
     {
         const string json = """
         { "data": [ { "email": "ornek@example.com", "used_percent": 42 } ] }
@@ -160,7 +160,7 @@ public class RawResponseRedactorTests
     }
 
     [Fact]
-    public void AyristirilamayanYanitiHicGostermez()
+    public void UnparsableResponse_IsNeverShown()
     {
         var redacted = RawResponseRedactor.Redact("bu json degil <html>ornek@example.com</html>");
 
@@ -168,7 +168,7 @@ public class RawResponseRedactorTests
     }
 
     [Fact]
-    public void TokenAlanlariniMaskeler()
+    public void TokenFields_AreMasked()
     {
         const string json = """
         {
