@@ -5,18 +5,18 @@ using Ration.Platform.Windows.Interop;
 namespace Ration.Platform.Windows.Tray;
 
 /// <summary>
-/// Ham Shell_NotifyIcon tepsi simgesi. WinForms NotifyIcon'un yerini alır; uygulamaya
-/// bütün WinForms'u taşımamak için gizli pencere kendimiz açılır.
+/// Raw Shell_NotifyIcon tray icon. Replaces WinForms NotifyIcon; to avoid bringing all of WinForms
+/// into the app, we create the hidden window ourselves.
 ///
-/// Sahiplik: HICON çağıranındır. <see cref="UpdateIcon"/> yeni handle'ı kabuğa verir;
-/// çağıran ancak bundan SONRA önceki handle'ı yok eder.
-/// Oluşturulduğu thread'de mesaj döngüsü olmalıdır (WinUI UI thread'i).
+/// Ownership: the HICON belongs to the caller. <see cref="UpdateIcon"/> gives the new handle to the shell;
+/// only AFTER that does the caller destroy the previous handle.
+/// It must be created on a thread with a message loop (the WinUI UI thread).
 /// </summary>
 public sealed class SystemTrayHost : IDisposable
 {
     private const uint IconId = 1;
 
-    private readonly WndProc _wndProc; // GC toplamasın: native taraf bu delegeyi çağırır
+    private readonly WndProc _wndProc; // Keep from being garbage collected: the native side calls this delegate
     private readonly string _className = "Ration.Tray." + Guid.NewGuid().ToString("N");
     private readonly uint _taskbarCreated;
     private readonly IntPtr _hwnd;
@@ -42,8 +42,8 @@ public sealed class SystemTrayHost : IDisposable
         };
         RegisterClassEx(ref wc);
 
-        // Mesaj-yalnız pencere (HWND_MESSAGE) TaskbarCreated yayınını almaz; bu yüzden
-        // hiç gösterilmeyen üst düzey pencere açılır (WinForms NotifyIcon da böyle yapar).
+        // A message-only window (HWND_MESSAGE) does not receive the TaskbarCreated broadcast; so a top-level
+        // window that is never shown is created (WinForms NotifyIcon does the same).
         _hwnd = CreateWindowEx(0, _className, "Ration Tray", 0, 0, 0, 0, 0,
             IntPtr.Zero, IntPtr.Zero, wc.hInstance, IntPtr.Zero);
         if (_hwnd == IntPtr.Zero)
@@ -64,12 +64,12 @@ public sealed class SystemTrayHost : IDisposable
     {
         if (_disposed) return;
 
-        // szTip 128 karakter (sonuncusu null); desteklenen Windows sürümleri tamamını gösterir.
+        // szTip is 128 characters (the last one null); supported Windows versions show all of it.
         _tooltip = tooltip.Length > 127 ? tooltip[..124] + "…" : tooltip;
         if (_added) Apply();
     }
 
-    /// <summary>Simgenin ekran dikdörtgeni; kabuk henüz eklemediyse false.</summary>
+    /// <summary>The icon's screen rectangle; false if the shell has not added it yet.</summary>
     public bool TryGetBounds(out NativeMethods.RECT bounds)
     {
         bounds = default;
@@ -123,7 +123,7 @@ public sealed class SystemTrayHost : IDisposable
             return IntPtr.Zero;
         }
 
-        // Explorer yeniden başladı: simge kayboldu, tekrar ekle.
+        // Explorer restarted: the icon disappeared, add it again.
         if (_taskbarCreated != 0 && msg == _taskbarCreated)
         {
             _added = false;

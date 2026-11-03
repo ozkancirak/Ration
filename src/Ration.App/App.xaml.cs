@@ -14,17 +14,17 @@ public partial class App : Application
     private SettingsWindow? _settingsWindow;
     private SingleInstanceLease? _singleInstance;
 
-    /// <summary>Açılışta uygulanan tema; değişirse yeniden başlatma gerekir.</summary>
+    /// <summary>Theme applied at startup; a restart is needed if it changes.</summary>
     public static bool AppliedLightTheme { get; private set; }
 
     public App()
     {
         InitializeComponent();
 
-        // Tema uygulama düzeyinde belirlenmeli: koddan alınan fırçalar ve şablon içi
-        // ThemeResource'lar Application temasından çözülür; yalnızca kök öğeye
-        // RequestedTheme vermek karışık renkler bırakıyordu. WinUI bunu yalnızca açılışta
-        // kabul eder; tema değişince FlyoutWindow uygulamayı yeniden başlatır.
+        // The theme must be set at the application level: brushes taken from code and ThemeResources inside
+        // templates are resolved from the Application theme; giving RequestedTheme only to the root element
+        // left mixed colors. WinUI accepts this only at startup; when the theme changes FlyoutWindow
+        // restarts the app.
         RequestedTheme = AppThemePreference.IsAppLightTheme() ? ApplicationTheme.Light : ApplicationTheme.Dark;
         AppliedLightTheme = AppThemePreference.IsAppLightTheme();
 
@@ -88,8 +88,8 @@ public partial class App : Application
                 return;
             }
 
-            // --show/--settings/--menu/--selftest/--screenshot: el ile düzen ve
-            // görsel doğrulama kancaları. Self-test normal açılışta çalışmaz.
+            // --show/--settings/--menu/--selftest/--screenshot: hooks for manual layout and
+            // visual verification. The self-test does not run on a normal launch.
             Window? targetWindow = null;
             if (HasFlag(cmdArgs, "--selftest"))
             {
@@ -146,7 +146,7 @@ public partial class App : Application
                 IntPtr targetHwnd = WinRT.Interop.WindowNative.GetWindowHandle(targetWindow);
                 _ = Task.Run(async () =>
                 {
-                    // Arayüz bileşenlerinin tam çizilmesi ve animasyonun oturması için bekleme
+                    // Wait for the UI components to be fully drawn and the animation to settle
                     await Task.Delay(verificationProvider is null ? 800 : 6000);
                     if (screenshotBottom && _flyoutWindow is not null)
                     {

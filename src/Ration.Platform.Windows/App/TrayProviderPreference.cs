@@ -3,9 +3,8 @@ using Ration.Core.Settings;
 namespace Ration.Platform.Windows.App;
 
 /// <summary>
-/// Tepsi ikonunda gösterilecek sağlayıcı. null = otomatik (en çok kullanılan).
-/// Önceden yalnızca bellekte tutuluyordu; her açılışta ve tema yeniden
-/// başlatmasında "Otomatik"e dönüyordu.
+/// The provider shown in the tray icon. null = automatic (the most used).
+/// It used to be kept in memory only; it went back to "Automatic" on every launch and theme restart.
 /// </summary>
 public static class TrayProviderPreference
 {

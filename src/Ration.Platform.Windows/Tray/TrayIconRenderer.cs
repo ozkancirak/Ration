@@ -5,17 +5,17 @@ using Ration.Platform.Windows.Theme;
 namespace Ration.Platform.Windows.Tray;
 
 /// <summary>
-/// Windows 11 sistem tepsisi için piksel hizalı dikey tank/gauge ikonu üreticisi.
-/// Windows 11 WiFi, Pil ve Ses ikonlarının hollow/line-art tasarım diliyle tam uyumludur:
-/// - Katı blok yerine içi boş dikey çerçeve (outline) ve aşağıdan yukarıya doluluk seviyesi.
-/// - Dolgu kullanılabilir kotadır: (100 - Percent) / 100. %100 kullanım = boş tank.
-/// - 16px'te 1px çizgi, 32px'te 2px çizgi (DPI ölçekleme).
-/// - SmoothingMode.None ile tam piksel kenar keskinliği (bulanıklaşma önleyici).
-/// - Renk kuralları (flyout ölçerindeki üç eşik buraya girmez):
-///     Normal: Monokrom (koyu zeminde beyaz, açık zeminde siyah) — kontur ve dolgu tek renk.
-///     Percent >= 90: dolgu kırmızı (kritik). Kontur her zaman monokrom kalır.
-///     Yüksek kontrast: Sistem renkleri (SystemColors.WindowText).
-///     Tray ikonunda ASLA accent rengi kullanılmaz.
+/// Pixel-aligned vertical tank/gauge icon generator for the Windows 11 system tray.
+/// Fully consistent with the hollow/line-art design language of the Windows 11 WiFi, Battery and Volume icons:
+/// - A hollow vertical frame (outline) instead of a solid block, with a fill level from bottom to top.
+/// - The fill is the usable quota: (100 - Percent) / 100. 100% usage = empty tank.
+/// - 1px line at 16px, 2px line at 32px (DPI scaling).
+/// - SmoothingMode.None for exact pixel edge sharpness (prevents blurring).
+/// - Color rules (the three thresholds of the flyout meter do not apply here):
+///     Normal: Monochrome (white on a dark background, black on a light one) — outline and fill are one color.
+///     Percent >= 90: the fill is red (critical). The outline always stays monochrome.
+///     High contrast: System colors (SystemColors.WindowText).
+///     The accent color is NEVER used in the tray icon.
 /// </summary>
 public static class TrayIconRenderer
 {
@@ -25,8 +25,8 @@ public static class TrayIconRenderer
             && !double.IsNaN(value)
             && !double.IsInfinity(value);
         double usage = hasData ? Math.Clamp(percentage!.Value, 0, 100) : 0;
-        // Çağıran SM_CXSMICON değerini aynen verir; küçük DPI kutusunu 16'ya
-        // zorlamak, Shell'in istediği ikon alanını yeniden büyütüp taşırır.
+        // The caller passes the SM_CXSMICON value as is; forcing the small DPI box to 16 would again enlarge
+        // the icon area the shell asks for and overflow it.
         size = Math.Max(8, size);
 
         var bitmap = new Bitmap(size, size);
@@ -49,33 +49,33 @@ public static class TrayIconRenderer
             }
             else
             {
-                // Çerçeve her zaman görev çubuğu zeminine zıt monokrom renktir
+                // The frame is always a monochrome color contrasting with the taskbar background
                 borderColor = isLightTheme
                     ? Color.FromArgb(255, 0, 0, 0)
                     : Color.FromArgb(255, 255, 255, 255);
 
                 if (hasData && usage >= 90)
                 {
-                    // Kritik (%90+): dolgu kırmızı. Kontur monokrom kalır.
+                    // Critical (90%+): the fill is red. The outline stays monochrome.
                     fillColor = isLightTheme
                         ? Color.FromArgb(220, 38, 38)   // #DC2626
                         : Color.FromArgb(239, 68, 68);  // #EF4444
                 }
                 else
                 {
-                    // Dolgu konturdan ayrı tonda kalır; iki seviye 16px'te bile seçilir.
+                    // The fill stays a different shade from the outline; the two levels are distinguishable even at 16px.
                     fillColor = isLightTheme
                         ? Color.FromArgb(120, 0, 0, 0)
                         : Color.FromArgb(170, 255, 255, 255);
                 }
             }
 
-            // DPI ölçeklemesi ve piksel sınırları
+            // DPI scaling and pixel boundaries
             float scale = size / 16.0f;
             int borderWidth = Math.Max(1, (int)Math.Floor(scale)); // 16px -> 1px, 32px -> 2px
 
-            // GetSystemMetricsForDpi ile gelen kutuyu optik olarak doldur; önceki 8px
-            // gövde tepsi ikonunun yalnızca yarısını kullanıyordu.
+            // Fill the box coming from GetSystemMetricsForDpi optically; the previous 8px
+            // body used only half of the tray icon.
             int edgeInset = Math.Max(borderWidth, (int)Math.Round(size / 16.0f));
             int tankW = Math.Max(2 * borderWidth + 1, size - (2 * edgeInset));
             int tankH = Math.Max(2 * borderWidth + 1, size - (2 * edgeInset));
@@ -90,7 +90,7 @@ public static class TrayIconRenderer
 
             if (hasData && innerW > 0 && innerH > 0)
             {
-                // Dolgu kullanılabilir kotadır: %0 kullanım = dolu tank, %100 = boş tank.
+                // The fill is the usable quota: 0% usage = full tank, 100% = empty tank.
                 double remainingFraction = (100.0 - usage) / 100.0;
                 int fillH = (int)Math.Round(remainingFraction * innerH);
                 if (fillH == 0 && remainingFraction > 0) fillH = 1;
@@ -106,7 +106,7 @@ public static class TrayIconRenderer
             }
             else if (!hasData && innerW > 0 && innerH > 0)
             {
-                // Veri yok: dolgu yok; yalnızca ortada ince bir bilinmiyor işareti.
+                // No data: no fill; only a thin unknown marker in the middle.
                 int dashWidth = Math.Max(borderWidth * 2, innerW / 2);
                 int dashX = tankX + (tankW - dashWidth) / 2;
                 int dashY = tankY + (tankH - borderWidth) / 2;
@@ -114,9 +114,8 @@ public static class TrayIconRenderer
                 g.FillRectangle(dashBrush, dashX, dashY, dashWidth, borderWidth);
             }
 
-            // Konturu en son çiz: dolgu hiçbir zaman çerçeveyi yutamaz. Kalem çizgiyi
-            // ortalayıp 2px ve üstünde bir tarafı taşırdığı için çerçeve tam piksel
-            // dikdörtgenlerle çizilir.
+            // Draw the outline last: the fill can never swallow the frame. Since the pen centers the line
+            // and spills to one side at 2px and above, the frame is drawn with exact-pixel rectangles.
             using var borderBrush = new SolidBrush(borderColor);
             g.FillRectangle(borderBrush, tankX, tankY, tankW, borderWidth);
             g.FillRectangle(borderBrush, tankX, tankY + tankH - borderWidth, tankW, borderWidth);

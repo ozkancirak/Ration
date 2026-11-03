@@ -31,13 +31,13 @@ public sealed partial class SettingsWindow : Window
 
     public event Action<string?>? TrayProviderChanged;
 
-    /// <summary>Etkin dil değişti; uygulama yeniden başlamalı (FlyoutWindow yapar).</summary>
+    /// <summary>The effective language changed; the app must restart (FlyoutWindow does it).</summary>
     public event Action? LanguageChanged;
 
-    /// <summary>Güncelleme çıkışta uygulanmak üzere zamanlandı; uygulama kapanmalı (FlyoutWindow yapar).</summary>
+    /// <summary>The update was scheduled to be applied on exit; the app must close (FlyoutWindow does it).</summary>
     public event Action? UpdateRestartRequested;
 
-    /// <summary>Ayarlar silindi; tema ve dil açılışta uygulandığı için uygulama yeniden başlamalı.</summary>
+    /// <summary>The settings were deleted; since theme and language are applied at startup the app must restart.</summary>
     public event Action? SettingsReset;
 
     public SettingsWindow()
@@ -102,7 +102,7 @@ public sealed partial class SettingsWindow : Window
             if (LanguageSelection.SelectedItem is not ComboBoxItem { Tag: string tag }) return;
             var selected = L.FromTag(tag);
             L.Preference = selected;
-            // "Sistem" seçimi etkin dili değiştirmiyorsa yeniden başlatmaya gerek yok.
+            // If the "System" choice does not change the effective language, no restart is needed.
             if (L.Resolve(selected) != L.Turkish) LanguageChanged?.Invoke();
         };
 
@@ -154,7 +154,7 @@ public sealed partial class SettingsWindow : Window
         PrereleaseToggle.Toggled += async (_, _) =>
         {
             AppUpdates.IncludePrerelease = PrereleaseToggle.IsOn;
-            // Kanal değişince önceki sonuç (ör. bir beta) artık geçerli olmayabilir.
+            // When the channel changes the previous result (e.g. a beta) may no longer be valid.
             await CheckForUpdatesAsync();
         };
         CheckUpdatesButton.Click += async (_, _) => await CheckForUpdatesAsync();
@@ -190,11 +190,11 @@ public sealed partial class SettingsWindow : Window
             ref backdropType,
             sizeof(int));
 
-        // ExtendsContentIntoTitleBar = true, SetTitleBar ile özel başlık
+        // ExtendsContentIntoTitleBar = true, custom title bar with SetTitleBar
         this.ExtendsContentIntoTitleBar = true;
         this.SetTitleBar(AppTitleBar);
 
-        // Tur 5: Başlangıç 520×640; içerik ScrollViewer ile dar yükseklikte kayar.
+        // Round 5: Initial 520×640; the content scrolls with a ScrollViewer at narrow heights.
         uint dpi = NativeMethods.GetDpiForWindow(_hwnd);
         if (dpi == 0) dpi = NativeMethods.GetDpiForSystem();
         double scale = dpi / 96.0;
@@ -210,7 +210,7 @@ public sealed partial class SettingsWindow : Window
 
         _appWindow.Resize(new SizeInt32(width, height));
 
-        // Pencere çerçevesi için Immersive Dark Mode
+        // Immersive Dark Mode for the window frame
         UpdateWindowFrameTheme();
         WindowsThemeListener.ThemeChanged += OnThemeChanged;
 
@@ -219,7 +219,7 @@ public sealed partial class SettingsWindow : Window
 
         _appWindow.Closing += (s, e) =>
         {
-            // Tamamen kapatmak yerine gizle; tray'den tıklandığında anında açılsın
+            // Hide instead of closing completely; so it opens instantly when clicked from the tray
             e.Cancel = true;
             _appWindow.Hide();
             Trace.Info("window", "settings.hide");
@@ -260,8 +260,8 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Açıklama expander'ın kendi alanında dururken ikonun altına düşüyordu; başlığın
-    /// içine, adın altına taşınır. XAML'daki metin ilk seferde Tag'e saklanır.
+    /// The description stayed in the expander's own area and dropped under the icon; it is moved into the
+    /// header, under the name. The text in the XAML is saved to Tag the first time.
     /// </summary>
     private static void SetProviderHeader(SettingsExpander expander, string providerId, string name)
     {
@@ -281,8 +281,8 @@ public sealed partial class SettingsWindow : Window
             ref darkMode,
             sizeof(int));
 
-        // İçerik başlık çubuğuna uzatıldığı için kapat/büyüt düğmeleri sistem temasını
-        // izliyordu: koyu tema zorlanınca koyu zeminde siyah kalıyorlardı.
+        // Since the content is extended into the title bar, the close/maximize buttons followed the system
+        // theme: when the dark theme was forced they stayed black on a dark background.
         _appWindow.TitleBar.PreferredTheme = isDark ? TitleBarTheme.Dark : TitleBarTheme.Light;
     }
 
@@ -306,9 +306,9 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Maliyet taramasının gerçek durumu: tarama ayarsız her zaman çalışır
-    /// (kapatma düğmesi yok, o yüzden pasif toggle yalan söyler); para tutarı
-    /// ise pricing.json ister. Durum etiketi + tek satır sebep yazılır.
+    /// The real state of the cost scan: the scan always runs regardless of settings (there is no off
+    /// switch, so a disabled toggle would lie); the money amount, however, needs pricing.json.
+    /// A status label + a single-line reason are written.
     /// </summary>
     private void RefreshCostStatus()
     {
@@ -321,8 +321,8 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// ~/.claude/settings.json'a eklenecek statusLine satırını panoya koyar. Ration o dosyaya
-    /// kendisi yazmaz; kullanıcı yapıştırır.
+    /// Puts the statusLine line to be added to ~/.claude/settings.json on the clipboard. Ration does not write
+    /// to that file itself; the user pastes it.
     /// </summary>
     private async void CopyStatusLineSnippet()
     {
@@ -360,7 +360,7 @@ public sealed partial class SettingsWindow : Window
             ClaudeProviderStatus,
             claude is { IsExpired: false },
             L.T("Credentials found", "Kimlik bulundu"),
-            // Süresi geçmiş oturum da bir sorundur: uyarı rozetiyle gösterilir (yeşil yanıltıyordu).
+            // An expired session is also a problem: shown with a warning badge (green was misleading).
             claude is null ? L.T("No credentials found", "Kimlik bulunamadı") : L.T("Session expired — run Claude Code", "Oturum süresi geçmiş — Claude Code'u çalıştırın"));
 
         var codex = CodexCredentialStore.TryRead();
@@ -371,7 +371,7 @@ public sealed partial class SettingsWindow : Window
             L.T("Credentials found", "Kimlik bulundu"),
             L.T("No credentials found", "Kimlik bulunamadı"));
 
-        // Antigravity verisi yerel dil sunucusundan gelir; uygulama kapalıyken güncellenmez.
+        // Antigravity data comes from the local language server; it is not updated while the app is closed.
         var antigravityRunning = IsProcessRunning("Antigravity") || IsProcessRunning("language_server");
         SetProviderStatus(
             AntigravityProviderBadge,
@@ -410,9 +410,9 @@ public sealed partial class SettingsWindow : Window
         yield return (AntigravityNotifyToggle, "antigravity");
     }
 
-    // Kısayol yakalama: düğmeye tıklayınca bir sonraki geçerli birleşim kaydedilir. Yakalarken
-    // kayıtlı kısayol bırakılır (HotkeyPreference.Capturing); yoksa aynı birleşime basmak
-    // pencereye hiç ulaşmazdı.
+    // Hotkey capture: clicking the button saves the next valid combination. While capturing, the registered
+    // hotkey is released (HotkeyPreference.Capturing); otherwise pressing the same combination
+    // would never reach the window.
     private bool _capturingHotkey;
 
     private void ShowHotkey()
@@ -422,7 +422,7 @@ public sealed partial class SettingsWindow : Window
 
         if (HotkeyPreference.RegistrationFailed)
         {
-            // Bölüm kapalıyken de görünsün diye açılır.
+            // Expanded so that it is visible even when the section is collapsed.
             HotkeyExpander.Description = L.T(
                 $"{text} is already used by another app. Choose another combination.",
                 $"{text} başka bir uygulama tarafından kullanılıyor. Başka bir birleşim seç.");
@@ -466,7 +466,7 @@ public sealed partial class SettingsWindow : Window
         if (IsKeyDown(Windows.System.VirtualKey.Shift)) modifiers |= Hotkey.Shift;
         if (IsKeyDown(Windows.System.VirtualKey.LeftWindows) || IsKeyDown(Windows.System.VirtualKey.RightWindows)) modifiers |= Hotkey.Win;
 
-        // Yalnız değiştirici ya da desteklenmeyen tuş: yakalamaya devam.
+        // Only a modifier or an unsupported key: keep capturing.
         if (!Hotkey.TryCreate(modifiers, (int)e.Key, out var hotkey)) return;
 
         HotkeyPreference.Set(hotkey);
@@ -477,7 +477,7 @@ public sealed partial class SettingsWindow : Window
         Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
 
-    // Genel anahtar kapalıyken eşik ve sağlayıcı seçenekleri etkisizdir.
+    // While the master switch is off, the threshold and provider options have no effect.
     private void SetNotificationOptionsEnabled(bool enabled)
     {
         LowThresholdSelection.IsEnabled = enabled;
@@ -508,7 +508,7 @@ public sealed partial class SettingsWindow : Window
         UpdateStatusText.Text = L.T("Downloading…", "İndiriliyor…");
         UpdateProgress.Value = 0;
         UpdateProgress.Visibility = Visibility.Visible;
-        // Progress<T> arayüz iş parçacığının bağlamını yakalar; Velopack başka iş parçacığından bildirir.
+        // Progress<T> captures the UI thread's context; Velopack reports from another thread.
         var progress = new Progress<int>(percent =>
         {
             UpdateProgress.Value = percent;
@@ -524,7 +524,7 @@ public sealed partial class SettingsWindow : Window
                 return;
             }
 
-            // Hata uygulamayı etkilemez: düğme açık kalır, aynı eylem yeniden denenebilir.
+            // An error does not affect the app: the button stays enabled, the same action can be retried.
             UpdateStatusText.Text = outcome switch
             {
                 UpdateDownloadResult.Downloaded =>
@@ -548,7 +548,7 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
-    /// <summary>Durum metnini yazar; indirme düğmesi yalnızca gerçekten yeni bir sürüm varken görünür.</summary>
+    /// <summary>Writes the status text; the download button appears only when there really is a new version.</summary>
     private void ShowUpdateState(UpdateCheckResult? result)
     {
         UpdateStatusText.Text = UpdateStatusTextFor(result);
@@ -574,7 +574,7 @@ public sealed partial class SettingsWindow : Window
             : L.T($"Check failed · at {checkedAt:t}", $"Denetlenemedi · {checkedAt:HH:mm}'de denetlendi");
     }
 
-    /// <summary>GetProcessesByName her sonuç için bir tanıtıcı açar; Dispose edilmezse sonlandırıcıyı bekler.</summary>
+    /// <summary>GetProcessesByName opens a handle for every result; if not disposed it waits for the finalizer.</summary>
     private static bool IsProcessRunning(string name)
     {
         var processes = System.Diagnostics.Process.GetProcessesByName(name);
@@ -605,8 +605,8 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// Yalnızca settings.json silinir: dil, tema, yenileme aralığı, tepsi sağlayıcısı, bildirimler
-    /// ve güncelleme durumu. Windows ile Başlat, fiyat tablosu ve günlük yerinde kalır.
+    /// Only settings.json is deleted: language, theme, refresh interval, tray provider, notifications
+    /// and update state. Start with Windows, the price table and the log stay in place.
     /// </summary>
     private async Task ResetSettingsAsync()
     {
@@ -672,8 +672,8 @@ public sealed partial class SettingsWindow : Window
             status.Text = L.T("Off", "Kapalı");
             reason.Text = L.T("Session log directory not found — nothing to scan.", "Oturum log dizini bulunamadı — taranacak veri yok.");
             reason.Visibility = Visibility.Visible;
-            // Dikkat rengi nokta; anahtar bu sürümde yoksa mevcut nokta kalır
-            // (etiket zaten doğru, çökme yok).
+            // An attention-colored dot; if the key does not exist in this version, the current dot stays
+            // (the label is already correct, no crash).
             if (Application.Current.Resources.TryGetValue("AttentionDotInfoBadgeStyle", out var style) && style is Style dot)
             {
                 badge.Style = dot;
@@ -701,8 +701,8 @@ public sealed partial class SettingsWindow : Window
         bool unavailableIsProblem = true)
     {
         status.Text = available ? availableText : unavailableText;
-        // Sorun (oturum süresi, kimlik yok) sarı uyarı; sorun olmayan durum (bağlı değil,
-        // uygulama kapalı) nötr. Önceden hepsi aynı mavi rozetle gösteriliyordu.
+        // A problem (expired session, no credentials) gets a yellow warning; a non-problem state (not connected,
+        // app closed) is neutral. They were all shown with the same blue badge before.
         var styleKey = available
             ? "SuccessDotInfoBadgeStyle"
             : unavailableIsProblem ? "CautionDotInfoBadgeStyle" : "AttentionDotInfoBadgeStyle";

@@ -3,8 +3,8 @@ using Ration.Core.Settings;
 namespace Ration.Platform.Windows.App;
 
 /// <summary>
-/// Genel kısayol tercihi: SettingsStore'da "hotkeyEnabled" (varsayılan kapalı, başka
-/// uygulamalarla çakışmasın) ve "hotkey" ("Ctrl+Alt+R") olarak durur.
+/// Global hotkey preference: stored in SettingsStore as "hotkeyEnabled" (off by default, so it does not
+/// conflict with other apps) and "hotkey" ("Ctrl+Alt+R").
 /// </summary>
 public static class HotkeyPreference
 {
@@ -13,7 +13,7 @@ public static class HotkeyPreference
 
     public static event Action? Changed;
 
-    /// <summary>Kayıt sonucu değişti (<see cref="RegistrationFailed"/>).</summary>
+    /// <summary>The registration result changed (<see cref="RegistrationFailed"/>).</summary>
     public static event Action? RegistrationChanged;
 
     public static bool Enabled => SettingsStore.Default.GetBool(EnabledKey, false);
@@ -21,8 +21,8 @@ public static class HotkeyPreference
     public static Hotkey Current =>
         Hotkey.TryParse(SettingsStore.Default.GetString(KeyKey), out var hotkey) ? hotkey : Hotkey.Default;
 
-    /// <summary>Ayarlarda yeni birleşim yakalanırken true: kayıtlı kısayol, basılan tuşları
-    /// pencereden çalmasın diye geçici olarak bırakılır.</summary>
+    /// <summary>True while a new combination is being captured in settings: the registered hotkey is released
+    /// temporarily so that it does not steal the pressed keys from the window.</summary>
     public static bool Capturing { get; private set; }
 
     public static void SetEnabled(bool enabled)
@@ -39,7 +39,7 @@ public static class HotkeyPreference
         Changed?.Invoke();
     }
 
-    /// <summary>Son kayıt denemesi başarısız oldu: birleşimi başka bir uygulama tutuyor.</summary>
+    /// <summary>The last registration attempt failed: another app holds the combination.</summary>
     public static bool RegistrationFailed { get; private set; }
 
     public static void ReportRegistration(bool failed)

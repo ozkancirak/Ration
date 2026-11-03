@@ -11,10 +11,10 @@ using Ration.Platform.Windows.Theme;
 namespace Ration.App.Views;
 
 /// <summary>
-/// Native tepsi menüsü: WinForms ContextMenuStrip yerine geçen WinUI penceresi.
-/// Öğeler: Yenile · Ayarlar · (ayraç) · Çıkış. Klavye: oklar + Enter + Esc.
-/// Çalıştırma sırası: ÖNCE Hide(), SONRA eylem — aksi halde Ayarlar penceresi
-/// her zaman üstte menünün arkasında açılır.
+/// Native tray menu: a WinUI window that replaces the WinForms ContextMenuStrip.
+/// Items: Refresh · Settings · (separator) · Exit. Keyboard: arrows + Enter + Esc.
+/// Execution order: Hide() FIRST, THEN the action — otherwise the Settings window opens
+/// behind the always-on-top menu.
 /// </summary>
 public sealed partial class TrayMenuWindow : Window
 {
@@ -63,8 +63,8 @@ public sealed partial class TrayMenuWindow : Window
             ExitRequested?.Invoke();
         };
 
-        // Tema canlı değişimi: akrilik kendiliğinden uyar; ikon/ayraç
-        // fırçaları ThemeResource'tan yeniden alınır.
+        // Live theme change: acrylic adapts by itself; the icon/separator
+        // brushes are re-fetched from the ThemeResource.
         WindowsThemeListener.ThemeChanged += OnSystemThemeChanged;
         WindowsThemeListener.AccentChanged += () => this.DispatcherQueue.TryEnqueue(RefreshChrome);
         AppThemePreference.Changed += OnAppThemeChanged;
@@ -106,7 +106,7 @@ public sealed partial class TrayMenuWindow : Window
         MenuSeparator.Background = QuotaVisuals.Fill("CardStrokeColorDefaultBrush");
     }
 
-    /// <summary>Ayarlar satırındaki küçük nokta: yeni sürüm var.</summary>
+    /// <summary>The small dot on the Settings row: a new version is available.</summary>
     public void SetUpdateAvailable(bool available)
     {
         SettingsUpdateDot.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
@@ -120,7 +120,7 @@ public sealed partial class TrayMenuWindow : Window
     public void ShowAtCursor()
     {
         AppTheme.Apply(RootLayout);
-        // DPI hedef ekrandan alınır: pencere şu an başka ölçekli bir ekranda durabilir.
+        // The DPI is taken from the target screen: the window may currently be on a screen with a different scale.
         var anchor = FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
         var (physW, physH) = MeasureMenu(anchor?.Dpi ?? WindowDpi(), out _, out _);
 
@@ -134,8 +134,8 @@ public sealed partial class TrayMenuWindow : Window
         RefreshButton.Focus(FocusState.Programmatic);
         Trace.Info("menu", "show");
 
-        // İlk karede öğeler henüz gerçekleşmemiştir; yerleşim bitince
-        // yeniden ölç ve boyu düzelt (konum sabit kalır).
+        // In the first frame the items are not realized yet; once layout is done,
+        // re-measure and fix the height (the position stays fixed).
         this.DispatcherQueue.TryEnqueue(
             Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
             () =>
@@ -174,9 +174,9 @@ public sealed partial class TrayMenuWindow : Window
     }
 
     /// <summary>
-    /// UIA kullanmadan self-test'in gerçek fare tıklaması için bir düğmenin
-    /// ekran dikdörtgenini hesaplar. XAML ölçüleri DIP, AppWindow konumu ise
-    /// fiziksel pikseldir; DPI dönüşümü bu sınırda yapılır.
+    /// Computes the screen rectangle of a button for the self-test's real mouse click without using UIA.
+    /// XAML measurements are DIP while the AppWindow position is in physical pixels;
+    /// the DPI conversion is done at this boundary.
     /// </summary>
     public NativeMethods.RECT GetButtonScreenRect(Button button)
     {

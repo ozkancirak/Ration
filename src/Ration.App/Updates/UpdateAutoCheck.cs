@@ -4,9 +4,9 @@ using Ration.Core.Updates;
 namespace Ration.App.Updates;
 
 /// <summary>
-/// Günde bir, uygulama boştayken sessizce güncelleme denetler. Açılışı geciktirmemek için ilk
-/// bakış kısa bir beklemeden sonra yapılır; sonra yarım saatte bir "vakti geldi mi" diye bakılır.
-/// Yalnızca denetler, hiçbir şey indirmez. Kurulumsuz (taşınabilir) çalışmada ağa çıkmaz.
+/// Silently checks for updates once a day while the app is idle. So as not to delay startup, the first
+/// look happens after a short wait; after that, every half hour it checks "is it time yet".
+/// It only checks, downloads nothing. It does not go to the network when running without an install (portable).
 /// </summary>
 internal sealed class UpdateAutoCheck : IDisposable
 {
@@ -17,7 +17,7 @@ internal sealed class UpdateAutoCheck : IDisposable
     private readonly UpdateService _service;
     private readonly Func<bool> _isBusy;
 
-    /// <param name="isBusy">Kullanıcı bir pencereyle uğraşıyorsa true; denetim sonraya kalır.</param>
+    /// <param name="isBusy">True if the user is busy with a window; the check is postponed.</param>
     public UpdateAutoCheck(DispatcherQueue queue, UpdateService service, Func<bool> isBusy)
     {
         _service = service;

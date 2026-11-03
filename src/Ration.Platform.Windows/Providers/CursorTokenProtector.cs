@@ -5,9 +5,9 @@ using Ration.Core.Providers.Cursor;
 namespace Ration.Platform.Windows.Providers;
 
 /// <summary>
-/// Cursor 3.27+ şifreli oturum belirtecini çözer: <c>Local State</c> içindeki anahtarı Windows
-/// DPAPI ile (yalnızca bu kullanıcı) açar, sonra <see cref="CursorTokenCipher"/> ile belirteci
-/// çözer. Hiçbir şey yazılmaz; anahtar ve belirteç günlüğe girmez, bellekte kalıcı tutulmaz.
+/// Decrypts the Cursor 3.27+ encrypted session token: opens the key in <c>Local State</c> with Windows
+/// DPAPI (this user only), then decrypts the token with <see cref="CursorTokenCipher"/>.
+/// Nothing is written; the key and token do not go to the log and are not kept in memory persistently.
 /// </summary>
 public static class CursorTokenProtector
 {

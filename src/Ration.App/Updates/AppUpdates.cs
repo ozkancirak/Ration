@@ -3,7 +3,7 @@ using Ration.Core.Updates;
 
 namespace Ration.App.Updates;
 
-/// <summary>Uygulamanın tek güncelleme servisi ve sürüm bilgisi.</summary>
+/// <summary>The app's single update service and version info.</summary>
 internal static class AppUpdates
 {
     private const string DefaultRepository = "https://github.com/ozkancirak/Ration";
@@ -23,8 +23,8 @@ internal static class AppUpdates
     }
 
     /// <summary>
-    /// Saklanan sonuç yeni bir sürüm bildiriyor mu. Güncellemeden sonra bayat kalan kayıt
-    /// (bildirilen sürüm zaten çalışan sürüm) yeni sayılmaz.
+    /// Does the stored result report a new version. A record that went stale after an update
+    /// (the reported version is already the running one) does not count as new.
     /// </summary>
     public static bool HasNewerUpdate(UpdateCheckResult? result) =>
         result is { UpdateAvailable: true, IsInstalled: true } &&
@@ -32,7 +32,7 @@ internal static class AppUpdates
 
     private const string PrereleaseKey = "updatePrerelease";
 
-    /// <summary>Ön sürümler (beta) de aranır; varsayılan kapalı, kullanıcı açar.</summary>
+    /// <summary>Prereleases (beta) are also searched; off by default, the user turns it on.</summary>
     public static bool IncludePrerelease
     {
         get => SettingsStore.Default.GetBool(PrereleaseKey, false);

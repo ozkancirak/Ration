@@ -4,8 +4,8 @@ using Windows.UI.ViewManagement;
 namespace Ration.Platform.Windows.Theme;
 
 /// <summary>
-/// Windows sistem accent rengi ve yüksek kontrast durumunun tek kaynağı.
-/// Sabit renk İÇERMEZ; tüm değerler Windows.UI.ViewManagement.UISettings veya SystemColors'tan dinamik okunur.
+/// The single source of the Windows system accent color and the high contrast state.
+/// It contains NO fixed color; all values are read dynamically from Windows.UI.ViewManagement.UISettings or SystemColors.
 /// </summary>
 public static class SystemAccent
 {
@@ -16,7 +16,7 @@ public static class SystemAccent
     {
         try
         {
-            // Kanal 1: UISettings.ColorValuesChanged (unpackaged uygulamalarda tek başına yetersiz kalabilir)
+            // Channel 1: UISettings.ColorValuesChanged (may be insufficient on its own in unpackaged apps)
             _uiSettings.ColorValuesChanged += (s, e) =>
             {
                 WindowsThemeListener.NotifyAccentChanged();
@@ -29,8 +29,8 @@ public static class SystemAccent
     }
 
     /// <summary>
-    /// Yüksek kontrast modu aktif mi? Bu modda accent rengi KULLANILMAZ.
-    /// Tray ikonu ve ölçerler SystemColors'tan gelen renkleri kullanmalıdır.
+    /// Is high contrast mode active? The accent color is NOT used in this mode.
+    /// The tray icon and meters must use the colors from SystemColors.
     /// </summary>
     public static bool IsHighContrast
     {
@@ -48,8 +48,8 @@ public static class SystemAccent
     }
 
     /// <summary>
-    /// Kullanıcının ana Windows accent rengi (UIColorType.Accent).
-    /// Yüksek kontrast modunda SystemColors.Highlight döner.
+    /// The user's main Windows accent color (UIColorType.Accent).
+    /// Returns SystemColors.Highlight in high contrast mode.
     /// </summary>
     public static Color GetAccent()
     {
@@ -70,7 +70,7 @@ public static class SystemAccent
     }
 
     /// <summary>
-    /// Açık tema varyantı (UIColorType.AccentLight1).
+    /// The light theme variant (UIColorType.AccentLight1).
     /// </summary>
     public static Color GetAccentLight1()
     {
@@ -91,7 +91,7 @@ public static class SystemAccent
     }
 
     /// <summary>
-    /// Koyu tema varyantı (UIColorType.AccentDark1).
+    /// The dark theme variant (UIColorType.AccentDark1).
     /// </summary>
     public static Color GetAccentDark1()
     {

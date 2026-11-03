@@ -8,16 +8,16 @@
     Title="Ration">
 
     <!--
-        TASARIM — bozmadan önce oku.
+        DESIGN — read before changing.
 
-        1. Sekme şeridi + tek sağlayıcı detayı (macOS CodexBar bilgi mimarisi).
-           Kart YOK; bölümler 1px ayırıcıyla bölünür.
-        2. Kök Grid ve ScrollViewer SAYDAMDIR: acrylic yalnızca saydam yerde görünür.
-        3. SABİT RENK YOK. Fırçalar ThemeResource'tan; ölçer rengi QuotaVisuals.MeterBrush.
-        4. Tip rampası: Subtitle (sağlayıcı), BodyStrong (bölüm/pencere), Caption (geri kalan).
-        5. Ölçer KALAN kotayı gösterir (tepsi ikonuyla aynı dil), iz belirgin gridir.
-        6. Tekrarlayan içerik (pencereler, istatistikler, grafik) DataTemplate + x:Bind;
-           kod yalnızca satır listelerini üretir.
+        1. Tab strip + single-provider detail (the macOS CodexBar information architecture).
+           NO cards; sections are separated by a 1px divider.
+        2. The root Grid and the ScrollViewer are TRANSPARENT: acrylic is only visible where it is transparent.
+        3. NO FIXED COLORS. Brushes come from ThemeResource; the meter color is QuotaVisuals.MeterBrush.
+        4. Type ramp: Subtitle (provider), BodyStrong (section/window), Caption (the rest).
+        5. The meter shows the REMAINING quota (the same language as the tray icon), the track is a distinct gray.
+        6. Repeating content (windows, statistics, chart) is DataTemplate + x:Bind;
+           code only produces the row lists.
     -->
 
     <Grid x:Name="RootLayout"
@@ -29,7 +29,7 @@
           RowSpacing="12">
 
         <Grid.Resources>
-            <!--  ProgressBar izi varsayılan 1px; ölçerle aynı kalınlıkta dolu iz için ezilir.  -->
+            <!--  ProgressBar track is 1px by default; overridden for a filled track of the same thickness as the meter.  -->
             <x:Double x:Key="ProgressBarTrackHeight">6</x:Double>
             <x:Double x:Key="ProgressBarMinHeight">6</x:Double>
             <CornerRadius x:Key="ProgressBarTrackCornerRadius">3</CornerRadius>
@@ -42,11 +42,11 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  Sekme şeridi: eşit genişlikte sütunlar (CodexBar gibi). ToggleButton'lar ve sütunlar
-              koddan üretilir (2-6 sağlayıcı); ikon üstte, ad altta, en altta mini ölçer.  -->
+        <!--  Tab strip: equal-width columns (like CodexBar). The ToggleButtons and columns
+              are produced from code (2-6 providers); icon on top, name below, mini meter at the very bottom.  -->
         <Grid x:Name="TabStrip" Grid.Row="0" ColumnSpacing="4" />
 
-        <!--  Seçili sağlayıcının detayı (taşarsa burası kayar; sekmeler ve alt satır sabit)  -->
+        <!--  Detail of the selected provider (this part scrolls if it overflows; the tabs and the bottom row are fixed)  -->
         <ScrollViewer x:Name="DetailScrollViewer"
                       Grid.Row="1"
                       Background="Transparent"
@@ -78,7 +78,7 @@
 
                 <StackPanel x:Name="DetailPanel" Spacing="14">
 
-                    <!--  Başlık: solda ad + tazelik, sağda plan  -->
+                    <!--  Header: name + freshness on the left, plan on the right  -->
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -106,7 +106,7 @@
                     </Grid>
 
 
-                    <!--  Hata / bayat veri bildirimi: Fluent InfoBar; "Kopyala" ayrıntıyı panoya alır.  -->
+                    <!--  Error / stale data notice: Fluent InfoBar; "Copy" puts the details on the clipboard.  -->
                     <InfoBar x:Name="DetailError"
                              IsOpen="False"
                              IsClosable="False"
@@ -118,7 +118,7 @@
                         </InfoBar.ActionButton>
                     </InfoBar>
 
-                    <!--  Kurulu değil / veri yok: hata sarısı kullanmaz.  -->
+                    <!--  Not installed / no data: does not use the error yellow.  -->
                     <Grid x:Name="DetailUnavailable"
                           ColumnSpacing="8"
                           Visibility="Collapsed">
@@ -144,7 +144,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <!--  Kota pencereleri  -->
+                    <!--  Quota windows  -->
                     <ItemsControl x:Name="WindowList">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -198,7 +198,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!--  Kullanım ve API karşılığı (yerel log taraması; veri yoksa gizli)  -->
+                    <!--  Usage and API equivalent (local log scan; hidden if there is no data)  -->
                     <StackPanel x:Name="CostSection" Spacing="10" Visibility="Collapsed">
 
                         <StackPanel Orientation="Horizontal" Spacing="4">
@@ -234,7 +234,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!--  OpenCode: ücretsiz model sayacı (IP bazlı sınır, yalnızca bu bilgisayar)  -->
+                        <!--  OpenCode: free model counter (IP-based limit, this computer only)  -->
                         <StackPanel x:Name="FreeUsageSection"
                                     Orientation="Horizontal"
                                     Spacing="4"
@@ -250,7 +250,7 @@
                         </StackPanel>
 
 
-                        <!--  Son 30 günün günlük token çubukları  -->
+                        <!--  Daily token bars for the last 30 days  -->
                         <ItemsControl x:Name="DailyChart" Height="44">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -263,7 +263,7 @@
                                           Width="{x:Bind BarWidth}"
                                           Background="Transparent"
                                           ToolTipService.ToolTip="{x:Bind Tip}">
-                                        <!--  Taban: boş günler de eksende yer tutar  -->
+                                        <!--  Baseline: empty days also hold their place on the axis  -->
                                         <Rectangle Height="2"
                                                    VerticalAlignment="Bottom"
                                                    RadiusX="1"
@@ -301,7 +301,7 @@
             </Grid>
         </ScrollViewer>
 
-        <!--  Alt satır: sağlayıcı bağlantıları + Yenile/Ayarlar. Çıkış sağ tık menüsündedir.  -->
+        <!--  Bottom row: provider links + Refresh/Settings. Exit is in the right-click menu.  -->
         <Grid Grid.Row="2" ColumnSpacing="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -326,8 +326,8 @@
                 </HyperlinkButton>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                <!--  Sabitle: odak kaybında kapanmaz, tepsi simgesine tıklayınca ya da Esc ile kapanır.
-                      Kapalıyken diğer simge düğmeleri gibi saydam; açıkken vurgu rengi (Windows standardı).  -->
+                <!--  Pin: does not close on focus loss, closes when the tray icon is clicked or with Esc.
+                      Transparent like the other icon buttons when off; accent color when on (the Windows standard).  -->
                 <ToggleButton x:Name="PinButton"
                               Width="32"
                               Height="32"
@@ -352,12 +352,12 @@
                         KeyboardAcceleratorPlacementMode="Hidden"
                         ToolTipService.ToolTip="{l:Loc En='Refresh (F5)', Tr='Yenile (F5)'}"
                         AutomationProperties.Name="{l:Loc En='Refresh quotas now', Tr='Kotaları Şimdi Yenile'}">
-                    <!--  F5 ve Ctrl+R düğmeyi tıklar; yenilerken düğme pasif olduğu için art arda basış etkisiz  -->
+                    <!--  F5 and Ctrl+R click the button; since the button is disabled while refreshing, repeated presses have no effect  -->
                     <Button.KeyboardAccelerators>
                         <KeyboardAccelerator Key="F5" />
                         <KeyboardAccelerator Key="R" Modifiers="Control" />
                     </Button.KeyboardAccelerators>
-                    <!--  Yenilerken ikonun yerine dönen halka; düğme boyutu ve düzen değişmez  -->
+                    <!--  A ring spins in place of the icon while refreshing; button size and layout do not change  -->
                     <Grid>
                         <FontIcon x:Name="RefreshIcon" Glyph="&#xE72C;" FontSize="16" />
                         <ProgressRing x:Name="RefreshRing"

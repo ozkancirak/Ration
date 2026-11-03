@@ -14,9 +14,9 @@ public static class EfficiencyModeManager
 
     static EfficiencyModeManager()
     {
-        // SystemEvents olayları, dinleyicinin kurulduğu thread'in SynchronizationContext'ine Send ile
-        // iletir. WinUI UI thread'inde bu bağlam olayları yutuyordu: kilit ve güç olayları hiç gelmiyordu.
-        // Bağlamsız kurulunca olaylar SystemEvents thread'inde doğrudan çalışır; dinleyiciler thread-safe.
+        // SystemEvents delivers events with Send to the SynchronizationContext of the thread where the listener was
+        // set up. On the WinUI UI thread this context swallowed the events: lock and power events never arrived.
+        // When set up without a context, events run directly on the SystemEvents thread; the listeners are thread-safe.
         var previousContext = SynchronizationContext.Current;
         SynchronizationContext.SetSynchronizationContext(null);
         try
@@ -64,13 +64,13 @@ public static class EfficiencyModeManager
 
     public static event Action<bool>? PauseChanged;
 
-    /// <summary>Bilgisayar uykudan döndü; ağ henüz hazır olmayabilir.</summary>
+    /// <summary>The computer resumed from sleep; the network may not be ready yet.</summary>
     public static event Action? Resumed;
 
-    // Yalnızca ekran kilidi ve Windows enerji tasarrufu ağ yenilemesini durdurur.
-    // Gizli paneldeki verimlilik modu (EcoQoS) CPU önceliğini düşürür, yenilemeyi DURDURMAZ:
-    // önceden durduruyordu ve arka plan yenilemesi panel kapalıyken hiç çalışmıyordu,
-    // tepsi ikonu panel açılana kadar bayat kalıyordu.
+    // Only screen lock and Windows energy saver stop network refresh.
+    // The efficiency mode (EcoQoS) of the hidden panel lowers CPU priority and does NOT stop refreshing:
+    // it used to stop it, so the background refresh never ran while the panel was closed and
+    // the tray icon stayed stale until the panel was opened.
     public static bool ShouldPause
     {
         get { lock (Gate) return _sessionLocked || _powerSaving; }

@@ -13,10 +13,10 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <Version>0.7.2</Version>
     <SelfContained>true</SelfContained>
-    <!-- Yalnızca TR/EN arayüz dilleri; diğer satellite klasörleri yayına girmez. -->
+    <!-- Only the TR/EN UI languages; other satellite folders do not go into the publish output. -->
     <SatelliteResourceLanguages>tr;en</SatelliteResourceLanguages>
-    <!-- Yalnızca framework kütüphaneleri budanır (partial); kendi derlemelerimiz
-         bütün kalır. Önbellek/ayar JSON'u reflection'la okunduğu için açık tutulur. -->
+    <!-- Only the framework libraries are trimmed (partial); our own assemblies
+         stay intact. The cache/settings JSON is read via reflection, so they must remain untrimmed. -->
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
@@ -44,12 +44,12 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
-    <!-- Metapaket yerine yalnızca WinUI: AI/ML/Search/Widgets bileşenleri
-         kullanılmıyor ve self-contained yayını ~280 MB'a şişiriyordu. -->
+    <!-- Only WinUI instead of the metapackage: the AI/ML/Search/Widgets components
+         were unused and bloated the self-contained publish to ~280 MB. -->
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
     <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
-    <!-- SettingsControls 8.2 geçişli olarak eski tek parça metapaketi (1.6) ister;
-         varlıklarını dışla ki WinUI 2.x ile çakışmasın. -->
+    <!-- SettingsControls 8.2 transitively asks for the old single-piece metapackage (1.6);
+         exclude its assets so that it does not conflict with WinUI 2.x. -->
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" ExcludeAssets="all" PrivateAssets="all" />
     <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>

@@ -14,15 +14,15 @@ using Ration.Platform.Windows.Interop;
 namespace Ration.App.Views;
 
 /// <summary>
-/// Kenarlıksız açılır pencerelerin (flyout, tepsi menüsü) ortak kabuğu.
-/// Davranış tek kaynaktan gelir; pencerelerde kopyala-yapıştır yapılmaz:
-/// başlıksız + her zaman üstte sunucu, görev çubuğu/Alt+Tab gizliliği,
-/// akrilik + yuvarlak köşe, ışıkla kapanma (odak kaybı/Esc/kapatma) ve öne çıkarma.
-/// Konumlandırma zaten ortak <see cref="FlyoutPositioner"/> ile yapılır.
+/// Common shell of borderless popup windows (flyout, tray menu).
+/// The behavior comes from a single source; no copy-paste across windows:
+/// title-less + always-on-top presenter, taskbar/Alt+Tab invisibility,
+/// acrylic + rounded corners, light dismiss (focus loss/Esc/close) and bringing to front.
+/// Positioning is already done with the shared <see cref="FlyoutPositioner"/>.
 /// </summary>
 internal static class PopoverHelper
 {
-    /// <summary>Win32 tanıtıcı + AppWindow; her açılır pencere kurulumu bununla başlar.</summary>
+    /// <summary>Win32 handle + AppWindow; every popup window setup starts with this.</summary>
     public static (AppWindow AppWindow, IntPtr Hwnd) Attach(Window window)
     {
         IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
@@ -31,9 +31,9 @@ internal static class PopoverHelper
     }
 
     /// <summary>
-    /// Görsel kabuk: akrilik, başlıksız her zaman üstte sunucu,
-    /// görev çubuğu/Alt+Tab gizliliği (<see cref="AppWindow.IsShownInSwitchers"/>),
-    /// yuvarlak köşe.
+    /// Visual shell: acrylic, title-less always-on-top presenter,
+    /// taskbar/Alt+Tab invisibility (<see cref="AppWindow.IsShownInSwitchers"/>),
+    /// rounded corners.
     /// </summary>
     public static void ConfigureChrome(Window window, AppWindow appWindow, IntPtr hwnd)
     {
@@ -43,7 +43,7 @@ internal static class PopoverHelper
         }
         catch
         {
-            // Acrylic fallback: pencere yine de açılır.
+            // Acrylic fallback: the window still opens.
         }
 
         // DWMWA_SYSTEMBACKDROP_TYPE = 38 (3 = Desktop Acrylic)
@@ -57,10 +57,9 @@ internal static class PopoverHelper
         presenter.IsMinimizable = false;
         presenter.IsMaximizable = false;
 
-        // SetBorderAndTitleBar(false, false) WS_DLGFRAME'i bırakıyor: her kenarda 3px
-        // non-client çerçeve kalır ve Windows onu acrylic yerine düz açık renkle boyar
-        // (iki temada da görünen beyaz çerçeve). Çerçeve bitleri kaldırılıp yeniden
-        // hesaplatılır; istemci alanı pencerenin tamamı olur.
+        // SetBorderAndTitleBar(false, false) leaves WS_DLGFRAME: a 3px non-client frame remains on every edge
+        // and Windows paints it with a flat light color instead of acrylic (a white frame visible in both
+        // themes). The frame bits are removed and recalculated; the client area becomes the whole window.
         long style = NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_STYLE).ToInt64();
         style &= ~(NativeMethods.WS_BORDER | NativeMethods.WS_DLGFRAME | NativeMethods.WS_THICKFRAME);
         NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_STYLE, new IntPtr(style));
@@ -90,10 +89,9 @@ internal static class PopoverHelper
             ref cornerPreference,
             sizeof(int));
 
-        // DWM her pencereye sistem renginde 1px çerçeve çizer; koyu panelde beyaz,
-        // açık panelde kontrastsız bir hat olarak kalıyordu. Kapatılır; yerine WinUI
-        // flyout'larının kullandığı temalı kenarlık XAML kökünde çizilir
-        // (SurfaceStrokeColorFlyoutBrush, OverlayCornerRadius).
+        // DWM draws a 1px frame in the system color on every window; on a dark panel it stayed as a white line,
+        // on a light panel as a low-contrast one. It is turned off; instead the themed border that WinUI
+        // flyouts use is drawn at the XAML root (SurfaceStrokeColorFlyoutBrush, OverlayCornerRadius).
         RemoveDwmBorder(hwnd);
     }
 
@@ -105,11 +103,11 @@ internal static class PopoverHelper
     }
 
     /// <summary>
-    /// Işıkla kapanma: kapatma isteği + odak kaybı + Esc → <paramref name="hide"/>.
-    /// <paramref name="onDeactivated"/>: odak kaybında ek iş (örn. aynı tıklamanın
-    /// pencereyi kapatıp hemen yeniden açmasını önleyen zaman damgası).
-    /// <paramref name="canDismissOnDeactivate"/>: false dönerse odak kaybı pencereyi kapatmaz
-    /// (sabitlenmiş flyout); Esc ve kapatma isteği yine kapatır.
+    /// Light dismiss: close request + focus loss + Esc → <paramref name="hide"/>.
+    /// <paramref name="onDeactivated"/>: extra work on focus loss (e.g. the timestamp that keeps the same click
+    /// from closing the window and immediately reopening it).
+    /// <paramref name="canDismissOnDeactivate"/>: if it returns false, focus loss does not close the window
+    /// (pinned flyout); Esc and the close request still close it.
     /// </summary>
     public static void ConfigureDismissal(
         Window window,
@@ -145,8 +143,8 @@ internal static class PopoverHelper
         };
     }
 
-    /// <summary>Göster, etkinleştir, öne çıkar. Tray tıklaması bize foreground hakkı
-    /// verdiği için SetForegroundWindow burada başarılı olur (odak + Esc çalışır).</summary>
+    /// <summary>Show, activate, bring to front. Because the tray click gives us foreground rights,
+    /// SetForegroundWindow succeeds here (focus + Esc work).</summary>
     public static void ShowPopover(
         AppWindow appWindow,
         Window window,
@@ -156,7 +154,7 @@ internal static class PopoverHelper
     {
         appWindow.Show();
         window.Activate();
-        RemoveDwmBorder(hwnd); // gösterimde yeniden uygulanır; WinUI etkinleşmede çerçeveyi geri çizebiliyor
+        RemoveDwmBorder(hwnd); // re-applied on show; WinUI can redraw the frame on activation
         bool foreground = NativeMethods.SetForegroundWindow(hwnd);
         Trace.Info("window", $"popover.show foreground={(foreground ? "ok" : "rejected")}");
         AnimateEntrance(root, edge);
@@ -174,10 +172,9 @@ internal static class PopoverHelper
     }
 
     /// <summary>
-    /// Pencere boyutu native olarak tek seferde değişir; içerik aynı anda
-    /// Composition Scale.Y ile 150 ms içinde yeni yüksekliğine oturur. Böylece
-    /// sekme geçişi bir sıçrama gibi görünmez ve UI thread'i zamanlayıcıyla
-    /// meşgul edilmez.
+    /// The window size changes natively in one step; the content settles into its new height
+    /// within 150 ms via Composition Scale.Y at the same time. So the tab switch does not look like
+    /// a jump and the UI thread is not kept busy with a timer.
     /// </summary>
     public static void ResizeWithAnimation(
         AppWindow appWindow,
@@ -188,9 +185,9 @@ internal static class PopoverHelper
     {
         var targetHeight = bounds.Height;
 
-        // Konum da birlikte verilir: görev çubuğu alttayken alt kenar sabit kalmalı,
-        // yalnızca ResizeClient üst kenarı sabitleyip alt kenarı kaydırıyordu
-        // (kısalınca görev çubuğuyla arada boşluk, uzayınca ekrandan taşma).
+        // The position is given together: when the taskbar is at the bottom the bottom edge must stay fixed,
+        // whereas ResizeClient alone fixed the top edge and moved the bottom edge
+        // (a gap to the taskbar when shortened, overflow off the screen when lengthened).
         if (currentHeight <= 0 || currentHeight == targetHeight)
         {
             appWindow.MoveAndResize(bounds);
@@ -216,7 +213,7 @@ internal static class PopoverHelper
 
         appWindow.MoveAndResize(bounds);
 
-        // Sabit kenardan ölçekle: alta yaslı pencerede içerik aşağıdan büyür.
+        // Scale from the fixed edge: in a bottom-anchored window the content grows from the bottom.
         var rasterScale = root.XamlRoot?.RasterizationScale ?? 1.0;
         var pivotY = anchorBottom ? (float)(targetHeight / rasterScale) : 0.0f;
         visual.CenterPoint = new Vector3(0.0f, pivotY, 0.0f);
@@ -284,8 +281,8 @@ internal static class PopoverHelper
     }
 
     /// <summary>
-    /// İçeriğe göre boyutlandırmanın tavanı: imlecin bulunduğu ekranın
-    /// çalışma alanının %70'i. Aşılırsa pencere büyümez, kaydırıcı devreye girer.
+    /// The ceiling for sizing to content: 70% of the work area of the screen the cursor
+    /// is on. If it is exceeded the window does not grow and the scroller kicks in.
     /// </summary>
     public static int WorkAreaMaxHeight()
     {

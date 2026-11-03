@@ -8,18 +8,18 @@ using Ration.Core.Usage;
 namespace Ration.App.Views;
 
 /// <summary>
-/// Kota bildirimlerini Windows bildirimi olarak gösterir. Karar Core'daki
-/// <see cref="QuotaAlerts"/>'tadır; burası yalnızca gösterir ve hangi bildirimin zaten
-/// gösterildiğini hatırlar (uygulama yeniden başlasa da aynı döngüde tekrarlanmasın).
-/// Ayar ve tetiklenen anahtarlar tek dosyada: %LOCALAPPDATA%\Ration\notifications.json.
+/// Shows quota notifications as Windows notifications. The decision lives in Core's
+/// <see cref="QuotaAlerts"/>; this only displays and remembers which notification was already
+/// shown (so that it is not repeated in the same cycle even if the app restarts).
+/// The setting and the fired keys are in a single file: %LOCALAPPDATA%\Ration\notifications.json.
 /// </summary>
 internal static class QuotaNotifier
 {
     private const int MaxRemembered = 200;
 
-    // Paketsiz uygulamanın bildirim kimliği; HKCU\Software\Classes\AppUserModelId altında.
-    // Windows App SDK AppNotificationManager self-contained/paketsiz yapıda 0x8007007E
-    // (modül bulunamadı) veriyordu; SDK'dan bağımsız Windows toast API'si kullanılır.
+    // The notification identity of an unpackaged app; under HKCU\Software\Classes\AppUserModelId.
+    // Windows App SDK AppNotificationManager gave 0x8007007E (module not found) in a
+    // self-contained/unpackaged build; the Windows toast API, which is independent of the SDK, is used.
     private const string Aumid = "Ration.QuotaTray";
 
     private static readonly List<string> _fired;
@@ -35,7 +35,7 @@ internal static class QuotaNotifier
 
     public static readonly int[] Thresholds = [10, 20, 30, 50];
 
-    /// <summary>"Azaldı" bildirimi için kalan kota eşiği (%); geçersiz kayıt varsayılana döner.</summary>
+    /// <summary>Remaining-quota threshold (%) for the "running low" notification; an invalid record falls back to the default.</summary>
     public static int LowThreshold { get; private set; }
 
     static QuotaNotifier()
@@ -52,7 +52,7 @@ internal static class QuotaNotifier
         SettingsStore.Default.Set(EnabledKey, enabled);
     }
 
-    /// <summary>Sağlayıcı bildirimi varsayılan olarak açıktır; kapatılanlar ayrı bir listede tutulur.</summary>
+    /// <summary>Provider notifications are on by default; the ones turned off are kept in a separate list.</summary>
     public static bool IsProviderEnabled(string providerId) =>
         !SettingsStore.Default.GetStrings(DisabledProvidersKey)
             .Contains(providerId, StringComparer.OrdinalIgnoreCase);
@@ -73,13 +73,13 @@ internal static class QuotaNotifier
         SettingsStore.Default.Set(ThresholdKey, percent);
     }
 
-    /// <summary>Bildirime tıklanınca paneli açmak için; kayıt tek sefer yapılır.</summary>
+    /// <summary>To open the panel when the notification is clicked; registration is done once.</summary>
     public static void Register(Action onActivated)
     {
         if (_registered) return;
         try
         {
-            // Bildirim merkezinde görünen ad ve ikon; Ration'ın kendi anahtarı.
+            // The name and icon shown in the notification center; Ration's own key.
             using var key = Registry.CurrentUser.CreateSubKey($@"Software\Classes\AppUserModelId\{Aumid}");
             key.SetValue("DisplayName", "Ration");
             key.SetValue("IconUri", Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.targetsize-48_altform-lightunplated.png"));
@@ -108,7 +108,7 @@ internal static class QuotaNotifier
                 texts[0].AppendChild(xml.CreateTextNode(alert.Title));
                 texts[1].AppendChild(xml.CreateTextNode(alert.Body));
 
-                // Tepsi uygulaması sürekli çalıştığı için tıklama süreç içinde yakalanır.
+                // Since the tray app runs continuously, the click is caught in-process.
                 var toast = new ToastNotification(xml);
                 toast.Activated += (_, _) => _onActivated?.Invoke();
                 ToastNotificationManager.CreateToastNotifier(Aumid).Show(toast);

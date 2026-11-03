@@ -4,9 +4,9 @@ using Ration.Core.Layout;
 namespace Ration.Platform.Windows.Interop;
 
 /// <summary>
-/// Açılır pencerenin dayandığı nokta: simge dikdörtgeni, bulunduğu ekran ve o ekranın DPI'ı.
-/// Pencere boyutu hedef ekranın DPI'ıyla hesaplanmalıdır; pencerenin o an durduğu ekran
-/// başka bir ölçekte olabilir.
+/// The anchor of the flyout: the icon rectangle, the screen it is on and that screen's DPI.
+/// The window size must be computed with the target screen's DPI; the screen the window
+/// currently sits on may have a different scale.
 /// </summary>
 public readonly record struct FlyoutAnchor(Bounds Icon, Bounds Monitor, Bounds Work, uint Dpi)
 {
@@ -17,7 +17,7 @@ public readonly record struct FlyoutAnchor(Bounds Icon, Bounds Monitor, Bounds W
 public static class FlyoutPositioner
 {
     /// <summary>
-    /// Simge dikdörtgenini bulur: önce kabuk, olmazsa fare imleci. Ekran bilgisi alınamazsa null.
+    /// Finds the icon rectangle: first the shell, otherwise the mouse cursor. null if screen information cannot be obtained.
     /// </summary>
     public static FlyoutAnchor? ResolveAnchor(Guid trayIconGuid, IntPtr hWnd, uint uID)
     {
@@ -51,7 +51,7 @@ public static class FlyoutPositioner
         return ForRect(iconRect);
     }
 
-    /// <summary>Verilen dikdörtgenin bulunduğu ekran ve DPI'ıyla dayanak.</summary>
+    /// <summary>The anchor for the screen containing the given rectangle, with its DPI.</summary>
     public static FlyoutAnchor? ForRect(NativeMethods.RECT rect)
     {
         IntPtr hMonitor = NativeMethods.MonitorFromRect(ref rect, NativeMethods.MONITOR_DEFAULTTONEAREST);
@@ -65,7 +65,7 @@ public static class FlyoutPositioner
             DpiOfMonitor(hMonitor));
     }
 
-    /// <summary>Ekranın etkin DPI'ı; sorgu başarısızsa sistem DPI'ı.</summary>
+    /// <summary>The effective DPI of the screen; the system DPI if the query fails.</summary>
     public static uint DpiOfMonitor(IntPtr hMonitor)
     {
         if (hMonitor != IntPtr.Zero &&

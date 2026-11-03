@@ -4,8 +4,8 @@ using Ration.Core.Diagnostics;
 namespace Ration.Platform.Windows.App;
 
 /// <summary>
-/// Ration'ın Velopack sabit shim'ini kullanıcı oturum başlangıcına kaydeder.
-/// Durum her zaman kayıt defterinden okunur; ayar dosyasında kopyası tutulmaz.
+/// Registers Ration's fixed Velopack shim to run at user sign-in.
+/// The state is always read from the registry; no copy is kept in the settings file.
 /// </summary>
 public static class StartupRegistration
 {
@@ -14,9 +14,9 @@ public static class StartupRegistration
     public const string ShimValue = @"""%LOCALAPPDATA%\Ration\Ration.exe""";
 
     /// <summary>
-    /// Kaydedilecek yol: Velopack kurulumunda sabit shim; yoksa (taşınabilir zip, geliştirme)
-    /// çalışan exe. Önceden hep shim yazılıyordu ve kurulum yoksa var olmayan bir yol
-    /// kaydedilip "Windows ile Başlat" sessizce çalışmıyordu.
+    /// The path to register: the fixed shim in a Velopack install; otherwise (portable zip, development)
+    /// the running exe. It used to always write the shim, and without an install a nonexistent path was
+    /// registered and "Start with Windows" silently did not work.
     /// </summary>
     public static string TargetValue =>
         File.Exists(Environment.ExpandEnvironmentVariables(ShimValue.Trim('"'))) || Environment.ProcessPath is null

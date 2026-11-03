@@ -3,7 +3,7 @@ using Ration.Core.Settings;
 
 namespace Ration.Platform.Windows.App;
 
-/// <summary>Eski sürümlerin HKCU\Software\Ration altındaki değerleri.</summary>
+/// <summary>Values of older versions under HKCU\Software\Ration.</summary>
 public sealed class LegacyRegistryValues : ILegacyRegistryValues
 {
     public object? Read(string name)

@@ -228,8 +228,8 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern uint GetDpiForSystem();
 
-    // Tray ikonuna tıklandığında kabuk bize foreground hakkı verir; flyout'un klavye
-    // odakını gerçekten alması için gerekli (Esc ve light-dismiss buna bağlı).
+    // When the tray icon is clicked the shell grants us foreground rights; this is needed so that the
+    // flyout really gets keyboard focus (Esc and light-dismiss depend on it).
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -245,10 +245,10 @@ public static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    /// <summary>Küçük ikon genişliği — tray ikonunun doğru boyutu budur.</summary>
+    /// <summary>Small icon width — this is the correct size for the tray icon.</summary>
     public const int SM_CXSMICON = 49;
 
-    // Windows 10 1607+. 16*scale yerine bunu kullan: kabuğun gerçekten beklediği boyutu verir.
+    // Windows 10 1607+. Use this instead of 16*scale: it gives the size the shell really expects.
     [DllImport("user32.dll")]
     public static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
 

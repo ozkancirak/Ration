@@ -14,9 +14,9 @@
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalContentAlignment="Stretch">
-        <!-- Ortalama içeriğe değil pencereye bağlı: kenar sütunlar boşluğu eşit paylaşır, orta
-             sütun en fazla 1000px. Önceden genişlik/konum içeriğin istediği genişliğe göre
-             hesaplanıyor, bir bölüm açılıp kapanınca (uzun metin) tüm sayfa kayıyordu. -->
+        <!-- Centering is tied to the window, not the content: the side columns share the space equally, the middle
+             column is at most 1000px. Previously the width/position was computed from the width the content asked for,
+             and when a section was opened or closed (long text) the whole page shifted. -->
         <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -28,7 +28,7 @@
                     Spacing="8"
                     Padding="24,0,24,24">
 
-            <!-- Özel Başlık Çubuğu (Drag Region) -->
+            <!-- Custom Title Bar (Drag Region) -->
             <Grid x:Name="AppTitleBar"
                   Height="36">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
@@ -44,9 +44,9 @@
                        Style="{StaticResource TitleTextBlockStyle}"
                        Margin="0,8,0,0" />
 
-            <!-- İçerik tek panel içinde; kaydırma bunun dışındaki ScrollViewer'a aittir. -->
+            <!-- The content is in a single panel; scrolling belongs to the ScrollViewer outside it. -->
 
-            <!-- Bölüm: Sağlayıcılar -->
+            <!-- Section: Providers -->
             <TextBlock Text="{l:Loc En='Providers', Tr='Sağlayıcılar'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />
@@ -71,8 +71,8 @@
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="{l:Loc En='Cost scan', Tr='Maliyet Taraması'}"
                                                Description="{l:Loc En='Scan the JSONL session logs under ~/.claude/projects/', Tr='~/.claude/projects/ altındaki JSONL oturum loglarını tara'}">
-                            <!-- Kapalı gibi duran pasif toggle yerine gerçek durum: tarama
-                                 ayarsız her zaman çalışır, para tutarı pricing.json ister. -->
+                            <!-- The real state instead of a disabled toggle that looks switched off: the scan
+                                 always runs regardless of settings, the money amount needs pricing.json. -->
                             <StackPanel Spacing="2" HorizontalAlignment="Right">
                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <InfoBadge x:Name="ClaudeCostBadge"
@@ -94,8 +94,8 @@
                                            Visibility="Collapsed" />
                             </StackPanel>
                         </controls:SettingsCard>
-                        <!-- Oturum süresi dolunca / 429'da ağsız yedek kaynak. Ration kullanıcının
-                             ~/.claude/settings.json dosyasına yazmaz; satırı kullanıcı ekler. -->
+                        <!-- Network-free fallback source when the session expires / on 429. Ration does not write to the user's
+                             ~/.claude/settings.json file; the user adds the line. -->
                         <controls:SettingsCard Header="{l:Loc En='Claude Code status line', Tr='Claude Code durum satırı'}"
                                                Description="{l:Loc En='While Claude Code is running, quota is read from here without a network request. Add the line to ~/.claude/settings.json; it replaces any existing statusLine.', Tr='Kota, Claude Code açıkken ağ isteği olmadan buradan okunur. Satırı ~/.claude/settings.json dosyasına ekleyin; mevcut bir statusLine varsa onun yerine geçer.'}">
                             <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -224,7 +224,7 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
-            <!-- Bölüm: Genel Tercihler -->
+            <!-- Section: General Preferences -->
             <TextBlock Text="{l:Loc En='General', Tr='Genel Tercihler'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />
@@ -422,7 +422,7 @@
                     </StackPanel>
                 </controls:SettingsCard>
 
-            <!-- Bölüm: Hakkında -->
+            <!-- Section: About -->
             <TextBlock Text="{l:Loc En='About', Tr='Hakkında'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />

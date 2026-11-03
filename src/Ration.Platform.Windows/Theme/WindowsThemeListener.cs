@@ -14,8 +14,8 @@ public static class WindowsThemeListener
 
     static WindowsThemeListener()
     {
-        // SystemEvents kendi mesaj döngüsünü ayrı bir thread'de kurar; olaylar UI thread'inde
-        // gelmez. Abone olan taraf DispatcherQueue ile marshal etmek zorundadır.
+        // SystemEvents sets up its own message loop on a separate thread; events do not arrive on the UI thread.
+        // The subscriber has to marshal with DispatcherQueue.
         try
         {
             SystemEvents.UserPreferenceChanged += (s, e) =>

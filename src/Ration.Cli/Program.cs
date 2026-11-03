@@ -19,12 +19,12 @@ using Ration.Platform.Windows.Providers;
 using AppProcess = System.Diagnostics.Process;
 using AppProcessStartInfo = System.Diagnostics.ProcessStartInfo;
 
-// Ration CLI — UI olmadan doğrulamanın birincil aracı.
-// Token değerleri hiçbir çıktıda gösterilmez.
+// Ration CLI — the primary tool for verification without a UI.
+// Token values are never shown in any output.
 
-// Türkçe karakterler konsolun kod sayfasına göre bozuluyordu; çıktı her yerde UTF-8.
+// Turkish characters used to get garbled depending on the console code page; output is UTF-8 everywhere.
 Console.OutputEncoding = System.Text.Encoding.UTF8;
-// Tercihler (dil dahil) L ilk kullanılmadan önce eski konumlardan alınır.
+// Preferences (language included) are imported from the old locations before L is first used.
 Ration.Core.LegacySettingsMigration.Run();
 Ration.Core.Settings.LegacyPreferenceImport.Run(
     Ration.Core.Settings.SettingsStore.Default,
@@ -73,8 +73,8 @@ var wantsJson = HasFlag(args, "--json");
 var wantsRaw = HasFlag(args, "--raw");
 var target = GetOption(args, "-p") ?? GetOption(args, "--provider") ?? "all";
 
-// Sağlayıcı keşfi: bayrak-önce çağrı (ration --discover gemini). Ağ yok,
-// provider kodu üretmez; yalnızca yol + şema (değer asla).
+// Provider discovery: flag-first call (ration --discover gemini). No network,
+// does not generate provider code; only path + schema (never values).
 if (HasFlag(args, "--discover"))
 {
     var which = GetOption(args, "-p") ?? GetOption(args, "--provider")
@@ -219,8 +219,8 @@ void PrintRawResponses(List<IUsageProvider> selected)
 
             if (raw is null) continue;
 
-            // Kota uç noktaları token döndürmez ama e-posta ve hesap kimliği döndürür.
-            // Bu çıktı bir issue'ya ya da sohbete yapıştırılacak; maskelenmeden gösterilmez.
+            // Quota endpoints do not return tokens but do return email and account id.
+            // This output will be pasted into an issue or a chat; it is not shown unmasked.
             Console.WriteLine(L.T($"--- raw response: {provider.Id} ({source.Kind}) — identity fields redacted ---", $"--- ham yanıt: {provider.Id} ({source.Kind}) — kimlik alanları gizlendi ---"));
             Console.WriteLine(RawResponseRedactor.Redact(raw));
             Console.WriteLine();
@@ -476,8 +476,8 @@ string? FindAppExecutable()
         Path.Combine(AppContext.BaseDirectory, "Ration.exe"),
     };
 
-    // Kaynak ağaçta CLI ve App ayrı projeler olduğundan Debug/Release çıktılarını
-    // sınırlı, deterministik adaylar olarak kontrol et; tüm diski tarama.
+    // In the source tree the CLI and App are separate projects, so check the Debug/Release outputs as a
+    // limited, deterministic set of candidates; do not scan the whole disk.
     string sourceRoot = Path.GetFullPath(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
     foreach (var configuration in new[] { "Debug", "Release" })
@@ -534,7 +534,7 @@ void RenderIconPreview(string outputPath)
             using var themeFgBrush = new SolidBrush(theme.Fg);
             using var themeLabelBrush = new SolidBrush(theme.LabelFg);
 
-            // Kolon başlıkları (yüzdeler)
+            // Column headers (percentages)
             int colStartX = 140;
             int colWidth = 122;
             for (int p = 0; p < percentages.Length; p++)
@@ -552,7 +552,7 @@ void RenderIconPreview(string outputPath)
                 g.DrawString(thresholdText, fontSubLabel, themeLabelBrush, cx + 18, theme.Y + 48);
             }
 
-            // Satır başlıkları (boyutlar) ve ikon çizimleri
+            // Row headers (sizes) and icon drawings
             int rowStartY = theme.Y + 70;
             for (int s = 0; s < sizes.Length; s++)
             {
@@ -577,7 +577,7 @@ void RenderIconPreview(string outputPath)
 
                     using var icon = TrayIconRenderer.CreateGaugeBitmap(pct, theme.IsLight, size);
 
-                    // 1x Gerçek boyut (PixelOffsetMode.None, NearestNeighbor)
+                    // 1x actual size (PixelOffsetMode.None, NearestNeighbor)
                     g.InterpolationMode = InterpolationMode.NearestNeighbor;
                     g.PixelOffsetMode = PixelOffsetMode.None;
                     g.SmoothingMode = SmoothingMode.None;
@@ -585,7 +585,7 @@ void RenderIconPreview(string outputPath)
                     int iconY = ry + (48 - size) / 2;
                     g.DrawImage(icon, cx + 12, iconY, size, size);
 
-                    // Büyütülmüş görünüm (36px boyutunda)
+                    // Enlarged view (36px size)
                     int previewSize = 36;
                     int previewY = ry + (48 - previewSize) / 2;
                     g.DrawImage(icon, cx + 55, previewY, previewSize, previewSize);

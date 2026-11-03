@@ -5,8 +5,8 @@ using Ration.Core.Diagnostics;
 namespace Ration.Platform.Windows.App;
 
 /// <summary>
-/// Aynı Windows kullanıcısının Ration örneklerini tek mutex altında toplar.
-/// İkinci örnek UI kurmaz; çalışan örneğe kayıtlı pencere mesajı yollar ve çıkar.
+/// Gathers the Ration instances of the same Windows user under a single mutex.
+/// A second instance does not build a UI; it sends a registered window message to the running instance and exits.
 /// </summary>
 public sealed class SingleInstanceLease : IDisposable
 {
@@ -24,7 +24,7 @@ public sealed class SingleInstanceLease : IDisposable
 
     public static uint WakeWindowMessageId => WakeMessageId;
 
-    /// <summary>Uygulamanın kendini yeniden başlattığını bildiren komut satırı bayrağı.</summary>
+    /// <summary>Command-line flag saying that the app is restarting itself.</summary>
     public const string RestartedFlag = "--restarted";
 
     public static string MutexNameForCurrentUser()
@@ -58,8 +58,8 @@ public sealed class SingleInstanceLease : IDisposable
                 return true;
             }
 
-            // Kendini yeniden başlatan örnek (tema değişimi): eski süreç kapanıp kilidi
-            // bırakana kadar bekle; yoksa yeni süreç eskisini uyandırıp kendini kapatır.
+            // An instance restarting itself (theme change): wait until the old process exits and releases the lock;
+            // otherwise the new process wakes the old one and closes itself.
             if (args.Any(a => a.Equals(RestartedFlag, StringComparison.OrdinalIgnoreCase)))
             {
                 bool acquired;
@@ -95,8 +95,8 @@ public sealed class SingleInstanceLease : IDisposable
             return false;
         }
 
-        // Kullanıcının başlattığı bu süreç öne gelme hakkına sahip; hakkı çalışan örneğe
-        // devret. Yoksa uyandırılan panel odak alamayıp anında kapanıyordu.
+        // This process, started by the user, holds the right to come to the foreground; hand that right to the
+        // running instance. Otherwise the panel that was woken could not take focus and closed immediately.
         AllowSetForegroundWindow(AsfwAny);
 
         return PostMessage(HwndBroadcast, WakeMessageId, IntPtr.Zero, IntPtr.Zero);

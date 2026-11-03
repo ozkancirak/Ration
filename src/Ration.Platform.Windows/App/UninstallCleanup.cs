@@ -4,8 +4,8 @@ using Ration.Core.Diagnostics;
 namespace Ration.Platform.Windows.App;
 
 /// <summary>
-/// Kaldırma sırasında Ration'ın kullanıcı kaydına yazdığı her şeyi siler: başlangıç girdisi,
-/// bildirim kimliği ve ayar anahtarı. Dosyalara (ayar, günlük) dokunmaz.
+/// Removes everything Ration wrote to the user's registry on uninstall: the startup entry,
+/// the notification identity and the settings key. Does not touch files (settings, log).
 /// </summary>
 public static class UninstallCleanup
 {

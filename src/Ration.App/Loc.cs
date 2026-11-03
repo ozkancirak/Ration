@@ -3,7 +3,7 @@ using Ration.Core;
 
 namespace Ration.App;
 
-/// <summary>XAML'de iki dilli metin: <c>Text="{l:Loc En='Refresh', Tr='Yenile'}"</c>.</summary>
+/// <summary>Bilingual text in XAML: <c>Text="{l:Loc En='Refresh', Tr='Yenile'}"</c>.</summary>
 [MarkupExtensionReturnType(ReturnType = typeof(string))]
 public sealed partial class Loc : MarkupExtension
 {

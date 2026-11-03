@@ -9,15 +9,15 @@ using Microsoft.UI.Xaml.Media;
 namespace Ration.App.Views;
 
 /// <summary>
-/// Kota görselleştirmesinin tek kaynağı.
+/// The single source of quota visualization.
 ///
-/// Renkler KOD İÇİNDE SABİTLENMEZ; WinUI tema fırçalarından okunur:
-/// - normal       → AccentFillColorDefaultBrush  (kullanıcının Windows accent rengi)
-/// - %75 ve üzeri → SystemFillColorCautionBrush
-/// - %90 ve üzeri → SystemFillColorCriticalBrush
-/// - Yüksek kontrast → SystemColorHighlightColorBrush / SystemColorWindowTextColorBrush
+/// Colors are NOT HARD-CODED; they are read from WinUI theme brushes:
+/// - normal       → AccentFillColorDefaultBrush  (the user's Windows accent color)
+/// - 75% and above → SystemFillColorCautionBrush
+/// - 90% and above → SystemFillColorCriticalBrush
+/// - High contrast → SystemColorHighlightColorBrush / SystemColorWindowTextColorBrush
 ///
-/// Böylece açık/koyu tema, yüksek kontrast ve accent rengi değişimi bedava gelir.
+/// So light/dark theme, high contrast and accent color changes come for free.
 /// </summary>
 public static class QuotaVisuals
 {
@@ -41,7 +41,7 @@ public static class QuotaVisuals
         return Resource(key);
     }
 
-    /// <summary>"2 sa 14 dk", "38 dk", "3 gün" — sıfırlanmaya süreyi kısa yazar.</summary>
+    /// <summary>"2h 14m", "38m", "3d" — writes the time to reset compactly.</summary>
     public static string FormatReset(DateTimeOffset? resetsAt, bool stale = false)
     {
         if (resetsAt is not { } reset) return string.Empty;
@@ -61,8 +61,8 @@ public static class QuotaVisuals
     }
 
     /// <summary>
-    /// Bir pencereyi ölçere, yüzde yazısına, sıfırlanma yazısına ve erişilebilirlik ismine uygular.
-    /// Pencere yoksa ölçer boş ve soluk bırakılır — sahte sıfır gösterilmez.
+    /// Applies a window to the meter, the percent text, the reset text and the accessibility name.
+    /// If there is no window the meter is left empty and faded — a fake zero is not shown.
     /// </summary>
     public static void Apply(
         UsageWindow? window,
@@ -106,14 +106,14 @@ public static class QuotaVisuals
         }
     }
 
-    /// <summary>"Az önce güncellendi", "12 dk önce güncellendi" — veri tazeliği tek satır.</summary>
+    /// <summary>"Updated just now", "Updated 12 min ago" — data freshness in one line.</summary>
     public static string FormatUpdated(DateTimeOffset fetchedAt)
     {
         var age = FormatAge(fetchedAt);
         return L.T($"Updated {age}", char.ToUpper(age[0], CultureInfo.CurrentCulture) + age[1..] + " güncellendi");
     }
 
-    /// <summary>"az önce", "12 dk önce" / "just now", "12 min ago".</summary>
+    /// <summary>"just now", "12 min ago", "3 h ago" — relative age, in the UI language.</summary>
     public static string FormatAge(DateTimeOffset at)
     {
         var age = DateTimeOffset.UtcNow - at;
@@ -123,10 +123,10 @@ public static class QuotaVisuals
         return L.T($"{(int)age.TotalDays} d ago", $"{(int)age.TotalDays} gün önce");
     }
 
-    /// <summary>Tema fırçası; sözlükte yoksa gri. Kodda sabit renk kullanılmaz.</summary>
+    /// <summary>Theme brush; gray if missing from the dictionary. No fixed color is used in code.</summary>
     internal static Brush Fill(string key) => Resource(key);
 
-    /// <summary>Tip rampası stilini uygular; sözlükte yoksa varsayılanı bırakır.</summary>
+    /// <summary>Applies the type ramp style; leaves the default if it is not in the dictionary.</summary>
     internal static void SetTextStyle(TextBlock text, string key)
     {
         if (Application.Current.Resources.TryGetValue(key, out var value) && value is Style style)
@@ -135,7 +135,7 @@ public static class QuotaVisuals
         }
     }
 
-    /// <summary>Kontrol köşe yarıçapı (hap/rozet ve sekmeler için).</summary>
+    /// <summary>Control corner radius (for pills/badges and tabs).</summary>
     internal static CornerRadius PillCorner()
     {
         if (Application.Current.Resources.TryGetValue("ControlCornerRadius", out var value) && value is CornerRadius corner)
@@ -146,8 +146,8 @@ public static class QuotaVisuals
     }
 
     /// <summary>
-    /// Plan rozetini gösterir ya da gizler. Antigravity "Google AI Pro/Ultra"
-    /// döndürür; ürün ailesi önekini rozetten çıkarıp yalnızca planı gösteririz.
+    /// Shows or hides the plan badge. Antigravity returns "Google AI Pro/Ultra";
+    /// we strip the product family prefix from the badge and show only the plan.
     /// </summary>
     public static void ApplyPlan(Border badge, TextBlock text, string? planName)
     {
@@ -181,7 +181,7 @@ public static class QuotaVisuals
             return brush;
         }
 
-        // Tema sözlüğü beklenmedik şekilde eksikse uygulamayı çökertme.
+        // Do not crash the app if the theme dictionary is unexpectedly missing something.
         return new SolidColorBrush(Microsoft.UI.Colors.Gray);
     }
 }

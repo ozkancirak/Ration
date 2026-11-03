@@ -8,7 +8,7 @@ using Ration.Core.Usage;
 
 namespace Ration.App.Views;
 
-/// <summary>Panel şablonlarının (FlyoutWindow.xaml) bağlandığı tek seferlik satırlar.</summary>
+/// <summary>One-time rows that the panel templates (FlyoutWindow.xaml) bind to.</summary>
 public sealed record WindowRow(
     string? GroupHeading,
     string Title,
@@ -24,8 +24,8 @@ public sealed record WindowRow(
     public Visibility PaceVisibility => PaceText is null ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>
-    /// Ölçer KALAN kotayı gösterir (tepsi ikonuyla aynı dil); renk ise kullanıma göre
-    /// uyarı eşiklerini izler (QuotaVisuals.MeterBrush).
+    /// The meter shows the REMAINING quota (the same language as the tray icon); the color follows
+    /// the warning thresholds by usage (QuotaVisuals.MeterBrush).
     /// </summary>
     public static IReadOnlyList<WindowRow> From(UsageSnapshot snapshot, DateTimeOffset now)
     {
@@ -51,14 +51,14 @@ public sealed record WindowRow(
                     title,
                     remaining,
                     QuotaVisuals.MeterBrush(window.Percent),
-                    // Az kullanım yuvarlamada kaybolmasın: %0,2 kullanımda "%100 kaldı" yerine "%99,8 kaldı".
+                    // Small usage must not disappear in rounding: at 0.2% used, "99.8% left" rather than "100% left".
                     remaining is > 99 and < 99.95
                         ? L.T($"{remaining:0.#}% left", $"%{remaining:0.#} kaldı")
                         : L.T($"{remaining:F0}% left", $"%{remaining:F0} kaldı"),
                     ResetTextFor(window.ResetsAt, stale),
                     pace,
                     L.T($"{title}, {remaining:F0} percent left", $"{title}, yüzde {remaining:F0} kaldı"),
-                    // Uygulama dili CurrentCulture'a yansıtılır; "f" yerel uzun tarih + kısa saattir.
+                    // The app language is reflected in CurrentCulture; "f" is the local long date + short time.
                     window.ResetsAt is { } resetsAt ? resetsAt.ToLocalTime().ToString("f") : null));
                 heading = null;
             }
@@ -73,18 +73,18 @@ public sealed record WindowRow(
     {
         if (string.IsNullOrWhiteSpace(window.Label)) return KindName(window.Kind);
 
-        // "5 saatlik"/"5-hour" sağlayıcıların oturum penceresidir; CodexBar dilinde "Oturum".
+        // The "5-hour" window is the providers' session window; in CodexBar's terms it is "Session".
         if (window.Kind == WindowKind.Session && HourLabel.IsMatch(window.Label)) return L.T("Session", "Oturum");
 
-        // Codex'in model bazlı ek limitleri iç adla gelir ("gpt-reserve · Haftalık"); kullanıcıya
-        // bir şey anlatmaz. Sağ taraf (pencere adı) korunur.
+        // Codex's per-model additional limits arrive with an internal name ("gpt-reserve · Weekly"); it tells
+        // the user nothing. The right side (the window name) is kept.
         var parts = window.Label.Split(" · ", 2);
         return parts.Length == 2 && parts[0].StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
             ? L.T($"Extra model limit · {parts[1]}", $"Ek model limiti · {parts[1]}")
             : window.Label;
     }
 
-    /// <summary>Sağlayıcının İngilizce grup adları ("Gemini Models", "Claude and GPT models").</summary>
+    /// <summary>The provider's English group names ("Gemini Models", "Claude and GPT models").</summary>
     private static string LocalizeGroup(string name)
     {
         if (!L.Turkish) return name;
@@ -104,7 +104,7 @@ public sealed record WindowRow(
     private static string ResetTextFor(DateTimeOffset? resetsAt, bool stale)
     {
         var text = QuotaVisuals.FormatReset(resetsAt, stale);
-        // Süre geçtiyse metin bir durum cümlesidir ("sıfırlanmış olabilir"), olduğu gibi yazılır.
+        // If the time has passed the text is a status sentence ("may have been reset"), written as it is.
         if (text.Length == 0 || resetsAt <= DateTimeOffset.UtcNow) return text;
         return L.T($"Resets in {text}", $"{text} sonra sıfırlanır");
     }
@@ -112,12 +112,12 @@ public sealed record WindowRow(
 
 public sealed record StatItem(string Label, string Value);
 
-/// <summary>Günlük çubuk. Bugün tam renk, geçmiş günler soluk: göz önce bugüne gitsin.</summary>
+/// <summary>Daily bar. Today in full color, past days faded: so the eye goes to today first.</summary>
 public sealed record DayBar(double BarHeight, double BarWidth, string Tip, double BarOpacity);
 
 public static class UsageFormat
 {
-    /// <summary>319M, 5,9B, 85K — CodexBar'daki kısa token yazımı.</summary>
+    /// <summary>319M, 5.9B, 85K — CodexBar's short token notation.</summary>
     public static string Tokens(long tokens) => tokens switch
     {
         >= 1_000_000_000 => Short(tokens / 1_000_000_000d) + "B",
@@ -143,13 +143,13 @@ public static class UsageFormat
     }
 
     /// <summary>
-    /// Son <paramref name="days"/> günün çubukları; verisi olmayan gün boş yer tutar ki
-    /// eksen düzgün kalsın. Yükseklik en yoğun güne göre ölçeklenir.
+    /// Bars for the last <paramref name="days"/> days; a day with no data holds an empty slot so
+    /// the axis stays straight. The height is scaled to the busiest day.
     /// </summary>
     public static IReadOnlyList<DayBar> Bars(IReadOnlyList<DailyTokens> daily, DateOnly today, int days, double width, double height)
     {
         const double gap = 3;
-        // Aşağı yuvarla: toplam genişlik alanı bir piksel bile aşarsa son çubuk (bugün) kırpılır.
+        // Round down: if the total width exceeds the area by even one pixel, the last bar (today) gets clipped.
         var barWidth = Math.Max(1, Math.Floor((width - gap * (days - 1)) / days));
         var byDay = daily.ToDictionary(d => d.Day, d => d.Tokens);
         var max = Math.Max(1, daily.Count == 0 ? 1 : daily.Max(d => d.Tokens));

@@ -195,11 +195,11 @@ public static class AntigravityProcessPortFinder
     }
 
     /// <summary>
-    /// Süreç komut satırları (CSRF anahtarı oradadır). WMI (System.Management) yerine
-    /// NtQueryInformationProcess(ProcessCommandLineInformation): WMI .NET'in yerleşik COM
-    /// desteğini ister; WinUI'de kapalı, budanmış yayında da eksik üyeler yüzünden
-    /// TypeInitializationException veriyordu ve uygulama her portta 401 alıyordu.
-    /// Yerel çağrı COM gerektirmez, trimming'den etkilenmez ve çok daha hızlıdır.
+    /// Process command lines (the CSRF key is there). Instead of WMI (System.Management), use
+    /// NtQueryInformationProcess(ProcessCommandLineInformation): WMI needs .NET's built-in COM
+    /// support; it is off in WinUI, and in the trimmed release it also threw TypeInitializationException
+    /// because of missing members, and the app got a 401 on every port.
+    /// The native call needs no COM, is unaffected by trimming and is much faster.
     /// </summary>
     private static Dictionary<int, string> ReadCommandLines(IReadOnlySet<int> candidatePids)
     {
@@ -238,7 +238,7 @@ public static class AntigravityProcessPortFinder
             {
                 if (NtQueryInformationProcess(handle, ProcessCommandLineInformation, buffer, length, out _) != 0) return null;
 
-                // Tampon bir UNICODE_STRING ile başlar; Buffer alanı aynı tampon içini gösterir.
+                // The buffer starts with a UNICODE_STRING; the Buffer field points inside the same buffer.
                 var text = Marshal.PtrToStructure<UnicodeString>(buffer);
                 return text.Buffer == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUni(text.Buffer, text.Length / 2);
             }

@@ -16,8 +16,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        // Paketleme doğrulaması (scripts/package.ps1): uygulama açılıyor mu, sürüm doğru mu.
-        // Arayüz kurulmadan, hiçbir tercihe dokunmadan çıkar.
+        // Packaging verification (scripts/package.ps1): does the app start, is the version right.
+        // It exits without building a UI and without touching any preference.
         if (args.Length > 0 && args[0].Equals("--version", StringComparison.OrdinalIgnoreCase))
         {
             AttachConsole(AttachParentProcess);
@@ -25,8 +25,8 @@ internal static class Program
             return;
         }
 
-        // Dil dahil her tercih SettingsStore'dan okunur; eski sürümlerin dosya ve kayıt defteri
-        // değerleri L ilk kullanılmadan önce alınmalı, yoksa ilk açılışta dil kaybolur.
+        // Every preference, language included, is read from SettingsStore; the file and registry values of older
+        // versions must be imported before L is first used, otherwise the language is lost on first launch.
         Ration.Core.LegacySettingsMigration.Run();
         Ration.Core.Settings.LegacyPreferenceImport.Run(
             Ration.Core.Settings.SettingsStore.Default,
@@ -34,16 +34,16 @@ internal static class Program
             new Ration.Platform.Windows.App.LegacyRegistryValues());
         Ration.Core.L.ApplyCulture();
 
-        // Claude Code statusLine köprüsü: durum satırı her yenilendiğinde çağrılır, bu yüzden
-        // WinUI/Velopack başlatılmadan en kısa yoldan çalışır ve hemen çıkar.
+        // Claude Code statusLine bridge: called every time the status line refreshes, so it runs by the
+        // shortest path without starting WinUI/Velopack and exits immediately.
         if (args.Length > 0 && args[0].Equals("--statusline", StringComparison.OrdinalIgnoreCase))
         {
             RunStatusLine();
             return;
         }
 
-        // Pencere uygulamasıdır (WinExe), açılışta konsol penceresi çıkmaz. Terminale yazan
-        // kipler (--log, --selftest) çağıran terminalin konsoluna bağlanır.
+        // It is a windowed app (WinExe), so no console window appears at startup. Modes that write
+        // to the terminal (--log, --selftest) attach to the calling terminal's console.
         if (args.Any(a => a.Equals("--log", StringComparison.OrdinalIgnoreCase) ||
                           a.Equals("--selftest", StringComparison.OrdinalIgnoreCase)))
         {
@@ -91,7 +91,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            // Claude Code'un durum satırını asla bozma; yalnızca günlüğe yaz.
+            // Never break Claude Code's status line; only write to the log.
             Trace.Error("statusline", $"capture failed type={ex.GetType().Name}");
         }
     }

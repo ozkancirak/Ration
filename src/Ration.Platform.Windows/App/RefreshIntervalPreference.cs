@@ -2,7 +2,7 @@ using Ration.Core.Settings;
 
 namespace Ration.Platform.Windows.App;
 
-/// <summary>Arka plan yenileme aralığı; SettingsStore'da "refreshMinutes" olarak durur.</summary>
+/// <summary>Background refresh interval; stored in SettingsStore as "refreshMinutes".</summary>
 public static class RefreshIntervalPreference
 {
     private static readonly TimeSpan Default = TimeSpan.FromMinutes(15);

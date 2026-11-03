@@ -5,8 +5,8 @@ namespace Ration.App.Views;
 internal static class ClipboardHelper
 {
     /// <summary>
-    /// Metni panoya koyar. Pano başka bir uygulama tarafından tutuluyorsa SetContent COM hatası
-    /// verir; bu, olay işleyicisinden sızıp uygulamayı kapatmasın diye yakalanır.
+    /// Puts text on the clipboard. If the clipboard is held by another app, SetContent throws a COM error;
+    /// this is caught so it does not leak out of the event handler and close the app.
     /// </summary>
     public static bool TryCopy(string text)
     {

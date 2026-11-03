@@ -57,18 +57,18 @@ public sealed partial class FlyoutWindow : Window
     private bool _selfTestExitInProgress;
 
     /// <summary>
-    /// Self-test için çıkış eylemini bir kez gözlemleyip gerekirse ertelemeyi
-    /// sağlayan kanca. Normal çalışmada null kalır; menü davranışını değiştirmez.
+    /// A hook that lets the self-test observe the exit action once and postpone it if needed.
+    /// It stays null in normal operation; it does not change the menu behavior.
     /// </summary>
     public Func<Task<bool>>? SelfTestExitRequested { get; set; }
 
-    // Sekme şeridi durumu. Tray'e dokunulmaz; ikon hesabı RecalculateTrayIcon'da aynen durur.
+    // Tab strip state. The tray is untouched; the icon calculation stays as it is in RecalculateTrayIcon.
     private sealed record TabDef(string Id, string Name, ProviderIconDefinition Icon);
     private readonly Dictionary<string, (ToggleButton Button, ProgressBar Meter)> _tabs = new(StringComparer.OrdinalIgnoreCase);
     private string _selectedId = "claude";
     private bool _userPickedTab;
 
-    // Maliyet: yerel JSONL taraması, thread pool'da. Bayat koşular çöpe gider.
+    // Cost: local JSONL scan, on the thread pool. Stale runs are thrown away.
     private long _costRun;
     private string? _costForId;
     private DateTimeOffset _costAt = DateTimeOffset.MinValue;
@@ -76,13 +76,13 @@ public sealed partial class FlyoutWindow : Window
     private readonly HashSet<string> _modelDiagnosticSnapshots = new(StringComparer.OrdinalIgnoreCase);
     private bool _allModelDiagnosticsStarted;
 
-    // Flyout genişliği sabit 420 DIP (beş sekme, Antigravity gibi uzun adlar dahil, kırpılmadan
-    // sığsın); yükseklik bütün sekmelerin en uzunu olur.
+    // The flyout width is a fixed 420 DIP (so that five tabs, including long names like Antigravity,
+    // fit without clipping); the height is that of the tallest of all tabs.
     private const double FlyoutWidthDip = 420;
     private int _targetWidth;
 
-    // Açılıştaki yerleşim: görev çubuğu alttaysa alt kenar sabit tutulur ki içerik
-    // değişince pencere görev çubuğundan kopmasın ya da ekrandan taşmasın.
+    // Placement on opening: when the taskbar is at the bottom, the bottom edge is kept fixed so that when
+    // the content changes the window neither detaches from the taskbar nor overflows the screen.
     private FlyoutEdge _edge = FlyoutEdge.Bottom;
     private int _anchorBottom;
 
@@ -97,10 +97,10 @@ public sealed partial class FlyoutWindow : Window
         var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
         _appWindow = AppWindow.GetFromWindowId(windowId);
 
-        // Ortak popover kabuğu: akrilik, başlıksız sunucu, switcher gizliliği.
+        // Shared popover shell: acrylic, title-less presenter, hidden from switchers.
         PopoverHelper.ConfigureChrome(this, _appWindow, _hwnd);
-        // Sabitliyken odak kaybı pencereyi kapatmaz ve zaman damgası da basılmaz: yoksa tepsi
-        // simgesine tıklamak (odağı alan tıklama) kapatma olarak yutulurdu.
+        // While pinned, losing focus does not close the window and no timestamp is recorded: otherwise clicking
+        // the tray icon (the click that takes focus) would be swallowed as a close.
         PopoverHelper.ConfigureDismissal(this, _appWindow, HideFlyout, RootLayout,
             onDeactivated: () => { if (!_pinned) _lastDeactivatedTime = DateTimeOffset.UtcNow; },
             canDismissOnDeactivate: () => !_pinned);
@@ -108,12 +108,12 @@ public sealed partial class FlyoutWindow : Window
         // Immersive Dark Mode
         UpdateWindowFrameTheme();
 
-        // Subclass hook: WM_DWMCOLORIZATIONCOLORCHANGED (0x0320) ve WM_SETTINGCHANGE (0x001A)
+        // Subclass hook: WM_DWMCOLORIZATIONCOLORCHANGED (0x0320) and WM_SETTINGCHANGE (0x001A)
         _subclassProc = WindowSubclassProc;
         NativeMethods.SetWindowSubclass(_hwnd, _subclassProc, new UIntPtr(1), IntPtr.Zero);
 
-        // Işıkla kapanma (odak kaybı/Esc/kapatma) ortak tabanda; zaman damgası
-        // aynı tıklamanın pencereyi kapatıp hemen yeniden açmasını önler.
+        // Light dismiss (focus loss/Esc/close) lives in the common base; the timestamp
+        // prevents the same click from closing the window and immediately reopening it.
 
         // Initialize HTTP Client and RefreshScheduler
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
@@ -130,8 +130,8 @@ public sealed partial class FlyoutWindow : Window
         {
             Interval = RefreshIntervalPreference.Current,
             MaxJitter = TimeSpan.FromSeconds(5),
-            // Tüm sağlayıcılar aynı anda: sınır sağlayıcı sayısından azsa sonuncu sırada bekliyor
-            // ve panel açılışında eski veriyle kalıyordu.
+            // All providers at once: if the limit is lower than the number of providers, the last one waits in line
+            // and stayed on old data when the panel opened.
             MaxConcurrency = _providers.Count,
             EmitCachedOnStart = true,
         });
@@ -140,8 +140,8 @@ public sealed partial class FlyoutWindow : Window
 
         // Wire window refresh button
         RefreshButton.Click += (s, e) => _ = RefreshManuallyAsync();
-        // Click değil Checked/Unchecked: ekran okuyucu ve UI Automation ToggleButton'ı Click
-        // olmadan çevirir.
+        // Checked/Unchecked rather than Click: screen readers and UI Automation toggle a ToggleButton
+        // without Click.
         PinButton.Checked += OnPinChanged;
         PinButton.Unchecked += OnPinChanged;
 
@@ -152,20 +152,20 @@ public sealed partial class FlyoutWindow : Window
         BuildTabs();
         UpdateWelcomeState();
 
-        // Menü native WinUI penceresidir (TrayMenuWindow); WinForms menüsü yok.
-        // Önce menü kurulur (tray lambdaları ona kapanır).
+        // The menu is a native WinUI window (TrayMenuWindow); there is no WinForms menu.
+        // The menu is built first (the tray lambdas close over it).
         _menu = new TrayMenuWindow();
         _menu.RefreshRequested += () => _ = RefreshManuallyAsync();
         _menu.SettingsRequested += () => this.DispatcherQueue.TryEnqueue(OpenSettingsWindow);
         _menu.ExitRequested += () => this.DispatcherQueue.TryEnqueue(ExitApplication);
 
-        // Tray: ham Shell_NotifyIcon (SystemTrayHost). Ikon HICON olarak uretilir,
-        // sahiplik SystemTrayHost'a gecer: once yeni ikon kabuga verilir,
-        // sonra onceki handle yok edilir (bkz. UpdateTrayIcon).
+        // Tray: raw Shell_NotifyIcon (SystemTrayHost). The icon is produced as an HICON,
+        // ownership passes to SystemTrayHost: first the new icon is given to the shell,
+        // then the previous handle is destroyed (see UpdateTrayIcon).
         _tray = new SystemTrayHost();
         _tray.LeftClicked += () => this.DispatcherQueue.TryEnqueue(() =>
         {
-            // Menü açıkken sol tık: menü kapanıp flyout açılır (ikisi aynı anda durmaz).
+            // Left click while the menu is open: the menu closes and the flyout opens (the two never stay together).
             if (_menu.IsMenuVisible)
             {
                 _menu.HideMenu();
@@ -182,7 +182,7 @@ public sealed partial class FlyoutWindow : Window
 
         Trace.Info("tray", "initialized");
 
-        // Kota bildirimine tıklanınca panel açılır.
+        // Clicking a quota notification opens the panel.
         QuotaNotifier.Register(() => this.DispatcherQueue.TryEnqueue(ShowFlyout));
 
         // Theme listeners
@@ -199,19 +199,19 @@ public sealed partial class FlyoutWindow : Window
 
         _appWindow.Resize(new SizeInt32(1, 1));
 
-        // Gizli başlar: CPU önceliği düşük (EcoQoS), ama arka plan yenilemesi çalışır.
-        // Yalnızca ekran kilidi / enerji tasarrufu açıksa duraklatılmış başlar.
+        // Starts hidden: low CPU priority (EcoQoS), but background refresh runs.
+        // It starts paused only if screen lock / energy saver is on.
         if (EfficiencyModeManager.ShouldPause) _scheduler.Pause();
         EfficiencyModeManager.SetEfficiencyMode(true);
 
         // Start scheduler loop
         _scheduler.Start();
 
-        // Yeni sürüm varsa tepsi menüsünde Ayarlar'ın yanında nokta görünür.
+        // If there is a new version, a dot appears next to Settings in the tray menu.
         _menu.SetUpdateAvailable(AppUpdates.HasNewerUpdate(AppUpdates.Service.LastResult));
         AppUpdates.Service.ResultChanged += OnUpdateResultChanged;
 
-        // Günde bir sessiz güncelleme denetimi; bir pencere açıkken ya da ekran kilitliyken bekler.
+        // Silent update check once a day; it waits while a window is open or the screen is locked.
         _updateAutoCheck = new UpdateAutoCheck(
             this.DispatcherQueue,
             AppUpdates.Service,
@@ -262,8 +262,8 @@ public sealed partial class FlyoutWindow : Window
         Trace.Info("window", $"flyout.pin state={(pinned ? "on" : "off")}");
     }
 
-    // Genel kısayol: RegisterHotKey bu pencereye WM_HOTKEY gönderir (WindowSubclassProc).
-    // Ayar değişince eski kayıt kaldırılıp yenisi yapılır; kısayol kapalıyken hiçbir şey kayıtlı kalmaz.
+    // Global hotkey: RegisterHotKey sends WM_HOTKEY to this window (WindowSubclassProc).
+    // When the setting changes, the old registration is removed and a new one is made; while the hotkey is off nothing stays registered.
     private const int HotkeyId = 0x5254;
     private bool _hotkeyRegistered;
 
@@ -288,7 +288,7 @@ public sealed partial class FlyoutWindow : Window
             ? $"registered key={hotkey}"
             : $"register-failed key={hotkey} error={Marshal.GetLastWin32Error()}");
 
-        // Birleşimi başka bir uygulama tutuyorsa (ERROR_HOTKEY_ALREADY_REGISTERED) ayarlar uyarır.
+        // If another app holds the combination (ERROR_HOTKEY_ALREADY_REGISTERED) the settings warn.
         HotkeyPreference.ReportRegistration(failed: !_hotkeyRegistered);
     }
 
@@ -355,9 +355,9 @@ public sealed partial class FlyoutWindow : Window
 
     private void OnSystemResumed() => _ = RefreshAfterResumeAsync();
 
-    // Uykudan ya da kilitten dönünce bir sonraki tur gelene kadar (15 dk) bayat veri kalmasın.
-    // Ağ bağdaştırıcısı geç hazır olabildiği için kısa süre beklenir; uyku dönüşü ve kilit
-    // açılışı art arda gelirse tek yenileme yeter.
+    // After returning from sleep or lock, stale data must not remain until the next round (15 min).
+    // The network adapter can be late to get ready, so a short wait is applied; if the resume from sleep
+    // and the unlock arrive back to back, a single refresh is enough.
     private async Task RefreshAfterResumeAsync()
     {
         if (Interlocked.Exchange(ref _resumeRefreshPending, 1) == 1) return;
@@ -386,8 +386,8 @@ public sealed partial class FlyoutWindow : Window
             return;
         }
 
-        // Yalnızca art arda basmaya karşı: panel açılışındaki otomatik yenileme Yenile
-        // düğmesini bloklamaz (önceden ortak damga yüzünden 60 sn sessizce çalışmıyordu).
+        // Only against rapid repeated presses: the automatic refresh on panel opening does not block the Refresh
+        // button (it used to silently not work for 60 s because of a shared timestamp).
         var now = DateTimeOffset.UtcNow;
         if (now - _lastManualRefresh < ManualRefreshMinimum)
         {
@@ -407,14 +407,14 @@ public sealed partial class FlyoutWindow : Window
         }
         catch (OperationCanceledException)
         {
-            // Exit sırasında scheduler iptal edilir; async-void Click içine
-            // TaskCanceledException sızıp XAML unhandled akışını tetiklemesin.
+            // The scheduler is cancelled during Exit; so that a TaskCanceledException does not leak into the
+            // async-void Click and trigger the XAML unhandled flow.
             Trace.Info("provider.refresh", "manual status=cancelled");
         }
         catch (ObjectDisposedException)
         {
-            // Kapanışta başka bir manuel tur scheduler dispose yarışına girebilir;
-            // bu da kullanıcı eylemi değil, kontrollü kapanış durumudur.
+            // At shutdown another manual round can race with the scheduler dispose;
+            // that too is a controlled shutdown case, not a user action.
             Trace.Info("provider.refresh", "manual status=cancelled");
         }
         catch (Exception ex)
@@ -471,7 +471,7 @@ public sealed partial class FlyoutWindow : Window
         }
     }
 
-    // Üst üste binen yenilemelerde (düğme + panel açılışı) halka sonuncu bitene kadar döner.
+    // With overlapping refreshes (button + panel opening) the ring spins until the last one finishes.
     private int _refreshesInFlight;
 
     private void BeginRefreshIndicator()
@@ -592,7 +592,7 @@ public sealed partial class FlyoutWindow : Window
         this.DispatcherQueue.TryEnqueue(() =>
         {
             if (RestartIfAppThemeChanged()) return;
-            // Görev çubuğu teması uygulama temasından bağımsız değişebilir: yalnızca ikon.
+            // The taskbar theme can change independently of the app theme: icon only.
             UpdateTrayIcon(_currentGaugePercent, _currentTooltip);
         });
     }
@@ -607,9 +607,9 @@ public sealed partial class FlyoutWindow : Window
     }
 
     /// <summary>
-    /// Uygulama teması yalnızca açılışta ayarlanabildiği için (App.RequestedTheme) etkin
-    /// tema değişince süreç kendini yeniden başlatır; Ayarlar açıksa yeniden açılır.
-    /// Çalışırken yamalamak sekme yazıları gibi koddan verilen renkleri eski temada bırakıyordu.
+    /// Because the app theme can only be set at startup (App.RequestedTheme), when the effective
+    /// theme changes the process restarts itself; if Settings is open it is reopened.
+    /// Patching at runtime left code-supplied colors, such as the tab labels, in the old theme.
     /// </summary>
     private bool RestartIfAppThemeChanged()
     {
@@ -617,7 +617,7 @@ public sealed partial class FlyoutWindow : Window
         return RestartApp("theme");
     }
 
-    /// <summary>Tema ve dil yalnızca açılışta uygulanır; değişince süreç kendini yeniden başlatır.</summary>
+    /// <summary>Theme and language are applied only at startup; when they change the process restarts itself.</summary>
     private bool RestartApp(string reason)
     {
         var reopenSettings = _settingsWindow?.IsShown == true;
@@ -633,7 +633,7 @@ public sealed partial class FlyoutWindow : Window
         }
         catch (Exception ex)
         {
-            // Yeniden başlatılamazsa çıkma; kullanıcı elle yeniden başlatana kadar mevcut tema kalır.
+            // If it cannot be restarted, do not exit; the current theme stays until the user restarts manually.
             Trace.Error("app", $"restart-failed type={ex.GetType().Name}");
             return false;
         }
@@ -669,8 +669,8 @@ public sealed partial class FlyoutWindow : Window
         RenderDetail();
     }
 
-    // ---- Sekme şeridi: ToggleButton + altında 2px mini ölçer. SelectorBar mini ölçeri
-    // barındıramadığı için kullanılmadı; sağlayıcı sayısı az (2-6), StackPanel yeter. ----
+    // ---- Tab strip: ToggleButton + a 2px mini meter underneath. SelectorBar was not used because it cannot
+    // host the mini meter; the provider count is small (2-6), so a StackPanel is enough. ----
 
     private void BuildTabs()
     {
@@ -688,9 +688,9 @@ public sealed partial class FlyoutWindow : Window
 
         var known = GetProviderTab(id, name);
 
-        // Eşit genişlikte sekme: ikon üstte, ad altta, en altta mini ölçer. Yan yana (ikon + ad)
-        // düzen eşit genişliğe sığmıyordu ("Antigravity"); içeriğe göre genişlikte ise şerit
-        // dağınık görünüyordu.
+        // Equal-width tabs: icon on top, name below, the mini meter at the very bottom. The side-by-side
+        // (icon + name) layout did not fit an equal width ("Antigravity"); with content-based width
+        // the strip looked scattered.
         var icon = CreateProviderIcon(known);
         if (icon is FrameworkElement iconElement) iconElement.HorizontalAlignment = HorizontalAlignment.Center;
 
@@ -734,8 +734,8 @@ public sealed partial class FlyoutWindow : Window
         var capturedId = id;
         button.Click += (s, e) => SelectProvider(capturedId);
 
-        // Varsayılan ToggleButton checked stili accent basar; tasarım ince gri ister.
-        // Tema anahtarlarını düğüm sözlüğünde ezmek şablon yazmaktan kısadır.
+        // The default ToggleButton checked style applies the accent; the design wants thin gray.
+        // Overriding the theme keys in the element's resource dictionary is shorter than writing a template.
         button.Resources["ToggleButtonBackgroundChecked"] = QuotaVisuals.Fill("SubtleFillColorSecondaryBrush");
         button.Resources["ToggleButtonBackgroundCheckedPointerOver"] = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush");
         button.Resources["ToggleButtonBackgroundCheckedPressed"] = QuotaVisuals.Fill("SubtleFillColorTertiaryBrush");
@@ -750,7 +750,7 @@ public sealed partial class FlyoutWindow : Window
         TabStrip.Children.Add(button);
     }
 
-    // Sol/Sağ ok sekmeyi değiştirir ve odağı yeni sekmeye taşır; uçlarda başa/sona sarar.
+    // Left/Right arrows switch the tab and move focus to the new tab; they wrap around at the ends.
     private void OnTabStripKeyDown(object sender, KeyRoutedEventArgs e)
     {
         var step = e.Key switch { VirtualKey.Left => -1, VirtualKey.Right => 1, _ => 0 };
@@ -815,7 +815,7 @@ public sealed partial class FlyoutWindow : Window
 
             if (snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error)
             {
-                // Hata: uyarı renginde dolu çizgi; "kota yok"un gri çizgisinden ayırt edilsin.
+                // Error: a solid line in the warning color; so it can be told apart from the gray line of "no quota".
                 meter.Value = 100;
                 meter.Foreground = QuotaVisuals.Fill("SystemFillColorCautionBrush");
                 continue;
@@ -836,7 +836,7 @@ public sealed partial class FlyoutWindow : Window
         }
     }
 
-    /// <summary>Tray ile aynı kural: model bazlı ek limitler (gpt-*) sekme ölçerine girmez.</summary>
+    /// <summary>Same rule as the tray: per-model additional limits (gpt-*) do not enter the tab meter.</summary>
     private static double MainPercent(UsageSnapshot snapshot)
     {
         double max = 0;
@@ -849,7 +849,7 @@ public sealed partial class FlyoutWindow : Window
         return max;
     }
 
-    // ---- Tek sağlayıcı detayı ----
+    // ---- Single provider detail ----
 
     private void OnSnapshotUpdated(UsageSnapshot snapshot)
     {
@@ -877,7 +877,7 @@ public sealed partial class FlyoutWindow : Window
 
     private void MaybeScheduleAllModelDiagnostics()
     {
-        // Yalnızca tanı günlüğü için iki tam tarama; açılışta değil panel ilk açıldığında.
+        // Two full scans only for the diagnostic log; not at startup but when the panel is first opened.
         if (_allModelDiagnosticsStarted || !_isVisible || _modelDiagnosticSnapshots.Count < 4) return;
 
         _allModelDiagnosticsStarted = true;
@@ -943,9 +943,9 @@ public sealed partial class FlyoutWindow : Window
     };
 
     /// <summary>
-    /// Kullanıcı henüz sekme seçmediyse verisi olan ilk sağlayıcıyı göster.
-    /// (Örn. Claude 429 yerken Codex doluysa açılışta hata sayfası gösterilmez.)
-    /// Kullanıcı bir kez tıkladı mı seçim ona aittir, bir daha ellemeyiz.
+    /// If the user has not selected a tab yet, show the first provider that has data.
+    /// (E.g. if Claude is getting 429 while Codex is full, an error page is not shown at startup.)
+    /// Once the user has clicked, the selection is theirs and we never touch it again.
     /// </summary>
     private void MaybeAutoSelect()
     {
@@ -1006,7 +1006,7 @@ public sealed partial class FlyoutWindow : Window
             snapshot.Status is ProviderStatus.AuthRequired or ProviderStatus.Error
             ? string.Empty
             : QuotaVisuals.FormatUpdated(snapshot.FetchedAt);
-        // Boş satır yer kaplamasın: hata/bayat durumda başlık doğrudan ayırıcıya iner.
+        // An empty row must not take up space: in error/stale state the heading goes directly down to the divider.
         DetailUpdated.Visibility = DetailUpdated.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         if (stale)
         {
@@ -1037,7 +1037,7 @@ public sealed partial class FlyoutWindow : Window
         else if (isOpenCode && snapshot.Windows.Count == 0 &&
                  (snapshot.Cost is not null || !string.IsNullOrWhiteSpace(snapshot.StatusDetail)))
         {
-            // OpenCode'un kendi kotası yok: yapılandırılmış sağlayıcılar + yerel kullanım.
+            // OpenCode has no quota of its own: configured providers + local usage.
             DetailUnavailableTitle.Visibility = Visibility.Collapsed;
             var noQuotaDetail = FormatOpenCodeNoQuota(snapshot);
             DetailUnavailableDetail.Text = noQuotaDetail;
@@ -1088,7 +1088,7 @@ public sealed partial class FlyoutWindow : Window
         FreeUsageSection.Visibility = freeUsage is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    // Sağlayıcının kendi kullanım ve durum sayfaları; bilinmeyende bağlantı gösterilmez.
+    // The provider's own usage and status pages; no link is shown for an unknown one.
     private static (string? Dashboard, string? Status) ProviderLinks(string providerId) => providerId.ToLowerInvariant() switch
     {
         "claude" => ("https://claude.ai/settings/usage", "https://status.anthropic.com"),
@@ -1214,11 +1214,11 @@ public sealed partial class FlyoutWindow : Window
             : string.Empty;
     }
 
-    // ---- Kullanım özeti: yerel JSONL taraması, thread pool'da; bitince seçiliyse yaz. ----
+    // ---- Usage summary: local JSONL scan, on the thread pool; when done, write it if still selected. ----
 
     private void RefreshCost(bool force)
     {
-        // Gizli panel için tarama yapılmaz; panel açılınca (ShowFlyout) yapılır.
+        // No scan for a hidden panel; it is done when the panel opens (ShowFlyout).
         if (!_isVisible) return;
 
         var id = _selectedId;
@@ -1236,7 +1236,7 @@ public sealed partial class FlyoutWindow : Window
 
         if (!IsLocalCostProvider(id))
         {
-            // OpenCode/Antigravity raporu snapshot ile gelir; tarama gerekmez.
+            // The OpenCode/Antigravity report comes with the snapshot; no scan is needed.
             _costForId = id;
             _costAt = DateTimeOffset.UtcNow;
             var localCost = _scheduler.Current.TryGetValue(id, out var snapshot)
@@ -1268,8 +1268,8 @@ public sealed partial class FlyoutWindow : Window
         _costAt = DateTimeOffset.UtcNow;
         Task.Run(() =>
         {
-            // Tek tarama: "bugün" 30 günlük taramanın gün kovalarından türetilir (önceden
-            // aynı dosyalar iki kez okunuyordu).
+            // Single scan: "today" is derived from the day buckets of the 30-day scan (the same files
+            // used to be read twice).
             var since = DateTimeOffset.UtcNow.AddDays(-30);
             var month = id == "claude" ? ClaudeCostScanner.Scan(since) : CodexCostScanner.Scan(since);
             var todayStart = new DateTimeOffset(DateTime.Today);
@@ -1285,7 +1285,7 @@ public sealed partial class FlyoutWindow : Window
             if (run != _costRun) return;
             if (t.Status != TaskStatus.RanToCompletion)
             {
-                // Sessiz düşme: tanı için türü yaz (token/içerik asla loglanmaz).
+                // Silent drop: write the type for diagnostics (tokens/content are never logged).
                 Trace.Error(
                     "cost",
                     $"scan-failed provider={id} type={t.Exception?.InnerException?.GetType().Name ?? t.Exception?.GetType().Name ?? "unknown"}");
@@ -1302,8 +1302,8 @@ public sealed partial class FlyoutWindow : Window
         }, TaskScheduler.Default);
     }
 
-    // Grafik bölümü ilk çizimde gizli olabilir (ActualWidth=0); kaydırma alanının görünen
-    // genişliği güvenilirdir. Henüz ölçülmediyse kaydırma çubuğu payıyla tahmin et.
+    // The chart section may be hidden at first paint (ActualWidth=0); the visible width of the scroll
+    // area is reliable. If it has not been measured yet, estimate with the scrollbar allowance.
     private double ChartWidth() =>
         DetailScrollViewer.ViewportWidth > 0 ? DetailScrollViewer.ViewportWidth : FlyoutWidthDip - 48;
 
@@ -1325,9 +1325,9 @@ public sealed partial class FlyoutWindow : Window
     }
 
     /// <summary>
-    /// CodexBar düzeni: iki sütunlu istatistik ızgarası + 30 günlük çubuk grafik +
-    /// en çok kullanılan model. Fiyat tablosu boşsa para GÖSTERİLMEZ (sıfır dolar
-    /// yanlış bilgidir); yalnızca tokenlar yazılır.
+    /// CodexBar layout: a two-column statistics grid + a 30-day bar chart +
+    /// the most used model. If the price table is empty, money is NOT shown (zero dollars
+    /// is wrong information); only tokens are written.
     /// </summary>
     private void ApplyCost(
         CostReport? today,
@@ -1363,8 +1363,8 @@ public sealed partial class FlyoutWindow : Window
         var todayMoney = Money(today);
         var monthMoney = Money(month);
 
-        // Dönem fiyatlanamıyorsa (bilinmeyen model) maliyet kutuları hiç gösterilmez; yan yana
-        // "$0,00" ve "—" tutarsız görünüyordu. Yalnızca token kalır.
+        // If the period cannot be priced (unknown model) the cost boxes are not shown at all; "$0.00" and "—"
+        // side by side looked inconsistent. Only tokens remain.
         if (monthMoney is not null)
         {
             if (today is not null) stats.Add(new StatItem(L.T("Today", "Bugün"), todayMoney ?? "—"));
@@ -1408,8 +1408,8 @@ public sealed partial class FlyoutWindow : Window
     {
         bool isLightTheme = AppThemePreference.IsTaskbarLightTheme();
 
-        // Simge, görev çubuğunun bulunduğu ekranın ölçeğinde çizilir; pencerenin DPI'ı
-        // başka bir ekrandan geliyorsa ikon yanlış boyda üretilip kabuk tarafından yeniden ölçeklenirdi.
+        // The icon is drawn at the scale of the screen where the taskbar is; if the window's DPI came from
+        // another screen, the icon would be produced at the wrong size and rescaled by the shell.
         uint dpi = _tray.TryGetBounds(out var trayBounds) && FlyoutPositioner.ForRect(trayBounds) is { } trayAnchor
             ? trayAnchor.Dpi
             : WindowDpi();
@@ -1424,7 +1424,7 @@ public sealed partial class FlyoutWindow : Window
 
         _currentIconHandle = iconHandle;
 
-        // Once yeni ikon kabuga verilir, sonra onceki handle yok edilir.
+        // First give the new icon to the shell, then destroy the previous handle.
         _tray.UpdateIcon(iconHandle);
         _tray.UpdateTooltip(tooltip);
 
@@ -1447,7 +1447,7 @@ public sealed partial class FlyoutWindow : Window
         }
         else
         {
-            // Flyout açılırken menü kapanır (ikisi aynı anda durmaz).
+            // When the flyout opens the menu closes (the two never stay together).
             _menu.HideMenu();
             ShowFlyout();
         }
@@ -1465,12 +1465,12 @@ public sealed partial class FlyoutWindow : Window
         }
     }
 
-    /// <summary>Doğrulama kancası (--menu): tepsi menüsünü providersız açar.</summary>
+    /// <summary>Verification hook (--menu): opens the tray menu without providers.</summary>
     public void ShowMenuForVerification() => _menu.ShowAtCursor();
     public TrayMenuWindow MenuWindow => _menu;
     public SettingsWindow? SettingsWindowForSelfTest => _settingsWindow;
 
-    /// <summary>Screenshot doğrulamasında taşan detayın sonunu görünür kılar.</summary>
+    /// <summary>Makes the end of an overflowing detail visible in screenshot verification.</summary>
     public void ScrollDetailToEndForVerification()
     {
         RootLayout.UpdateLayout();
@@ -1480,7 +1480,7 @@ public sealed partial class FlyoutWindow : Window
 
     public void ShowFlyout()
     {
-        // DPI hedef ekrandan alınır: gizli pencere şu an başka bir ekranda, başka ölçekte durabilir.
+        // The DPI is taken from the target screen: the hidden window may currently sit on another screen with a different scale.
         var anchor = FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
         uint dpi = anchor?.Dpi ?? WindowDpi();
         double scale = dpi / 96.0;
@@ -1488,28 +1488,29 @@ public sealed partial class FlyoutWindow : Window
         int targetWidth = (int)Math.Round(FlyoutWidthDip * scale);
         _targetWidth = targetWidth;
 
-        // Genişlik sabit kalır; yalnızca seçili sekmenin içeriği ölçülür.
+        // The width stays fixed; only the content of the selected tab is measured.
         double desiredHeightDip = MeasureSelectedContentDip();
         if (desiredHeightDip <= 0) desiredHeightDip = 390;
 
         int maxHeight = anchor is { } known ? (int)Math.Round(known.Work.Height * 0.85) : int.MaxValue;
         int targetHeight = Math.Min((int)Math.Round((desiredHeightDip + 12) * scale), maxHeight);
 
-        // İmleç konumundan hizala, çalışma alanına kırp.
+        // Align from the cursor position, clamp to the work area.
         var placement = anchor?.Place(targetWidth, targetHeight) ?? new FlyoutPlacement(100, 100, FlyoutEdge.Bottom);
         var bounds = new RectInt32(placement.X, placement.Y, targetWidth, targetHeight);
 
         EfficiencyModeManager.SetEfficiencyMode(false);
         _appWindow.MoveAndResize(bounds);
-        // Pencere başka ölçekli bir ekrana taşınınca Windows kendi önerdiği boyutu uygulayabilir;
-        // bizim hesapladığımız fiziksel boyut geri konur.
+        // When the window is moved to a screen with a different scale, Windows may apply its own suggested size;
+        // the physical size we calculated is put back.
         if (NativeMethods.GetDpiForWindow(_hwnd) != dpi) _appWindow.MoveAndResize(bounds);
         _edge = placement.Edge;
         _anchorBottom = placement.Y + targetHeight;
         PopoverHelper.ShowPopover(_appWindow, this, _hwnd, RootLayout, placement.Edge);
 
-        // Ok tuşları sekme şeridinde dinlenir; odak seçili sekmede açılmazsa önce Tab'a basmak
-        // gerekir. Programmatic: fareyle açılışta odak halkası çizilmez, ok tuşuna basınca görünür.
+        // Arrow keys are listened to on the tab strip; if focus does not land on the selected tab, you have to
+        // press Tab first. Programmatic: when opened with the mouse no focus ring is drawn, it appears when
+        // an arrow key is pressed.
         if (_tabs.TryGetValue(_selectedId, out var selectedTab)) selectedTab.Button.Focus(FocusState.Programmatic);
 
         _isVisible = true;
@@ -1527,11 +1528,11 @@ public sealed partial class FlyoutWindow : Window
     }
 
     /// <summary>
-    /// İçerik değiştikçe (sekme, veri) yüksekliği yeniden ayarla.
-    /// Ölçülen yükseklik %70 tavanı aşarsa pencere büyümez, detay ScrollViewer'ı kayar.
-    /// Sekme şeridi ve eylem satırı scroll alanının dışındadır, hep görünür.
-    /// Yerleşim bir sonraki düşük öncelikli turda yapılır: eklenen çocuklar
-    /// ölçülmeden DesiredSize bir kare geriden gelir, pencere kısa kalır.
+    /// Readjust the height as the content (tab, data) changes.
+    /// If the measured height exceeds the 70% ceiling the window does not grow, the detail ScrollViewer scrolls.
+    /// The tab strip and the action row are outside the scroll area and always visible.
+    /// Layout is done in the next low-priority round: without measuring the added children,
+    /// DesiredSize lags one frame behind and the window stays short.
     /// </summary>
     private void EnqueueResize() =>
         this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ResizeToContent);
@@ -1545,7 +1546,7 @@ public sealed partial class FlyoutWindow : Window
 
         var scale = WindowDpi() / 96.0;
 
-        // Tavan, imlecin değil pencerenin bulunduğu ekranın çalışma alanıdır.
+        // The ceiling is the work area of the screen the window is on, not the cursor's.
         var position = _appWindow.Position;
         var pt = new NativeMethods.POINT { X = position.X, Y = position.Y };
         var monitorInfo = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf(typeof(NativeMethods.MONITORINFO)) };
@@ -1557,8 +1558,8 @@ public sealed partial class FlyoutWindow : Window
             (int)Math.Round(monitorInfo.rcWork.Height * 0.85));
         if (targetHeight <= 0) return;
 
-        // Alt görev çubuğu: alt kenar sabit, pencere yukarı büyür. Üst/yan: üst kenar sabit,
-        // alttan taşarsa yukarı itilir. Her durumda çalışma alanının içinde kalır.
+        // Bottom taskbar: the bottom edge is fixed, the window grows upward. Top/side: the top edge is fixed;
+        // if it overflows at the bottom it is pushed up. In every case it stays inside the work area.
         var y = _edge == FlyoutEdge.Bottom
             ? _anchorBottom - targetHeight
             : Math.Min(position.Y, monitorInfo.rcWork.Bottom - targetHeight);
@@ -1582,8 +1583,8 @@ public sealed partial class FlyoutWindow : Window
     {
         if (!_isVisible) return;
 
-        // Once bayrak, sonra Hide: Hide yeni bir Deactivated tetikleyip geri girebilir.
-        // Sabitleme oturumluktur: bir sonraki açılış yine ışıkla kapanan flyout'tur.
+        // Flag first, then Hide: Hide can trigger a new Deactivated and re-enter.
+        // Pinning is per session: the next opening is a light-dismiss flyout again.
         _isVisible = false;
         _pinned = false;
         PinButton.IsChecked = false;
@@ -1604,9 +1605,9 @@ public sealed partial class FlyoutWindow : Window
 
             if (snapshot is not { Status: ProviderStatus.Ok or ProviderStatus.Degraded } || snapshot.Windows.Count == 0) continue;
 
-            // 3. TRAY İKONUNDA HANGİ SAYININ GÖSTERİLECEĞİ:
-            // Model bazlı ek limitler (gpt-reserve vb.) tray hesabından ÇIKARILIR.
-            // Yalnızca ana kotalar (Session ve Weekly) hesaba katılır.
+            // 3. WHICH NUMBER TO SHOW IN THE TRAY ICON:
+            // Per-model additional limits (gpt-reserve etc.) are LEFT OUT of the tray calculation.
+            // Only the main quotas (Session and Weekly) are counted.
             var mainWindows = snapshot.Windows
                 .Where(w => w.Kind is WindowKind.Session or WindowKind.Weekly &&
                             !(w.Label != null && w.Label.Contains("gpt-", StringComparison.OrdinalIgnoreCase)))
@@ -1633,7 +1634,7 @@ public sealed partial class FlyoutWindow : Window
         }
 
         double? gaugePercent = selected?.Percent;
-        // İkonun gösterdiği sağlayıcı ilk satır; diğerleri en az kalan kotadan başlayarak sıralanır.
+        // The provider the icon shows is the first row; the others are sorted starting with the least remaining quota.
         string tooltip = selected is { } value
             ? string.Join("\n", available.Values
                 .OrderBy(entry => entry.Equals(value) ? 0 : 1)

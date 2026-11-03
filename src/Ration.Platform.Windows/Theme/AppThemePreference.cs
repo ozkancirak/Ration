@@ -10,9 +10,9 @@ public enum AppThemeMode
 }
 
 /// <summary>
-/// Ration'ın kendi tema seçimi. UI katmanı bunu FrameworkElement.RequestedTheme'e
-/// uygular; Application.RequestedTheme kullanılmaz çünkü pencereler oluşturulduktan
-/// sonra canlı olarak değiştirilemez.
+/// Ration's own theme choice. The UI layer applies it to FrameworkElement.RequestedTheme;
+/// Application.RequestedTheme is not used because it cannot be changed live after the windows
+/// are created.
 /// </summary>
 public static class AppThemePreference
 {

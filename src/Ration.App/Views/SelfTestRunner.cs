@@ -8,9 +8,9 @@ using RationTrace = Ration.Core.Diagnostics.Trace;
 namespace Ration.App.Views;
 
 /// <summary>
-/// Tepsi menüsü için geliştirici self-test'i. UIA kullanmaz: düğmeler uygulamanın
-/// kendi referanslarından bulunur, konumları XAML dönüşümüyle hesaplanır ve giriş
-/// SendInput ile gerçek fare/klavye olayı olarak üretilir.
+/// Developer self-test for the tray menu. It does not use UIA: the buttons are found from the app's
+/// own references, their positions are computed from the XAML transform, and input is produced as
+/// real mouse/keyboard events with SendInput.
 /// </summary>
 internal static class SelfTestRunner
 {
@@ -108,8 +108,8 @@ internal static class SelfTestRunner
                 bool isExit = i == buttons.Count - 1;
                 if (isExit)
                 {
-                    // Çıkış her iki turda da son eylemdir; fare turunda
-                    // gözlemleyip bırakır, klavye turunda gerçek çıkışı verir.
+                    // Exit is the last action in both rounds; in the mouse round it is observed
+                    // and released, in the keyboard round the real exit is performed.
                     closeOnExit = true;
                 }
 
@@ -191,7 +191,7 @@ internal static class SelfTestRunner
 
         if (isExit)
         {
-            // ExitApplication'ın self-test kancası after ekran görüntüsünü alır.
+            // ExitApplication's self-test hook takes the after screenshot.
             return;
         }
 
@@ -260,7 +260,7 @@ internal static class SelfTestRunner
 
         if (isExit)
         {
-            // Exit hook kapanış öncesi after ekran görüntüsünü aldı.
+            // The exit hook took the after screenshot before closing.
             return;
         }
 
@@ -296,8 +296,8 @@ internal static class SelfTestRunner
         }
         else
         {
-            // Composition giriş animasyonunun son karesinde dönüşüm ve ekran
-            // görüntüsü aynı geometriden okunsun.
+            // So that on the last frame of the Composition entrance animation the transform and the
+            // screenshot are read from the same geometry.
             await Task.Delay(250);
         }
 

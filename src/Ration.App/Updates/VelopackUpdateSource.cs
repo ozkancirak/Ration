@@ -5,16 +5,16 @@ using IUpdateSource = Ration.Core.Updates.IUpdateSource;
 
 namespace Ration.App.Updates;
 
-/// <summary>GitHub sürümlerinden Velopack ile güncelleme.</summary>
+/// <summary>Update from GitHub releases with Velopack.</summary>
 internal sealed class VelopackUpdateSource : IUpdateSource
 {
     private readonly string _repositoryUrl;
     private readonly Func<bool> _includePrerelease;
 
-    /// <summary>Bulunan güncellemeyi hangi yöneticinin bulduğu; indirme ve uygulama aynı kaynağı kullanmalı.</summary>
+    /// <summary>Which manager found the update; download and apply must use the same source.</summary>
     private sealed record Found(UpdateManager Manager, UpdateInfo Info);
 
-    /// <param name="includePrerelease">Her denetimde okunur; kanal değişince yeniden başlatmaya gerek kalmaz.</param>
+    /// <param name="includePrerelease">Read on every check; no restart is needed when the channel changes.</param>
     public VelopackUpdateSource(string repositoryUrl, Func<bool> includePrerelease)
     {
         _repositoryUrl = repositoryUrl;
@@ -45,8 +45,8 @@ internal sealed class VelopackUpdateSource : IUpdateSource
     }
 
     /// <summary>
-    /// RATION_UPDATE_REPOSITORY bir klasör gösteriyorsa (vpk pack çıktısı) güncellemeler oradan gelir;
-    /// güncelleme yolunu GitHub'a çıkmadan sınamak için.
+    /// If RATION_UPDATE_REPOSITORY points to a folder (vpk pack output), updates come from there;
+    /// to test the update path without going to GitHub.
     /// </summary>
     private UpdateManager CreateManager(bool prerelease) =>
         Directory.Exists(_repositoryUrl)

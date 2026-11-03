@@ -9,8 +9,8 @@ using WinRT.Interop;
 namespace Ration.App.Views;
 
 /// <summary>
-/// WinUI 3 pencerelerinin ekran görüntüsünü PrintWindow (ve gerekirse CopyFromScreen fallback'i)
-/// ile PNG dosyasına kaydeden yardımcı sınıf.
+/// Helper class that saves a screenshot of WinUI 3 windows to a PNG file with PrintWindow
+/// (and a CopyFromScreen fallback if needed).
 /// </summary>
 public static class WindowScreenshotHelper
 {
@@ -21,7 +21,7 @@ public static class WindowScreenshotHelper
             return false;
         }
 
-        // Render ve düzenin (XAML layout) tamamlanması için kısa bir bekleme
+        // A short wait for rendering and the XAML layout to complete
         if (delayMs > 0)
         {
             await Task.Delay(delayMs);
@@ -45,7 +45,7 @@ public static class WindowScreenshotHelper
             Directory.CreateDirectory(dir);
         }
 
-        // 1. Öncelik: PrintWindow (PW_RENDERFULLCONTENT)
+        // 1st priority: PrintWindow (PW_RENDERFULLCONTENT)
         using var printBmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         bool printSuccess = false;
 
@@ -68,7 +68,7 @@ public static class WindowScreenshotHelper
             return true;
         }
 
-        // 2. Fallback: Ekranda görünür olan pencereyi doğrudan masaüstü yüzeyinden yakala
+        // 2nd fallback: capture the window visible on screen directly from the desktop surface
         try
         {
             using var screenBmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
@@ -82,7 +82,7 @@ public static class WindowScreenshotHelper
         }
         catch
         {
-            // Eğer CopyFromScreen de başarısız olursa ve PrintWindow en azından bir bitmap oluşturduysa onu kaydet
+            // If CopyFromScreen also fails and PrintWindow at least created a bitmap, save that one
             printBmp.Save(outputPath, ImageFormat.Png);
             return true;
         }
@@ -96,7 +96,7 @@ public static class WindowScreenshotHelper
 
     private static bool HasVisibleContent(Bitmap bmp)
     {
-        // Bitmap'in tamamen boş (tüm pikseller 0) olup olmadığını örnekleme ile denetle
+        // Check by sampling whether the bitmap is completely empty (all pixels 0)
         int stepX = Math.Max(1, bmp.Width / 20);
         int stepY = Math.Max(1, bmp.Height / 20);
 
