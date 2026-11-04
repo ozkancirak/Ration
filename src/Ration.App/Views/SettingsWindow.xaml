@@ -253,25 +253,14 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
-            <!-- Section: General Preferences -->
-            <TextBlock Text="{l:Loc En='General', Tr='Genel Tercihler'}"
+            <!-- Section: Display -->
+
+            <TextBlock Text="{l:Loc En='Display', Tr='Görünüm'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"
                        Margin="0,16,0,0" />
 
-                <controls:SettingsCard Header="{l:Loc En='Refresh interval', Tr='Yenileme Sıklığı'}"
-                                        Description="{l:Loc En='How often quotas are checked in the background', Tr='Kotaların arka planda otomatik sorgulanma aralığı'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE72C;" />
-                    </controls:SettingsCard.HeaderIcon>
-                    <ComboBox x:Name="RefreshIntervalSelection" MinWidth="140">
-                        <ComboBoxItem Content="{l:Loc En='5 minutes', Tr='5 dakika'}" Tag="5" />
-                        <ComboBoxItem Content="{l:Loc En='15 minutes', Tr='15 dakika'}" Tag="15" />
-                        <ComboBoxItem Content="{l:Loc En='30 minutes', Tr='30 dakika'}" Tag="30" />
-                        <ComboBoxItem Content="{l:Loc En='1 hour', Tr='1 saat'}" Tag="60" />
-                    </ComboBox>
-                </controls:SettingsCard>
-
                 <controls:SettingsCard Header="{l:Loc En='Theme', Tr='Tema'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Ration’s color theme. Ration restarts itself when it changes.', Tr='Ration’ın renk teması. Değişince Ration kendini yeniden başlatır.'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE790;" />
@@ -286,6 +275,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Language', Tr='Dil'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Ration restarts itself when it changes.', Tr='Değişince Ration kendini yeniden başlatır.'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xF2B7;" />
@@ -300,6 +290,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Percentages', Tr='Yüzdeler'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Show what is left or what is used in the panel and the tray tooltip', Tr='Panelde ve tepsi ipucunda kalanı ya da kullanılanı göster'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE9D9;" />
@@ -313,6 +304,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Show in tray', Tr='Tepside göster'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Which provider’s quota the tray icon shows', Tr='Tepsi ikonunda hangi sağlayıcının kotası gösterilsin'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE950;" />
@@ -331,6 +323,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Tray window', Tr='Tepsi penceresi'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Which quota window the tray icon follows', Tr='Tepsi ikonu hangi kota penceresini izlesin'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE916;" />
@@ -344,7 +337,28 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+            <!-- Section: Behavior -->
+
+            <TextBlock Text="{l:Loc En='Behavior', Tr='Davranış'}"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,16,0,0" />
+
+                <controls:SettingsCard Header="{l:Loc En='Refresh interval', Tr='Yenileme Sıklığı'}"
+                                       Padding="16,16,44,16"
+                                        Description="{l:Loc En='How often quotas are checked in the background', Tr='Kotaların arka planda otomatik sorgulanma aralığı'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE72C;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ComboBox x:Name="RefreshIntervalSelection" MinWidth="140">
+                        <ComboBoxItem Content="{l:Loc En='5 minutes', Tr='5 dakika'}" Tag="5" />
+                        <ComboBoxItem Content="{l:Loc En='15 minutes', Tr='15 dakika'}" Tag="15" />
+                        <ComboBoxItem Content="{l:Loc En='30 minutes', Tr='30 dakika'}" Tag="30" />
+                        <ComboBoxItem Content="{l:Loc En='1 hour', Tr='1 saat'}" Tag="60" />
+                    </ComboBox>
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Status pages', Tr='Durum sayfaları'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Look at the providers’ public status pages and show a notice when one reports an incident', Tr='Sağlayıcıların herkese açık durum sayfalarına bak, olay bildirirlerse bir uyarı göster'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE95E;" />
@@ -355,6 +369,7 @@
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Start with Windows', Tr='Windows ile Başlat'}"
+                                       Padding="16,16,44,16"
                                        Description="{l:Loc En='Run Ration in the background when you sign in', Tr='Oturum açıldığında Ration’ı arka planda otomatik çalıştır'}">
                     <controls:SettingsCard.HeaderIcon>
                         <FontIcon Glyph="&#xE7E8;" />
@@ -453,11 +468,18 @@
                     </controls:SettingsExpander.Items>
                 </controls:SettingsExpander>
 
-                <controls:SettingsCard x:Name="UpdatesCard">
-                    <controls:SettingsCard.HeaderIcon>
+            <!-- Section: Updates and data -->
+
+            <TextBlock Text="{l:Loc En='Updates and data', Tr='Güncelleme ve veriler'}"
+                       Style="{StaticResource SubtitleTextBlockStyle}"
+                       Margin="0,16,0,0" />
+
+                <controls:SettingsExpander x:Name="UpdatesExpander"
+                                           IsExpanded="false">
+                    <controls:SettingsExpander.HeaderIcon>
                         <FontIcon Glyph="&#xE895;" />
-                    </controls:SettingsCard.HeaderIcon>
-                    <controls:SettingsCard.Header>
+                    </controls:SettingsExpander.HeaderIcon>
+                    <controls:SettingsExpander.Header>
                         <StackPanel Spacing="2">
                             <TextBlock Text="{l:Loc En='Updates', Tr='Güncellemeler'}"
                                        Style="{StaticResource BodyTextBlockStyle}" />
@@ -473,7 +495,7 @@
                                          Maximum="100"
                                          Visibility="Collapsed" />
                         </StackPanel>
-                    </controls:SettingsCard.Header>
+                    </controls:SettingsExpander.Header>
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                         <Button x:Name="InstallUpdateButton"
                                 Style="{StaticResource AccentButtonStyle}"
@@ -482,13 +504,9 @@
                         <Button x:Name="CheckUpdatesButton"
                                 Content="{l:Loc En='Check for updates', Tr='Denetle'}" />
                     </StackPanel>
-                </controls:SettingsCard>
-
+                    <controls:SettingsExpander.Items>
                 <controls:SettingsCard Header="{l:Loc En='Check automatically', Tr='Otomatik denetle'}"
                                        Description="{l:Loc En='Look for a new version once a day while Ration is idle', Tr='Ration boştayken günde bir yeni sürüm ara'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE895;" />
-                    </controls:SettingsCard.HeaderIcon>
                     <ToggleSwitch x:Name="AutoCheckToggle"
                                   OnContent="{l:Loc En='On', Tr='Açık'}"
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
@@ -496,9 +514,6 @@
 
                 <controls:SettingsCard Header="{l:Loc En='Install automatically', Tr='Otomatik kur'}"
                                        Description="{l:Loc En='Download new versions in the background and install them when you quit Ration', Tr='Yeni sürümleri arka planda indir, Ration’dan çıkınca kur'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE896;" />
-                    </controls:SettingsCard.HeaderIcon>
                     <ToggleSwitch x:Name="AutoInstallToggle"
                                   OnContent="{l:Loc En='On', Tr='Açık'}"
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
@@ -506,32 +521,33 @@
 
                 <controls:SettingsCard Header="{l:Loc En='Pre-release versions', Tr='Ön sürümler'}"
                                        Description="{l:Loc En='Also look for test versions (beta) before they are released. They can be less stable.', Tr='Yayınlanmadan önce test sürümlerini (beta) de ara. Daha az kararlı olabilirler.'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE7C1;" />
-                    </controls:SettingsCard.HeaderIcon>
                     <ToggleSwitch x:Name="PrereleaseToggle"
                                   OnContent="{l:Loc En='On', Tr='Açık'}"
                                   OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                 </controls:SettingsCard>
+                    </controls:SettingsExpander.Items>
+                </controls:SettingsExpander>
 
-                <controls:SettingsCard Header="{l:Loc En='Diagnostics', Tr='Tanılama'}"
-                                       Description="{l:Loc En='Open the log or copy a report with private paths removed', Tr='Günlüğü aç ya da kişisel yolları silinmiş bir rapor kopyala'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE9D9;" />
-                    </controls:SettingsCard.HeaderIcon>
+                <controls:SettingsExpander x:Name="DataExpander"
+                                           Header="{l:Loc En='Data and backup', Tr='Veri ve yedek'}"
+                                           Description="{l:Loc En='Backup, data folder and diagnostics', Tr='Yedek, veri klasörü ve tanılama'}"
+                                           IsExpanded="false">
+                    <controls:SettingsExpander.HeaderIcon>
+                        <FontIcon Glyph="&#xE8B7;" />
+                    </controls:SettingsExpander.HeaderIcon>
+                    <controls:SettingsExpander.Items>
+                <controls:SettingsCard Header="{l:Loc En='Backup', Tr='Yedek'}"
+                                       Description="{l:Loc En='Save your preferences to a file or load them from one. Credentials are never included.', Tr='Tercihlerini bir dosyaya kaydet ya da bir dosyadan yükle. Kimlik bilgileri hiçbir zaman dahil edilmez.'}">
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
-                        <Button x:Name="CopyDiagnosticsButton"
-                                Content="{l:Loc En='Copy diagnostics', Tr='Tanılamayı kopyala'}" />
-                        <Button x:Name="OpenLogButton"
-                                Content="{l:Loc En='Open log', Tr='Günlüğü aç'}" />
+                        <Button x:Name="ExportSettingsButton"
+                                Content="{l:Loc En='Export…', Tr='Dışa aktar…'}" />
+                        <Button x:Name="ImportSettingsButton"
+                                Content="{l:Loc En='Import…', Tr='İçe aktar…'}" />
                     </StackPanel>
                 </controls:SettingsCard>
 
                 <controls:SettingsCard Header="{l:Loc En='Data', Tr='Veriler'}"
                                        Description="{l:Loc En='Settings, cached prices and the log live in one folder on this computer', Tr='Ayarlar, önbelleğe alınmış fiyatlar ve günlük bu bilgisayarda tek klasörde durur'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE8B7;" />
-                    </controls:SettingsCard.HeaderIcon>
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
                         <Button x:Name="OpenDataFolderButton"
                                 Content="{l:Loc En='Open data folder', Tr='Veri klasörünü aç'}" />
@@ -540,18 +556,17 @@
                     </StackPanel>
                 </controls:SettingsCard>
 
-                <controls:SettingsCard Header="{l:Loc En='Backup', Tr='Yedek'}"
-                                       Description="{l:Loc En='Save your preferences to a file or load them from one. Credentials are never included.', Tr='Tercihlerini bir dosyaya kaydet ya da bir dosyadan yükle. Kimlik bilgileri hiçbir zaman dahil edilmez.'}">
-                    <controls:SettingsCard.HeaderIcon>
-                        <FontIcon Glyph="&#xE74E;" />
-                    </controls:SettingsCard.HeaderIcon>
+                <controls:SettingsCard Header="{l:Loc En='Diagnostics', Tr='Tanılama'}"
+                                       Description="{l:Loc En='Open the log or copy a report with private paths removed', Tr='Günlüğü aç ya da kişisel yolları silinmiş bir rapor kopyala'}">
                     <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Left">
-                        <Button x:Name="ExportSettingsButton"
-                                Content="{l:Loc En='Export…', Tr='Dışa aktar…'}" />
-                        <Button x:Name="ImportSettingsButton"
-                                Content="{l:Loc En='Import…', Tr='İçe aktar…'}" />
+                        <Button x:Name="CopyDiagnosticsButton"
+                                Content="{l:Loc En='Copy diagnostics', Tr='Tanılamayı kopyala'}" />
+                        <Button x:Name="OpenLogButton"
+                                Content="{l:Loc En='Open log', Tr='Günlüğü aç'}" />
                     </StackPanel>
                 </controls:SettingsCard>
+                    </controls:SettingsExpander.Items>
+                </controls:SettingsExpander>
 
             <!-- Section: About -->
             <TextBlock Text="{l:Loc En='About', Tr='Hakkında'}"
