@@ -30,18 +30,21 @@
 - Token totals and estimated cost for the last 30 days from local logs
 - Notifications when a quota runs low (you choose 10-50%) and when it runs out, switchable per provider. Optional alerts when a used-up quota resets, when a provider needs a new sign-in and when usage climbs fast
 - Keyboard friendly: arrow keys switch providers, F5 or Ctrl+R refreshes, and an optional global shortcut (Ctrl+Alt+R by default, off until you turn it on in Settings) opens the panel from anywhere; the pin button keeps it open while you work
+- A notice in the panel when a provider's public status page reports an incident (Claude, Codex, Cursor and Copilot); it can be switched off
 - Native Windows look (Mica and Acrylic), light and dark theme, English and Turkish interface
-- Updates itself: checks once a day, installs with one click, downloads only what changed
+- Export your settings to a file and import them on another PC
+- Updates itself: checks once a day, installs with one click, downloads only what changed. It can also install quietly when you close Ration (off by default)
 
 ## Providers
 
 | Provider | Reads (read-only) | Talks to | Shows |
 |---|---|---|---|
 | Claude Code | `~/.claude/.credentials.json`, session logs | `api.anthropic.com` | Session and weekly quota; cost from logs |
-| Codex | `~/.codex/auth.json`, session logs | `chatgpt.com` | Session and weekly quota; cost from logs |
+| Codex | `~/.codex/auth.json`, session logs | `chatgpt.com` | Session and weekly quota; banked reset credits and when the next one expires; cost from logs |
 | Antigravity | the app's local language server | `127.0.0.1` only | Quota and token usage |
 | OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go plan, when signed in) | Go plan quota; local usage and free model counter |
 | Cursor | Cursor's local storage (`state.vscdb`); newer Cursor versions keep the token encrypted, which Ration opens with your own Windows account key | `api2.cursor.sh`, `cursor.com` | Plan usage (Auto and API pools) and billing cycle |
+| Copilot (experimental) | GitHub Copilot CLI session logs (`~/.copilot/session-state`, or `COPILOT_HOME`) | nothing | Token usage and estimated cost from the logs; Copilot's quota is not read. Appears only when those logs exist |
 
 Ration never writes to those files and does not renew sign-ins. Tokens are sent only to the address in the table, only for the request that needs them.
 
@@ -62,18 +65,18 @@ The two hashes must match (PowerShell prints upper case, the file lower case). W
 
 ## Privacy
 
-Credential files are read-only; Ration never refreshes or stores them. For Cursor, the session token in Cursor's local storage (decrypted in memory with your own Windows account key when Cursor encrypts it) is sent only to Cursor's own hosts, api2.cursor.sh and cursor.com. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to.
+Credential files are read-only; Ration never refreshes or stores them. For Cursor, the session token in Cursor's local storage (decrypted in memory with your own Windows account key when Cursor encrypts it) is sent only to Cursor's own hosts, api2.cursor.sh and cursor.com. No telemetry. Quota requests go straight to each provider's own endpoint, and responses are redacted before anything is logged. An installed Ration also checks GitHub Releases once a day for a new version; nothing is downloaded until you choose to. To show the incident notice, Ration reads the public status feeds of status.claude.com, status.openai.com, status.cursor.com and www.githubstatus.com (no sign-in is sent, at most every five minutes, only for providers you have); *Status pages* in Settings turns it off.
 
 ## Data
 
 Ration keeps its files in `%LOCALAPPDATA%\Ration` (the installer lives there too):
 
-- `settings.json`: your preferences (language, theme, refresh interval, tray provider and window, percentage display, notifications, last update check)
+- `settings.json`: your preferences (language, theme, refresh interval, tray provider and window, percentage display, notifications, update behavior, last update check)
 - `pricing.json`: cached model prices
 - `snapshots\`: last quota readings
 - `ration.log`: diagnostic log with secrets redacted
 
-Settings has buttons to open this folder and to reset the settings.
+Settings has buttons to open this folder, to export and import your preferences (the file holds preferences only, never a sign-in) and to reset the settings.
 
 To remove Ration, uninstall it from Windows Settings > Apps. That removes the app, its start-with-Windows entry, its notification registration and the whole folder above, settings included. If you use the portable zip, turn off *Start with Windows* first, then delete the zip folder and `%LOCALAPPDATA%\Ration`.
 

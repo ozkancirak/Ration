@@ -30,18 +30,21 @@
 - Yerel loglardan son 30 günün token toplamı ve tahmini maliyeti
 - Kota azalınca (%10-50 arası sen seçersin) ve bitince bildirim; sağlayıcı bazında açılıp kapanır. İsteğe bağlı: dolan kota sıfırlanınca, bir sağlayıcı yeniden giriş isteyince ve kullanım hızla artınca bildirim
 - Klavyeyle rahat kullanım: ok tuşları sağlayıcı değiştirir, F5 veya Ctrl+R yeniler, isteğe bağlı genel kısayol (varsayılan Ctrl+Alt+R, Ayarlar'dan açana kadar kapalı) paneli her yerden açar; sabitleme düğmesi çalışırken açık tutar
+- Bir sağlayıcının herkese açık durum sayfası olay bildirince panelde bir uyarı (Claude, Codex, Cursor ve Copilot); kapatılabilir
 - Windows'a yerel görünüm (Mica ve Acrylic), açık ve koyu tema, Türkçe ve İngilizce arayüz
-- Kendini günceller: günde bir denetler, tek tıkla kurar, yalnızca değişeni indirir
+- Ayarlarını bir dosyaya aktar, başka bir bilgisayarda içe aktar
+- Kendini günceller: günde bir denetler, tek tıkla kurar, yalnızca değişeni indirir. İstersen Ration'ı kapatırken sessizce de kurar (varsayılan kapalı)
 
 ## Sağlayıcılar
 
 | Sağlayıcı | Okuduğu (salt okunur) | Konuştuğu | Gösterdiği |
 |---|---|---|---|
 | Claude Code | `~/.claude/.credentials.json`, oturum günlükleri | `api.anthropic.com` | Oturum ve haftalık kota; maliyet günlüklerden |
-| Codex | `~/.codex/auth.json`, oturum günlükleri | `chatgpt.com` | Oturum ve haftalık kota; maliyet günlüklerden |
+| Codex | `~/.codex/auth.json`, oturum günlükleri | `chatgpt.com` | Oturum ve haftalık kota; birikmiş sıfırlama kredileri ve en yakınının bitiş zamanı; maliyet günlüklerden |
 | Antigravity | uygulamanın yerel dil sunucusu | yalnızca `127.0.0.1` | Kota ve token kullanımı |
 | OpenCode | `~/.local/share/opencode` (`auth.json`, `opencode.db`) | `opencode.ai` (Go planı, giriş yapılmışsa) | Go planı kotası; yerel kullanım ve ücretsiz model sayacı |
 | Cursor | Cursor'ın yerel deposu (`state.vscdb`); yeni Cursor sürümleri belirteci şifreli tutar, Ration onu kendi Windows hesap anahtarınla açar | `api2.cursor.sh`, `cursor.com` | Plan kullanımı (Auto ve API havuzları) ve fatura dönemi |
+| Copilot (deneysel) | GitHub Copilot CLI oturum günlükleri (`~/.copilot/session-state` ya da `COPILOT_HOME`) | hiçbir yer | Günlüklerden token kullanımı ve tahmini maliyet; Copilot'un kotası okunmaz. Yalnızca bu günlükler varsa görünür |
 
 Ration bu dosyalara hiçbir şey yazmaz ve oturumları yenilemez. Belirteçler yalnızca tabloda yazan adrese, yalnızca gerektiren istek için gönderilir.
 
@@ -62,18 +65,18 @@ Select-String Setup .\SHA256SUMS.txt
 
 ## Gizlilik
 
-Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. Cursor için, Cursor'ın yerel deposundaki oturum belirteci (Cursor şifrelediyse kendi Windows hesap anahtarınla bellekte çözülür) yalnızca Cursor'ın kendi adreslerine, api2.cursor.sh ve cursor.com'a gönderilir. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez.
+Kimlik dosyaları salt okunur açılır; Ration onları yenilemez ve saklamaz. Cursor için, Cursor'ın yerel deposundaki oturum belirteci (Cursor şifrelediyse kendi Windows hesap anahtarınla bellekte çözülür) yalnızca Cursor'ın kendi adreslerine, api2.cursor.sh ve cursor.com'a gönderilir. Telemetri yok. Kota istekleri doğrudan sağlayıcının kendi adresine gider; yanıtlar günlüğe yazılmadan önce maskelenir. Kurulu Ration ayrıca günde bir GitHub Releases'te yeni sürüm olup olmadığına bakar; sen seçmeden hiçbir şey indirilmez. Olay uyarısını göstermek için Ration, status.claude.com, status.openai.com, status.cursor.com ve www.githubstatus.com adreslerinin herkese açık durum akışlarını okur (oturum bilgisi gönderilmez, en sık beş dakikada bir, yalnızca sahip olduğun sağlayıcılar için); Ayarlar'daki *Durum sayfaları* bunu kapatır.
 
 ## Veriler
 
 Ration dosyalarını `%LOCALAPPDATA%\Ration` altında tutar (kurulum da burada durur):
 
-- `settings.json`: tercihlerin (dil, tema, yenileme aralığı, tepsi sağlayıcısı ve penceresi, yüzde gösterimi, bildirimler, son güncelleme denetimi)
+- `settings.json`: tercihlerin (dil, tema, yenileme aralığı, tepsi sağlayıcısı ve penceresi, yüzde gösterimi, bildirimler, güncelleme davranışı, son güncelleme denetimi)
 - `pricing.json`: önbelleğe alınmış model fiyatları
 - `snapshots\`: son kota okumaları
 - `ration.log`: sırları maskelenmiş tanılama günlüğü
 
-Ayarlar'da bu klasörü açan ve ayarları sıfırlayan düğmeler var.
+Ayarlar'da bu klasörü açan, tercihlerini dışa ve içe aktaran (dosyada yalnızca tercihler olur, hiçbir oturum bilgisi olmaz) ve ayarları sıfırlayan düğmeler var.
 
 Ration'ı kaldırmak için Windows Ayarlar > Uygulamalar'dan kaldır. Bu işlem uygulamayı, Windows ile Başlat girdisini, bildirim kaydını ve yukarıdaki klasörün tamamını (ayarlar dahil) siler. Taşınabilir zip kullanıyorsan önce *Windows ile Başlat*'ı kapat, sonra zip klasörünü ve `%LOCALAPPDATA%\Ration`'ı sil.
 
