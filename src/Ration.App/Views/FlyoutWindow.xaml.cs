@@ -158,6 +158,8 @@ public sealed partial class FlyoutWindow : Window
         TabStrip.KeyDown += OnTabStripKeyDown;
         TabScroll.SizeChanged += (_, _) => UpdateTabStripWidth();
         TabScroll.PointerWheelChanged += OnTabScrollWheel;
+        TabScroll.ViewChanged += (_, _) => UpdateTabCues();
+        TabStrip.SizeChanged += (_, _) => UpdateTabCues();
         CopyErrorButton.Click += OnCopyErrorClicked;
 
         BuildTabs();
@@ -707,7 +709,18 @@ public sealed partial class FlyoutWindow : Window
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             BringSelectedTabIntoView();
+            UpdateTabCues();
         });
+    }
+
+    // The scrollbar is hidden, so a small arrow at an edge tells that more tabs wait on that side.
+    private void UpdateTabCues()
+    {
+        var overflow = TabScroll.ScrollableWidth > 1;
+        TabMoreLeft.Visibility = overflow && TabScroll.HorizontalOffset > 1 ? Visibility.Visible : Visibility.Collapsed;
+        TabMoreRight.Visibility = overflow && TabScroll.HorizontalOffset < TabScroll.ScrollableWidth - 1
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     // A selected tab can sit outside the visible five (picked by a click, by the arrow keys or on its own).
@@ -966,8 +979,8 @@ public sealed partial class FlyoutWindow : Window
         var discovered = _scheduler.Current.Values.Any(HasDiscoveredProvider);
         WelcomePanel.Visibility = discovered ? Visibility.Collapsed : Visibility.Visible;
         DetailPanel.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
-        TabScroll.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
-        TabDivider.Visibility = TabScroll.Visibility;
+        TabArea.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
+        TabDivider.Visibility = TabArea.Visibility;
 
         if (discovered || WelcomeProviders.ItemsSource is not null) return;
 

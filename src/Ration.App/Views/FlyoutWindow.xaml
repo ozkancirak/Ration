@@ -45,14 +45,35 @@
         <!--  Tab strip: equal-width columns (like CodexBar). The ToggleButtons and columns
               are produced from code; icon on top, name below, mini meter at the very bottom.
               At most five tabs are visible; with more providers the strip scrolls sideways.  -->
-        <ScrollViewer x:Name="TabScroll"
-                      Grid.Row="0"
-                      HorizontalScrollBarVisibility="Hidden"
-                      HorizontalScrollMode="Auto"
-                      VerticalScrollBarVisibility="Disabled"
-                      VerticalScrollMode="Disabled">
-            <Grid x:Name="TabStrip" ColumnSpacing="4" />
-        </ScrollViewer>
+        <Grid x:Name="TabArea" Grid.Row="0">
+            <ScrollViewer x:Name="TabScroll"
+                          HorizontalScrollBarVisibility="Hidden"
+                          HorizontalScrollMode="Auto"
+                          VerticalScrollBarVisibility="Disabled"
+                          VerticalScrollMode="Disabled">
+                <Grid x:Name="TabStrip" ColumnSpacing="4" />
+            </ScrollViewer>
+
+            <!--  Arrows at the edges while more tabs wait on that side (the scrollbar is hidden)  -->
+            <FontIcon x:Name="TabMoreLeft"
+                      Glyph="&#xE76B;"
+                      FontSize="10"
+                      Margin="1,0,0,10"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Center"
+                      IsHitTestVisible="False"
+                      Visibility="Collapsed"
+                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <FontIcon x:Name="TabMoreRight"
+                      Glyph="&#xE76C;"
+                      FontSize="10"
+                      Margin="0,0,1,10"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      IsHitTestVisible="False"
+                      Visibility="Collapsed"
+                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </Grid>
 
         <!--  Dividers between the fixed parts and the detail: the rows are 12 apart, so the line sits in the middle of the gap  -->
         <Rectangle x:Name="TabDivider"
