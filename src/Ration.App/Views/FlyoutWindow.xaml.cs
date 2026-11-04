@@ -1567,7 +1567,10 @@ public sealed partial class FlyoutWindow : Window
     public void ShowFlyout()
     {
         // The DPI is taken from the target screen: the hidden window may currently sit on another screen with a different scale.
-        var anchor = FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
+        // The tray icon's own rectangle comes first, so the panel sits in the corner by the taskbar however it was
+        // opened (a click, the shortcut, a notification, a second launch). The mouse cursor is only the fallback.
+        var anchor = (_tray.TryGetBounds(out var trayBounds) ? FlyoutPositioner.ForRect(trayBounds) : null)
+            ?? FlyoutPositioner.ResolveAnchor(Guid.Empty, _hwnd, 0);
         uint dpi = anchor?.Dpi ?? WindowDpi();
         double scale = dpi / 96.0;
 
