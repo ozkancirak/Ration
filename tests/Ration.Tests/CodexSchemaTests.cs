@@ -186,4 +186,48 @@ public class RawResponseRedactorTests
         Assert.DoesNotContain("sentetik-bucket", redacted);
         Assert.Contains("plus", redacted);
     }
+
+    [Theory]
+    [InlineData(2592000, WindowKind.Monthly, "Aylık")]   // a free plan: one 30-day window in the primary slot
+    [InlineData(604800, WindowKind.Weekly, "Haftalık")]  // a weekly-only plan
+    [InlineData(18000, WindowKind.Session, "5 saatlik")]
+    public void LoneWindow_GetsItsKindFromTheLength_NotFromTheSlot(int seconds, WindowKind kind, string label)
+    {
+        var json = $$"""{ "rate_limit": { "primary_window": { "used_percent": 10, "limit_window_seconds": {{seconds}} } } }""";
+
+        var window = Assert.Single(CodexUsageParser.Parse(json).Windows);
+
+        Assert.Equal(kind, window.Kind);
+        Assert.Equal(label, window.Label);
+    }
+
+    [Fact]
+    public void SwappedSlots_KindsFollowTheLength()
+    {
+        const string json = """
+        {
+          "rate_limit": {
+            "primary_window":   { "used_percent": 40, "limit_window_seconds": 604800 },
+            "secondary_window": { "used_percent": 5,  "limit_window_seconds": 18000 }
+          }
+        }
+        """;
+
+        var windows = CodexUsageParser.Parse(json).Windows;
+
+        Assert.Equal(WindowKind.Weekly, Assert.Single(windows, w => w.Percent == 40).Kind);
+        Assert.Equal(WindowKind.Session, Assert.Single(windows, w => w.Percent == 5).Kind);
+    }
+
+    [Fact]
+    public void SessionLogEnvelope_GetsItsKindFromTheMinutes()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(
+            """{ "primary": { "used_percent": 12, "window_minutes": 10080 }, "secondary": { "used_percent": 3, "window_minutes": 300 } }""");
+
+        var windows = CodexSessionLogParser.ParseRateLimits(document.RootElement).Windows;
+
+        Assert.Equal(WindowKind.Weekly, Assert.Single(windows, w => w.Percent == 12).Kind);
+        Assert.Equal(WindowKind.Session, Assert.Single(windows, w => w.Percent == 3).Kind);
+    }
 }
