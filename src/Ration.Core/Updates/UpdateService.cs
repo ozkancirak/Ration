@@ -57,6 +57,9 @@ public sealed class UpdateService
     /// <summary>The found update has been downloaded and is ready to be applied.</summary>
     public bool IsDownloaded { get; private set; }
 
+    /// <summary>The downloaded update is already waiting for this process to exit; scheduling it again would start a second installer.</summary>
+    public bool IsApplyScheduled { get; private set; }
+
     public async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
     {
         var checkedAt = _clock();
@@ -124,13 +127,26 @@ public sealed class UpdateService
     /// Schedules the downloaded update to be applied on exit. If it returns true, the caller
     /// must exit the app; the update is installed after exit and the app is reopened.
     /// </summary>
-    public bool ApplyOnExitAndRestart()
+    public bool ApplyOnExitAndRestart() => Schedule(restart: true);
+
+    /// <summary>
+    /// Schedules the downloaded update to be installed when the app exits for any reason, without reopening it
+    /// (automatic installs must not restart the app by surprise). The caller does not have to exit.
+    /// </summary>
+    public bool ApplyOnExit() => Schedule(restart: false);
+
+    private bool Schedule(bool restart)
     {
         if (!IsDownloaded || _found is null) return false;
 
+        // One installer is already waiting for the exit. It keeps its choice about restarting, so a request
+        // that wants a restart cannot be promised.
+        if (IsApplyScheduled) return !restart;
+
         try
         {
-            _source.ApplyOnExitAndRestart(_found);
+            _source.ApplyOnExit(_found, restart);
+            IsApplyScheduled = true;
             return true;
         }
         catch (Exception ex)
@@ -185,7 +201,11 @@ public sealed class UpdateService
 
     private void Remember(AvailableUpdate? update)
     {
-        if (update?.Version != _found?.Version) IsDownloaded = false;
+        if (update?.Version != _found?.Version)
+        {
+            IsDownloaded = false;
+            IsApplyScheduled = false;
+        }
         _found = update;
     }
 

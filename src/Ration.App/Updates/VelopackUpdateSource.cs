@@ -38,10 +38,10 @@ internal sealed class VelopackUpdateSource : IUpdateSource
         return found.Manager.DownloadUpdatesAsync(found.Info, progress, cancellationToken);
     }
 
-    public void ApplyOnExitAndRestart(AvailableUpdate update)
+    public void ApplyOnExit(AvailableUpdate update, bool restart)
     {
         var found = (Found)update.Package!;
-        found.Manager.WaitExitThenApplyUpdates(found.Info.TargetFullRelease, silent: true, restart: true);
+        found.Manager.WaitExitThenApplyUpdates(found.Info.TargetFullRelease, silent: true, restart: restart);
     }
 
     /// <summary>

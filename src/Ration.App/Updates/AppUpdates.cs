@@ -39,6 +39,26 @@ internal static class AppUpdates
         set => SettingsStore.Default.Set(PrereleaseKey, value);
     }
 
+    private const string AutoCheckKey = "updateAutoCheck";
+    private const string AutoInstallKey = "updateAutoInstall";
+
+    /// <summary>Look for a new version once a day while the app is idle. On by default (the long-standing behavior).</summary>
+    public static bool AutoCheck
+    {
+        get => SettingsStore.Default.GetBool(AutoCheckKey, true);
+        set => SettingsStore.Default.Set(AutoCheckKey, value);
+    }
+
+    /// <summary>
+    /// Download a found update in the background and install it when the app exits, without reopening it.
+    /// Its own choice, separate from checking; off by default.
+    /// </summary>
+    public static bool AutoInstall
+    {
+        get => SettingsStore.Default.GetBool(AutoInstallKey, false);
+        set => SettingsStore.Default.Set(AutoInstallKey, value);
+    }
+
     public static UpdateService Service { get; } =
         new(new VelopackUpdateSource(RepositoryUrl, () => IncludePrerelease), new SettingsUpdateStateStore(SettingsStore.Default));
 }

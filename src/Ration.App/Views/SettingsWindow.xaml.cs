@@ -193,6 +193,11 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        AutoCheckToggle.IsOn = AppUpdates.AutoCheck;
+        AutoCheckToggle.Toggled += (_, _) => AppUpdates.AutoCheck = AutoCheckToggle.IsOn;
+        AutoInstallToggle.IsOn = AppUpdates.AutoInstall;
+        AutoInstallToggle.Toggled += (_, _) => AppUpdates.AutoInstall = AutoInstallToggle.IsOn;
+
         PrereleaseToggle.IsOn = AppUpdates.IncludePrerelease;
         PrereleaseToggle.Toggled += async (_, _) =>
         {
@@ -601,9 +606,13 @@ public sealed partial class SettingsWindow : Window
     /// <summary>Writes the status text; the download button appears only when there really is a new version.</summary>
     private void ShowUpdateState(UpdateCheckResult? result)
     {
-        UpdateStatusText.Text = UpdateStatusTextFor(result);
+        // An automatic install is already waiting for the exit; a second, manual one would race it.
+        var scheduled = AppUpdates.Service.IsApplyScheduled && AppUpdates.HasNewerUpdate(result);
+        UpdateStatusText.Text = scheduled
+            ? L.T($"Version {result!.AvailableVersion} is downloaded and installs when you quit Ration", $"Sürüm {result!.AvailableVersion} indirildi, Ration'dan çıkınca kurulur")
+            : UpdateStatusTextFor(result);
         InstallUpdateButton.Content = L.T("Download and install update", "Güncellemeyi indir ve kur");
-        InstallUpdateButton.Visibility = AppUpdates.HasNewerUpdate(result) ? Visibility.Visible : Visibility.Collapsed;
+        InstallUpdateButton.Visibility = AppUpdates.HasNewerUpdate(result) && !scheduled ? Visibility.Visible : Visibility.Collapsed;
 
         var notes = AppUpdates.HasNewerUpdate(result) ? UpdateLinks.ReleaseNotes(AppUpdates.RepositoryUrl, result!.AvailableVersion) : null;
         ReleaseNotesLink.NavigateUri = notes;

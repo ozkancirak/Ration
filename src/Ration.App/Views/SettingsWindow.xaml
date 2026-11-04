@@ -455,6 +455,26 @@
                     </StackPanel>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="{l:Loc En='Check automatically', Tr='Otomatik denetle'}"
+                                       Description="{l:Loc En='Look for a new version once a day while Ration is idle', Tr='Ration boştayken günde bir yeni sürüm ara'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE895;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="AutoCheckToggle"
+                                  OnContent="{l:Loc En='On', Tr='Açık'}"
+                                  OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                </controls:SettingsCard>
+
+                <controls:SettingsCard Header="{l:Loc En='Install automatically', Tr='Otomatik kur'}"
+                                       Description="{l:Loc En='Download new versions in the background and install them when you quit Ration', Tr='Yeni sürümleri arka planda indir, Ration’dan çıkınca kur'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE896;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="AutoInstallToggle"
+                                  OnContent="{l:Loc En='On', Tr='Açık'}"
+                                  OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Pre-release versions', Tr='Ön sürümler'}"
                                        Description="{l:Loc En='Also look for test versions (beta) before they are released. They can be less stable.', Tr='Yayınlanmadan önce test sürümlerini (beta) de ara. Daha az kararlı olabilirler.'}">
                     <controls:SettingsCard.HeaderIcon>

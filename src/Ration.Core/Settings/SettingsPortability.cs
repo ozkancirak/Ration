@@ -39,6 +39,8 @@ public static class SettingsPortability
         ["notifyOnSurge"] = Kind.Bool,
         ["surgePoints"] = Kind.Int,
         ["updatePrerelease"] = Kind.Bool,
+        ["updateAutoCheck"] = Kind.Bool,
+        ["updateAutoInstall"] = Kind.Bool,
     };
 
     public static string Export(SettingsStore store)

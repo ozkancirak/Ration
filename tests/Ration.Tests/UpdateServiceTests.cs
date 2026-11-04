@@ -196,6 +196,50 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public async Task ApplyOnExit_SchedulesWithoutARestart_AndOnlyOnce()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        Assert.False(service.ApplyOnExit());
+
+        await service.CheckAsync();
+        await service.DownloadAsync();
+
+        Assert.True(service.ApplyOnExit());
+        Assert.True(service.IsApplyScheduled);
+        Assert.False(source.AppliedWithRestart);
+
+        // A second installer would race the first: asking again changes nothing.
+        Assert.True(service.ApplyOnExit());
+        Assert.Equal(1, source.ApplyCalls);
+    }
+
+    [Fact]
+    public async Task AfterAScheduledInstall_ARestartCannotBePromised()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+        await service.DownloadAsync();
+        service.ApplyOnExit();
+
+        Assert.False(service.ApplyOnExitAndRestart());
+        Assert.Equal(1, source.ApplyCalls);
+    }
+
+    [Fact]
+    public async Task ARestartRequest_IsScheduledWithARestart()
+    {
+        var source = new FakeSource { Next = new AvailableUpdate("0.3.0") };
+        var service = new UpdateService(source, new MemoryStore(), () => Now);
+        await service.CheckAsync();
+        await service.DownloadAsync();
+
+        Assert.True(service.ApplyOnExitAndRestart());
+        Assert.True(source.AppliedWithRestart);
+    }
+
+    [Fact]
     public async Task Apply_Failure_ReturnsFalseSoTheAppKeepsRunning()
     {
         var source = new FakeSource { Next = new AvailableUpdate("0.3.0"), ApplyFailure = new InvalidOperationException("locked") };
@@ -214,10 +258,12 @@ public class UpdateServiceTests
         await service.CheckAsync();
         await service.DownloadAsync();
 
+        service.ApplyOnExit();
         source.Next = new AvailableUpdate("0.3.1");
         await service.CheckAsync();
 
         Assert.False(service.IsDownloaded);
+        Assert.False(service.IsApplyScheduled);
     }
 
     [Theory]
@@ -257,6 +303,8 @@ public class UpdateServiceTests
         public int CheckCalls { get; private set; }
         public int DownloadCalls { get; private set; }
         public AvailableUpdate? Applied { get; private set; }
+        public bool? AppliedWithRestart { get; private set; }
+        public int ApplyCalls { get; private set; }
         public Exception? ApplyFailure { get; set; }
         public Task? DownloadGate { get; set; }
         public Exception? DownloadFailure { get; set; }
@@ -272,10 +320,12 @@ public class UpdateServiceTests
 
         public int[] ReportedProgress { get; set; } = [];
 
-        public void ApplyOnExitAndRestart(AvailableUpdate update)
+        public void ApplyOnExit(AvailableUpdate update, bool restart)
         {
             if (ApplyFailure is not null) throw ApplyFailure;
+            ApplyCalls++;
             Applied = update;
+            AppliedWithRestart = restart;
         }
 
         public Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken)

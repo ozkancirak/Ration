@@ -19,8 +19,9 @@ public interface IUpdateSource
     Task DownloadAsync(AvailableUpdate update, Action<int> progress, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Schedules the downloaded package to be applied when this process exits, and the app to be reopened.
-    /// It does not close the process itself; the caller does the exit so that the tray icon is cleaned up properly.
+    /// Schedules the downloaded package to be applied when this process exits, and the app to be reopened
+    /// if <paramref name="restart"/> is true. It does not close the process itself; the caller does the exit
+    /// so that the tray icon is cleaned up properly.
     /// </summary>
-    void ApplyOnExitAndRestart(AvailableUpdate update);
+    void ApplyOnExit(AvailableUpdate update, bool restart);
 }
