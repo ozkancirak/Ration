@@ -701,6 +701,19 @@ public sealed partial class FlyoutWindow : Window
         if (viewport <= 0 || _tabs.Count == 0) return;
 
         TabStrip.Width = viewport / Math.Min(_tabs.Count, MaxVisibleTabs) * _tabs.Count;
+
+        // The scroll area learns its new extent in the layout pass that follows; scrolling and reading the extent
+        // right now would still see the old one.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            BringSelectedTabIntoView();
+        });
+    }
+
+    // A selected tab can sit outside the visible five (picked by a click, by the arrow keys or on its own).
+    private void BringSelectedTabIntoView()
+    {
+        if (_tabs.TryGetValue(_selectedId, out var tab)) tab.Button.StartBringIntoView();
     }
 
     // The mouse wheel only moves up and down, so over the strip it scrolls sideways instead.
@@ -811,7 +824,7 @@ public sealed partial class FlyoutWindow : Window
         _userPickedTab = true;
         _selectedId = id;
         UpdateTabs();
-        if (_tabs.TryGetValue(id, out var picked)) picked.Button.StartBringIntoView();
+        BringSelectedTabIntoView();
         RenderDetail();
         PopoverHelper.FadeIn(DetailPanel);
         DetailScrollViewer.ChangeView(null, 0, null);
@@ -1004,6 +1017,7 @@ public sealed partial class FlyoutWindow : Window
         if (pick is not null && !pick.ProviderId.Equals(_selectedId, StringComparison.OrdinalIgnoreCase))
         {
             _selectedId = pick.ProviderId;
+            BringSelectedTabIntoView();
         }
     }
 
