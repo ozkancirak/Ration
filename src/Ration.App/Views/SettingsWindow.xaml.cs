@@ -40,6 +40,9 @@ public sealed partial class SettingsWindow : Window
     /// <summary>The settings were deleted; since theme and language are applied at startup the app must restart.</summary>
     public event Action? SettingsReset;
 
+    /// <summary>Settings were imported from a file; theme and language are applied at startup, so the app must restart.</summary>
+    public event Action? SettingsImported;
+
     public SettingsWindow()
     {
         InitializeComponent();
@@ -202,6 +205,8 @@ public sealed partial class SettingsWindow : Window
         OpenLogButton.Click += (_, _) => OpenLog();
         OpenDataFolderButton.Click += (_, _) => OpenDataFolder();
         ResetSettingsButton.Click += async (_, _) => await ResetSettingsAsync();
+        ExportSettingsButton.Click += async (_, _) => await ExportSettingsAsync();
+        ImportSettingsButton.Click += async (_, _) => await ImportSettingsAsync();
         CopyDiagnosticsButton.Click += async (_, _) => await CopyDiagnosticsAsync();
         CopyStatusLineButton.Click += (_, _) => CopyStatusLineSnippet();
         VersionText.Text = L.T($"Version {AppUpdates.CurrentVersion}", $"Sürüm {AppUpdates.CurrentVersion}");
@@ -673,6 +678,94 @@ public sealed partial class SettingsWindow : Window
         SettingsStore.Default.Clear();
         Trace.Info("settings", "reset");
         SettingsReset?.Invoke();
+    }
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        await new ContentDialog
+        {
+            XamlRoot = SettingsScrollViewer.XamlRoot,
+            Title = title,
+            Content = message,
+            CloseButtonText = L.T("OK", "Tamam"),
+            RequestedTheme = SettingsScrollViewer.ActualTheme,
+        }.ShowAsync();
+    }
+
+    private async Task ExportSettingsAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker
+        {
+            SuggestedFileName = "ration-settings",
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
+        };
+        picker.FileTypeChoices.Add("JSON", new List<string> { ".json" });
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, _hwnd);
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null) return;
+
+        try
+        {
+            await File.WriteAllTextAsync(file.Path, SettingsPortability.Export(SettingsStore.Default));
+            Trace.Info("settings", "exported");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Trace.Error("settings", $"export failed type={ex.GetType().Name}");
+            await ShowMessageAsync(
+                L.T("Could not save the file", "Dosya kaydedilemedi"),
+                L.T("Pick another location and try again.", "Başka bir konum seçip yeniden dene."));
+        }
+    }
+
+    private async Task ImportSettingsAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FileOpenPicker
+        {
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary,
+        };
+        picker.FileTypeFilter.Add(".json");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, _hwnd);
+
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+
+        ImportResult? result = null;
+        try
+        {
+            // A real export is a couple of kilobytes; anything much larger is not one.
+            if (new FileInfo(file.Path).Length <= SettingsPortability.MaxImportBytes)
+            {
+                result = SettingsPortability.Import(SettingsStore.Default, await File.ReadAllTextAsync(file.Path));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Trace.Error("settings", $"import failed type={ex.GetType().Name}");
+        }
+
+        if (result is null)
+        {
+            await ShowMessageAsync(
+                L.T("Not a Ration settings file", "Ration ayar dosyası değil"),
+                L.T("Nothing was changed.", "Hiçbir şey değiştirilmedi."));
+            return;
+        }
+
+        Trace.Info("settings", $"imported applied={result.Applied} skipped={result.Skipped}");
+        if (result.Applied == 0)
+        {
+            await ShowMessageAsync(
+                L.T("No settings found", "Ayar bulunamadı"),
+                L.T("The file has no settings this version of Ration knows. Nothing was changed.", "Dosyada Ration'ın bu sürümünün tanıdığı bir ayar yok. Hiçbir şey değiştirilmedi."));
+            return;
+        }
+
+        await ShowMessageAsync(
+            L.T("Settings imported", "Ayarlar içe aktarıldı"),
+            L.T($"{result.Applied} settings were applied. Ration restarts to use them.", $"{result.Applied} ayar uygulandı. Ration kullanmak için yeniden başlar."));
+        SettingsImported?.Invoke();
     }
 
     private static void OpenDataFolder()
