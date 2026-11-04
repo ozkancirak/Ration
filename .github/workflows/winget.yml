@@ -1,0 +1,41 @@
+name: Submit to winget
+
+# When a release is published, the new Setup.exe is sent to the Windows Package Manager community repository
+# (microsoft/winget-pkgs) as a pull request, with Microsoft's own wingetcreate, the way Windows Terminal does it.
+# Microsoft's reviewers merge it, so the release is never blocked on winget.
+#
+# It does nothing until both of these exist:
+#   1. The package itself: the first manifest has to be submitted by hand once
+#      (`wingetcreate new <URL of a release's Ration-win-x64-Setup.exe>`, id OzkanCirak.Ration, user scope,
+#      silent switch `--silent`). `wingetcreate update` only changes a package that already exists.
+#   2. A repository secret named WINGET_CREATE_GITHUB_TOKEN: a personal access token that can fork
+#      microsoft/winget-pkgs and open pull requests (https://aka.ms/winget-create-token).
+
+on:
+  release:
+    types: [released]
+
+permissions: {}
+
+jobs:
+  winget:
+    name: Submit to winget-pkgs
+    # wingetcreate only runs on Windows.
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Submit the new version
+        if: env.WINGET_CREATE_GITHUB_TOKEN != ''
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Unexpected release tag: $env:TAG" }
+          $version = $Matches[1]
+          # The file name is the same in every release (see scripts/package.ps1).
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/Ration-win-x64-Setup.exe"
+
+          curl.exe --fail --location --remote-header-name --remote-name https://aka.ms/wingetcreate/latest
+          ./wingetcreate.exe update OzkanCirak.Ration --version $version --urls $url --submit
+          if ($LASTEXITCODE -ne 0) { throw "wingetcreate failed with exit code $LASTEXITCODE" }
