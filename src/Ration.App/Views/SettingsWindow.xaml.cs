@@ -441,6 +441,7 @@ public sealed partial class SettingsWindow : Window
         yield return (ClaudeNotifyToggle, "claude");
         yield return (CodexNotifyToggle, "codex");
         yield return (AntigravityNotifyToggle, "antigravity");
+        yield return (CursorNotifyToggle, "cursor");
     }
 
     // Hotkey capture: clicking the button saves the next valid combination. While capturing, the registered

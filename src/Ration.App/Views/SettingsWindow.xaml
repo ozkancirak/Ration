@@ -297,6 +297,7 @@
                         <ComboBoxItem Content="Codex" Tag="codex" />
                         <ComboBoxItem Content="Antigravity" Tag="antigravity" />
                         <ComboBoxItem Content="OpenCode" Tag="opencode" />
+                        <ComboBoxItem Content="Cursor" Tag="cursor" />
                     </ComboBox>
                 </controls:SettingsCard>
 
@@ -402,6 +403,11 @@
                         </controls:SettingsCard>
                         <controls:SettingsCard Header="Antigravity">
                             <ToggleSwitch x:Name="AntigravityNotifyToggle"
+                                          OnContent="{l:Loc En='On', Tr='Açık'}"
+                                          OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                        </controls:SettingsCard>
+                        <controls:SettingsCard Header="Cursor">
+                            <ToggleSwitch x:Name="CursorNotifyToggle"
                                           OnContent="{l:Loc En='On', Tr='Açık'}"
                                           OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
                         </controls:SettingsCard>
