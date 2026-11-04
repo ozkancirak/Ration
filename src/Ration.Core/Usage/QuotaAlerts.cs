@@ -79,7 +79,7 @@ public static class QuotaAlerts
         return alerts;
     }
 
-    private static string? FormatUntil(DateTimeOffset? resetsAt, DateTimeOffset now)
+    internal static string? FormatUntil(DateTimeOffset? resetsAt, DateTimeOffset now)
     {
         if (resetsAt is not { } reset || reset <= now) return null;
         var left = reset - now;

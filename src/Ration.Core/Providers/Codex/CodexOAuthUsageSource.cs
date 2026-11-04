@@ -41,9 +41,9 @@ public sealed class CodexOAuthUsageSource : IUsageSource
                 L.T("~/.codex/auth.json not found or has no tokens.access_token.", "~/.codex/auth.json bulunamadı ya da tokens.access_token içermiyor."), Kind);
         }
 
-        HttpRequestMessage NewRequest()
+        HttpRequestMessage NewRequest(string url)
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, UsageEndpoint);
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
 
             if (!string.IsNullOrWhiteSpace(credentials.AccountId))
@@ -56,7 +56,7 @@ public sealed class CodexOAuthUsageSource : IUsageSource
 
         try
         {
-            using var response = await TransientRetry.SendAsync(_http, NewRequest, ct).ConfigureAwait(false);
+            using var response = await TransientRetry.SendAsync(_http, () => NewRequest(UsageEndpoint), ct).ConfigureAwait(false);
             var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             LastRawResponse = body;
             RationTrace.Info(
@@ -82,6 +82,9 @@ public sealed class CodexOAuthUsageSource : IUsageSource
             }
 
             var usage = CodexUsageParser.Parse(body);
+            var resetCredits = await CodexResetCredits
+                .ReadAsync(_http, () => NewRequest(CodexResetCredits.DetailEndpoint), usage.ResetCreditCount, ct)
+                .ConfigureAwait(false);
 
             return new UsageSnapshot(
                 ProviderId: "codex",
@@ -94,7 +97,8 @@ public sealed class CodexOAuthUsageSource : IUsageSource
                 StaleReason: usage.Windows.Count > 0
                     ? null
                     : L.T("Response received but no known window. Check the schema with 'ration usage -p codex --raw'.", "Yanıt alındı ama tanınan pencere yok. 'ration usage -p codex --raw' ile şemayı kontrol edin."),
-                PlanName: usage.PlanName);
+                PlanName: usage.PlanName,
+                ResetCredits: resetCredits);
         }
         catch (JsonException ex)
         {
@@ -114,7 +118,8 @@ public sealed class CodexOAuthUsageSource : IUsageSource
 public sealed record CodexUsageData(
     IReadOnlyList<UsageWindow> Windows,
     string? PlanName,
-    CreditBalance? Credits);
+    CreditBalance? Credits,
+    int ResetCreditCount = 0);
 
 /// <summary>
 /// Parses the wham/usage response. Verified schema (2026-09-19):
@@ -197,7 +202,8 @@ public static class CodexUsageParser
         return new CodexUsageData(
             windows,
             ReadString(root, "plan_type"),
-            ReadCredits(root));
+            ReadCredits(root),
+            CodexResetCredits.ReadCount(root));
     }
 
     private static void TryAddWindow(

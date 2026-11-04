@@ -48,6 +48,12 @@ public sealed record CreditBalance(
     decimal? TotalCredits,
     string Currency);
 
+/// <summary>
+/// Banked rate-limit reset credits (Codex). Only the count and the next expiry are kept; the credits themselves
+/// and their ids are never stored.
+/// </summary>
+public sealed record ResetCredits(int Available, DateTimeOffset? NextExpiry);
+
 public sealed record ModelTokenUsage(
     string Model,
     long Tokens,
@@ -103,7 +109,8 @@ public sealed record UsageSnapshot(
     string? StatusDetail = null,
     // For sources like OpenCode, only the names of configured providers are shown,
     // not credential values.
-    IReadOnlyList<string>? ConfiguredProviders = null)
+    IReadOnlyList<string>? ConfiguredProviders = null,
+    ResetCredits? ResetCredits = null)
 {
     /// <summary>The windows are the last good result, kept after a failed refresh (Degraded with a stale reason).</summary>
     public bool IsStale => Status == ProviderStatus.Degraded && StaleReason is not null;

@@ -1009,6 +1009,7 @@ public sealed partial class FlyoutWindow : Window
             DetailPlanBadge.Visibility = Visibility.Collapsed;
             DetailError.IsOpen = false;
             DetailUnavailable.Visibility = Visibility.Collapsed;
+            DetailResetCredits.Visibility = Visibility.Collapsed;
             SetWindows(null);
             ClearCostSection();
             return;
@@ -1114,6 +1115,16 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailable.Visibility = Visibility.Collapsed;
             SetWindows(snapshot);
         }
+
+        RenderResetCredits(snapshot);
+    }
+
+    private void RenderResetCredits(UsageSnapshot snapshot)
+    {
+        var show = snapshot.Status is not (ProviderStatus.AuthRequired or ProviderStatus.Error) &&
+                   snapshot.ResetCredits is { Available: > 0 };
+        DetailResetCredits.Text = show ? ResetCreditAlerts.Describe(snapshot.ResetCredits!, DateTimeOffset.UtcNow) : string.Empty;
+        DetailResetCredits.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SetWindows(UsageSnapshot? snapshot)

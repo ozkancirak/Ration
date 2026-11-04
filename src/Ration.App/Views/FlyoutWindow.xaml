@@ -218,6 +218,14 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
+                    <!--  Banked rate-limit reset credits (Codex); only shown while the account holds some  -->
+                    <TextBlock x:Name="DetailResetCredits"
+                               Visibility="Collapsed"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               ToolTipService.ToolTip="{l:Loc En='Banked credits reset your Codex limits when you redeem them in Codex. Ration only reads how many there are and when the next one expires; it cannot redeem them.', Tr='Birikmiş krediler, Codex içinde kullandığında Codex limitlerini sıfırlar. Ration yalnızca kaç tane olduğunu ve en yakınının ne zaman bittiğini okur, kredileri kullanamaz.'}" />
+
                     <!--  Usage and API equivalent (local log scan; hidden if there is no data)  -->
                     <StackPanel x:Name="CostSection" Spacing="10" Visibility="Collapsed">
 

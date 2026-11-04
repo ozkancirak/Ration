@@ -169,6 +169,7 @@ internal static class QuotaNotifier
             ? _surges.Observe(snapshot, providerName, DateTimeOffset.UtcNow, SurgePoints)
             : Array.Empty<QuotaAlert>();
         alerts.AddRange(surges);
+        alerts.AddRange(ResetCreditAlerts.Evaluate(snapshot, providerName, _fired.ToHashSet(), DateTimeOffset.UtcNow));
         if (alerts.Count == 0) return;
 
         foreach (var alert in alerts)

@@ -10,6 +10,7 @@ using Ration.Core.Providers;
 using Ration.Core.Providers.Antigravity;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Usage;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -175,6 +176,11 @@ void PrintSnapshot(UsageSnapshot snapshot)
     if (snapshot.Credits is { } credits)
     {
         Console.WriteLine($"  {L.T("Credits", "Kredi"),-20} {credits.RemainingCredits}");
+    }
+
+    if (snapshot.ResetCredits is { } resetCredits)
+    {
+        Console.WriteLine($"  {L.T("Reset credits", "Sıfırlama kredisi"),-20} {ResetCreditAlerts.Describe(resetCredits, DateTimeOffset.UtcNow)}");
     }
 
     if (snapshot.Cost is { } cost)
