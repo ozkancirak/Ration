@@ -47,7 +47,7 @@ public sealed partial class SettingsWindow : Window
     {
         InitializeComponent();
         Title = L.T("Settings — Ration", "Ayarlar — Ration");
-        AppTheme.Apply(SettingsScrollViewer);
+        AppTheme.Apply(SettingsRoot);
         RefreshProviderIcons();
 
         var savedTrayProvider = TrayProviderPreference.Current ?? "auto";
@@ -280,7 +280,7 @@ public sealed partial class SettingsWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
-            AppTheme.Apply(SettingsScrollViewer);
+            AppTheme.Apply(SettingsRoot);
             UpdateWindowFrameTheme();
             RefreshProviderIcons();
         });
@@ -290,7 +290,7 @@ public sealed partial class SettingsWindow : Window
     {
         this.DispatcherQueue.TryEnqueue(() =>
         {
-            AppTheme.Apply(SettingsScrollViewer);
+            AppTheme.Apply(SettingsRoot);
             ThemeSelection.SelectedItem = ThemeSelection.Items
                 .OfType<ComboBoxItem>()
                 .FirstOrDefault(item =>
@@ -340,7 +340,7 @@ public sealed partial class SettingsWindow : Window
 
     public void ShowAndFocus()
     {
-        AppTheme.Apply(SettingsScrollViewer);
+        AppTheme.Apply(SettingsRoot);
         RefreshCostStatus();
         RefreshProviderStatus();
         _appWindow.Show();

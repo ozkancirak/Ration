@@ -7,7 +7,27 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     Title="Ayarlar — Ration">
 
+    <Grid x:Name="SettingsRoot">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Custom Title Bar (Drag Region). It sits above the scrolling page, not inside it, so that the window
+         buttons never end up on top of the content once the page is scrolled. -->
+    <Grid x:Name="AppTitleBar"
+          Height="36">
+        <StackPanel Orientation="Horizontal" Margin="24,0,0,0" VerticalAlignment="Center" Spacing="8">
+            <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="16" Height="16" />
+            <TextBlock Text="Ration"
+                       Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+
     <ScrollViewer x:Name="SettingsScrollViewer"
+                  Grid.Row="1"
                   Background="Transparent"
                   MinWidth="440"
                   MinHeight="420"
@@ -27,18 +47,6 @@
                     Grid.Column="1"
                     Spacing="8"
                     Padding="24,0,24,24">
-
-            <!-- Custom Title Bar (Drag Region) -->
-            <Grid x:Name="AppTitleBar"
-                  Height="36">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                <Image Source="ms-appx:///Assets/Square44x44Logo.scale-200.png" Width="16" Height="16" />
-                <TextBlock Text="Ration"
-                           Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           VerticalAlignment="Center" />
-            </StackPanel>
-            </Grid>
 
             <TextBlock Text="{l:Loc En='Settings', Tr='Ayarlar'}"
                        Style="{StaticResource TitleTextBlockStyle}"
@@ -549,4 +557,5 @@
         </StackPanel>
         </Grid>
     </ScrollViewer>
+    </Grid>
 </Window>
