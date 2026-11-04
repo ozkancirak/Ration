@@ -289,7 +289,7 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
     }
 
     // Experimental; "all" only includes it when the Copilot CLI has left session logs on this machine.
-    if (normalized == "copilot" || (normalized == "all" && Directory.Exists(KnownPaths.CopilotSessionStateDir)))
+    if (normalized == "copilot" || (normalized == "all" && CopilotCostScanner.HasSessionLogs()))
     {
         var scan = CopilotCostScanner.Scan(since);
         results.Add(("copilot", scan, CostEstimator.Estimate(scan, pricing)));

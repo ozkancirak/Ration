@@ -176,6 +176,22 @@ public sealed class CopilotTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEmptySessionStateFolder_IsTreatedLikeNoLogsAtAll()
+    {
+        var empty = Path.Combine(_root, "session-state");
+        Directory.CreateDirectory(Path.Combine(empty, "s1"));
+
+        Assert.False(CopilotCostScanner.HasSessionLogs(empty));
+        Assert.DoesNotContain(ProviderRegistry.CreateAll(new HttpClient(), copilotSessionStateDirectory: empty), p => p.Id == "copilot");
+        Assert.Equal(ProviderStatus.NotInstalled, (await new CopilotLocalSource(empty).FetchAsync()).Status);
+
+        File.WriteAllText(Path.Combine(empty, "s1", "events.jsonl"), string.Empty);
+
+        Assert.True(CopilotCostScanner.HasSessionLogs(empty));
+        Assert.Contains(ProviderRegistry.CreateAll(new HttpClient(), copilotSessionStateDirectory: empty), p => p.Id == "copilot");
+    }
+
+    [Fact]
     public void Registry_AddsCopilotOnlyWhenItsSessionLogsExist()
     {
         var withLogs = WriteSession("s1", Shutdown("2026-09-20T10:00:00Z", "gpt-5", 1, 1, 0, 0));

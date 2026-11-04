@@ -1,4 +1,5 @@
 using Ration.Core.Abstractions;
+using Ration.Core.Cost;
 using Ration.Core.Model;
 
 namespace Ration.Core.Providers.Copilot;
@@ -44,7 +45,7 @@ public sealed class CopilotLocalSource : IUsageSource
 
     public Task<UsageSnapshot> FetchAsync(CancellationToken ct = default)
     {
-        if (!Directory.Exists(_sessionStateDirectory))
+        if (!CopilotCostScanner.HasSessionLogs(_sessionStateDirectory))
         {
             return Task.FromResult(Snapshot.Empty(
                 "copilot",

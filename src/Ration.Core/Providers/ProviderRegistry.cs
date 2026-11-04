@@ -1,4 +1,5 @@
 using Ration.Core.Abstractions;
+using Ration.Core.Cost;
 using Ration.Core.Providers.Antigravity;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
@@ -31,7 +32,7 @@ public static class ProviderRegistry
         };
 
         // Experimental, and only worth a tab when the Copilot CLI has left session logs on this machine.
-        if (Directory.Exists(copilotSessionStateDirectory ?? KnownPaths.CopilotSessionStateDir))
+        if (CopilotCostScanner.HasSessionLogs(copilotSessionStateDirectory))
         {
             providers.Add(new CopilotProvider(copilotSessionStateDirectory));
         }

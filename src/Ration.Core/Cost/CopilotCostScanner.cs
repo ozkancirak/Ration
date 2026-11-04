@@ -30,6 +30,24 @@ public static partial class CopilotCostScanner
             new(Input - before.Input, Output - before.Output, CacheRead - before.CacheRead, CacheWrite - before.CacheWrite, Reasoning - before.Reasoning);
     }
 
+    /// <summary>
+    /// true once at least one session has left an events.jsonl. A session-state folder that exists but is empty
+    /// (the CLI was installed and never used) has nothing to show.
+    /// </summary>
+    public static bool HasSessionLogs(string? sessionStateDirectory = null)
+    {
+        var directory = sessionStateDirectory ?? KnownPaths.CopilotSessionStateDir;
+        try
+        {
+            return Directory.Exists(directory) &&
+                   Directory.EnumerateFiles(directory, "events.jsonl", SearchOption.AllDirectories).Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public static CostScanResult Scan(
         DateTimeOffset since,
         string? sessionStateDirectory = null,
