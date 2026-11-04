@@ -1255,14 +1255,17 @@ public sealed partial class FlyoutWindow : Window
             sessionRenewalRequired
                 ? L.T("Session needs renewal", "Oturum yenilenmeli")
                 : FormatStaleAge(fetchedAt),
-            L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek."));
+            L.T("Can't update right now. Will retry automatically.", "Şu an güncellenemiyor. Otomatik olarak yeniden denenecek."),
+            copyable: false);
     }
 
-    private void ShowErrorBar(InfoBarSeverity severity, string title, string message)
+    // An old-data notice has nothing worth copying; only a real error carries the Copy button.
+    private void ShowErrorBar(InfoBarSeverity severity, string title, string message, bool copyable = true)
     {
         DetailError.Severity = severity;
         DetailError.Title = title;
         DetailError.Message = message;
+        CopyErrorButton.Visibility = copyable ? Visibility.Visible : Visibility.Collapsed;
         DetailError.IsOpen = true;
     }
 
