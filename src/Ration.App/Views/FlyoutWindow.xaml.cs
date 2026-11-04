@@ -156,6 +156,8 @@ public sealed partial class FlyoutWindow : Window
             EnqueueResize();
         });
         TabStrip.KeyDown += OnTabStripKeyDown;
+        TabScroll.SizeChanged += (_, _) => UpdateTabStripWidth();
+        TabScroll.PointerWheelChanged += OnTabScrollWheel;
         CopyErrorButton.Click += OnCopyErrorClicked;
 
         BuildTabs();
@@ -689,6 +691,28 @@ public sealed partial class FlyoutWindow : Window
     // ---- Tab strip: ToggleButton + a 2px mini meter underneath. SelectorBar was not used because it cannot
     // host the mini meter; the provider count is small (2-6), so a StackPanel is enough. ----
 
+    /// <summary>More providers than this scroll sideways instead of squeezing every name.</summary>
+    private const int MaxVisibleTabs = 5;
+
+    // The strip is as wide as the visible area, or as wide as needed to keep every tab at one fifth of it.
+    private void UpdateTabStripWidth()
+    {
+        var viewport = TabScroll.ActualWidth;
+        if (viewport <= 0 || _tabs.Count == 0) return;
+
+        TabStrip.Width = viewport / Math.Min(_tabs.Count, MaxVisibleTabs) * _tabs.Count;
+    }
+
+    // The mouse wheel only moves up and down, so over the strip it scrolls sideways instead.
+    private void OnTabScrollWheel(object sender, PointerRoutedEventArgs e)
+    {
+        if (_tabs.Count <= MaxVisibleTabs) return;
+
+        var delta = e.GetCurrentPoint(TabScroll).Properties.MouseWheelDelta;
+        TabScroll.ChangeView(TabScroll.HorizontalOffset - delta, null, null);
+        e.Handled = true;
+    }
+
     private void BuildTabs()
     {
         TabStrip.Children.Clear();
@@ -696,6 +720,7 @@ public sealed partial class FlyoutWindow : Window
         _tabs.Clear();
 
         foreach (var provider in _providers) EnsureTab(provider.Id, provider.DisplayName);
+        UpdateTabStripWidth();
         UpdateTabs();
     }
 
@@ -786,6 +811,7 @@ public sealed partial class FlyoutWindow : Window
         _userPickedTab = true;
         _selectedId = id;
         UpdateTabs();
+        if (_tabs.TryGetValue(id, out var picked)) picked.Button.StartBringIntoView();
         RenderDetail();
         PopoverHelper.FadeIn(DetailPanel);
         DetailScrollViewer.ChangeView(null, 0, null);
@@ -927,8 +953,8 @@ public sealed partial class FlyoutWindow : Window
         var discovered = _scheduler.Current.Values.Any(HasDiscoveredProvider);
         WelcomePanel.Visibility = discovered ? Visibility.Collapsed : Visibility.Visible;
         DetailPanel.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
-        TabStrip.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
-        TabDivider.Visibility = TabStrip.Visibility;
+        TabScroll.Visibility = discovered ? Visibility.Visible : Visibility.Collapsed;
+        TabDivider.Visibility = TabScroll.Visibility;
 
         if (discovered || WelcomeProviders.ItemsSource is not null) return;
 

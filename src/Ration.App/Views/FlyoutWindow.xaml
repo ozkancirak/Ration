@@ -43,8 +43,16 @@
         </Grid.RowDefinitions>
 
         <!--  Tab strip: equal-width columns (like CodexBar). The ToggleButtons and columns
-              are produced from code (2-6 providers); icon on top, name below, mini meter at the very bottom.  -->
-        <Grid x:Name="TabStrip" Grid.Row="0" ColumnSpacing="4" />
+              are produced from code; icon on top, name below, mini meter at the very bottom.
+              At most five tabs are visible; with more providers the strip scrolls sideways.  -->
+        <ScrollViewer x:Name="TabScroll"
+                      Grid.Row="0"
+                      HorizontalScrollBarVisibility="Hidden"
+                      HorizontalScrollMode="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Disabled">
+            <Grid x:Name="TabStrip" ColumnSpacing="4" />
+        </ScrollViewer>
 
         <!--  Dividers between the fixed parts and the detail: the rows are 12 apart, so the line sits in the middle of the gap  -->
         <Rectangle x:Name="TabDivider"
