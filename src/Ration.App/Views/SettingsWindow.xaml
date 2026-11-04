@@ -315,6 +315,16 @@
                     </ComboBox>
                 </controls:SettingsCard>
 
+                <controls:SettingsCard Header="{l:Loc En='Status pages', Tr='Durum sayfaları'}"
+                                       Description="{l:Loc En='Look at the providers’ public status pages and show a notice when one reports an incident', Tr='Sağlayıcıların herkese açık durum sayfalarına bak, olay bildirirlerse bir uyarı göster'}">
+                    <controls:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE95E;" />
+                    </controls:SettingsCard.HeaderIcon>
+                    <ToggleSwitch x:Name="StatusChecksToggle"
+                                  OnContent="{l:Loc En='On', Tr='Açık'}"
+                                  OffContent="{l:Loc En='Off', Tr='Kapalı'}" />
+                </controls:SettingsCard>
+
                 <controls:SettingsCard Header="{l:Loc En='Start with Windows', Tr='Windows ile Başlat'}"
                                        Description="{l:Loc En='Run Ration in the background when you sign in', Tr='Oturum açıldığında Ration’ı arka planda otomatik çalıştır'}">
                     <controls:SettingsCard.HeaderIcon>

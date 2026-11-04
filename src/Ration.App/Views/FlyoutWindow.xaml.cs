@@ -17,6 +17,7 @@ using Ration.Core.Diagnostics;
 using Ration.Core.Layout;
 using Ration.Core.Model;
 using Ration.Core.Providers;
+using Ration.Core.Providers.Status;
 using Ration.Core.Refresh;
 using Ration.App.Updates;
 using Ration.Core.Updates;
@@ -149,6 +150,11 @@ public sealed partial class FlyoutWindow : Window
         SettingsButton.Click += (s, e) => OpenSettingsWindow();
         UsageDisplayPreference.Changed += () => DispatcherQueue.TryEnqueue(OnUsageDisplayChanged);
         TrayWindowPreference.Changed += () => DispatcherQueue.TryEnqueue(RecalculateTrayIcon);
+        ProviderOutages.Changed += () => DispatcherQueue.TryEnqueue(() =>
+        {
+            RenderOutage();
+            EnqueueResize();
+        });
         TabStrip.KeyDown += OnTabStripKeyDown;
         CopyErrorButton.Click += OnCopyErrorClicked;
 
@@ -874,6 +880,9 @@ public sealed partial class FlyoutWindow : Window
         RecalculateTrayIcon();
         QuotaNotifier.Evaluate(snapshot, TabDisplayName(snapshot.ProviderId));
         MaybeScheduleAllModelDiagnostics();
+
+        // A failed refresh is when an outage explains something; the check is cached for five minutes.
+        if (snapshot.Status == ProviderStatus.Error || snapshot.IsStale) _ = ProviderOutages.RefreshAsync(_providers.Select(p => p.Id));
     }
 
     private void MaybeScheduleAllModelDiagnostics()
@@ -970,9 +979,25 @@ public sealed partial class FlyoutWindow : Window
         }
     }
 
+    private void RenderOutage()
+    {
+        if (ProviderOutages.For(_selectedId) is not { Level: not OutageLevel.None } report)
+        {
+            DetailOutage.IsOpen = false;
+            return;
+        }
+
+        var outage = report.Level == OutageLevel.Outage;
+        DetailOutage.Severity = outage ? InfoBarSeverity.Error : InfoBarSeverity.Warning;
+        DetailOutage.Title = outage ? L.T("Service outage", "Hizmet kesintisi") : L.T("Service issue", "Hizmet sorunu");
+        DetailOutage.Message = report.Detail ?? L.T("See the provider's status page.", "Sağlayıcının durum sayfasına bak.");
+        DetailOutage.IsOpen = true;
+    }
+
     private void RenderDetail()
     {
         UpdateProviderLinks(_selectedId);
+        RenderOutage();
 
         if (!_scheduler.Current.TryGetValue(_selectedId, out var snapshot))
         {
@@ -1520,6 +1545,7 @@ public sealed partial class FlyoutWindow : Window
         Trace.Info("window", $"flyout.show dpi={dpi}");
 
         _ = RefreshOnFlyoutShownAsync();
+        _ = ProviderOutages.RefreshAsync(_providers.Select(p => p.Id));
         RefreshCost(force: false);
     }
 

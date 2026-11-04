@@ -132,6 +132,12 @@
                         </InfoBar.ActionButton>
                     </InfoBar>
 
+                    <!--  An incident on the provider's public status page; only shown while there is one  -->
+                    <InfoBar x:Name="DetailOutage"
+                             IsOpen="False"
+                             IsClosable="False"
+                             Severity="Warning" />
+
                     <!--  Not installed / no data: does not use the error yellow.  -->
                     <Grid x:Name="DetailUnavailable"
                           ColumnSpacing="8"

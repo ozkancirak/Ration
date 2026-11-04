@@ -73,6 +73,13 @@ public sealed partial class SettingsWindow : Window
             }
         };
 
+        StatusChecksToggle.IsOn = ProviderStatusPreference.Enabled;
+        StatusChecksToggle.Toggled += (_, _) =>
+        {
+            ProviderStatusPreference.Set(StatusChecksToggle.IsOn);
+            if (!StatusChecksToggle.IsOn) ProviderOutages.Clear();
+        };
+
         UsageDisplaySelection.SelectedIndex = UsageDisplayPreference.ShowUsed ? 1 : 0;
         UsageDisplaySelection.SelectionChanged += (_, _) =>
             UsageDisplayPreference.Set(UsageDisplaySelection.SelectedItem is ComboBoxItem { Tag: "used" });
