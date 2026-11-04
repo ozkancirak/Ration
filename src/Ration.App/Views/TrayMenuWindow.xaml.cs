@@ -33,6 +33,7 @@ public sealed partial class TrayMenuWindow : Window
     public TrayMenuWindow()
     {
         InitializeComponent();
+        Title = L.T("Ration menu", "Ration menüsü");
         AppTheme.Apply(RootLayout);
 
         var (appWindow, hwnd) = PopoverHelper.Attach(this);
