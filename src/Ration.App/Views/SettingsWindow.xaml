@@ -232,6 +232,27 @@
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>
 
+            <controls:SettingsExpander x:Name="CopilotProviderExpander"
+                                       Header="Copilot"
+                                       Description="{l:Loc En='Experimental: token usage from the GitHub Copilot CLI session logs; no quota', Tr='Deneysel: GitHub Copilot CLI oturum günlüklerinden token kullanımı; kota yok'}"
+                                       IsExpanded="false">
+                <controls:SettingsExpander.Items>
+                    <controls:SettingsCard Header="{l:Loc En='Provider status', Tr='Sağlayıcı Durumu'}"
+                                           Description="{l:Loc En='~/.copilot/session-state (or COPILOT_HOME); read-only, shown only once a session log exists', Tr='~/.copilot/session-state (ya da COPILOT_HOME); salt okunur, oturum günlüğü olunca görünür'}">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <InfoBadge x:Name="CopilotProviderBadge"
+                                       Style="{StaticResource SuccessDotInfoBadgeStyle}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="CopilotProviderStatus"
+                                       Text="{l:Loc En='Checking…', Tr='Denetleniyor…'}"
+                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </controls:SettingsCard>
+                </controls:SettingsExpander.Items>
+            </controls:SettingsExpander>
+
             <!-- Section: General Preferences -->
             <TextBlock Text="{l:Loc En='General', Tr='Genel Tercihler'}"
                        Style="{StaticResource SubtitleTextBlockStyle}"

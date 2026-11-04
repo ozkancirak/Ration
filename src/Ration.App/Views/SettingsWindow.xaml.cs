@@ -307,6 +307,7 @@ public sealed partial class SettingsWindow : Window
         SetProviderHeader(AntigravityProviderExpander, "antigravity", "Antigravity");
         SetProviderHeader(OpenCodeProviderExpander, "opencode", "OpenCode");
         SetProviderHeader(CursorProviderExpander, "cursor", "Cursor");
+        SetProviderHeader(CopilotProviderExpander, "copilot", "Copilot");
     }
 
     /// <summary>
@@ -451,6 +452,15 @@ public sealed partial class SettingsWindow : Window
                     : File.Exists(KnownPaths.CursorStateDatabaseFile)
                         ? L.T("Not signed in", "Giriş yapılmamış")
                         : L.T("Cursor not found", "Cursor bulunamadı"));
+
+        // No sign-in involved, and no logs yet is normal for someone who has not used the Copilot CLI.
+        SetProviderStatus(
+            CopilotProviderBadge,
+            CopilotProviderStatus,
+            CopilotCostScanner.HasSessionLogs(),
+            L.T("Session logs found", "Oturum günlükleri bulundu"),
+            L.T("No session logs yet", "Henüz oturum günlüğü yok"),
+            unavailableIsProblem: false);
     }
 
     private IEnumerable<(ToggleSwitch Toggle, string ProviderId)> NotificationProviderToggles()
