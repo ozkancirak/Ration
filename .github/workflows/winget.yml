@@ -6,7 +6,7 @@ name: Submit to winget
 #
 # It does nothing until both of these exist:
 #   1. The package itself: the first manifest has to be submitted by hand once
-#      (`wingetcreate new <URL of a release's Ration-win-x64-Setup.exe>`, id OzkanCirak.Ration, user scope,
+#      (`wingetcreate new <URL of a release's Ration-win-x64-Setup.exe>`, id ozkancirak.Ration, user scope,
 #      silent switch `--silent`). `wingetcreate update` only changes a package that already exists.
 #   2. A repository secret named WINGET_CREATE_GITHUB_TOKEN: a personal access token that can fork
 #      microsoft/winget-pkgs and open pull requests (https://aka.ms/winget-create-token).
@@ -37,5 +37,5 @@ jobs:
           $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$env:TAG/Ration-win-x64-Setup.exe"
 
           curl.exe --fail --location --remote-header-name --remote-name https://aka.ms/wingetcreate/latest
-          ./wingetcreate.exe update OzkanCirak.Ration --version $version --urls $url --submit
+          ./wingetcreate.exe update ozkancirak.Ration --version $version --urls $url --submit
           if ($LASTEXITCODE -ne 0) { throw "wingetcreate failed with exit code $LASTEXITCODE" }
