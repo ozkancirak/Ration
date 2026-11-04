@@ -194,12 +194,7 @@ internal static class PopoverHelper
             return;
         }
 
-        bool animationsEnabled = true;
-        try
-        {
-            animationsEnabled = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
-        }
-        catch { }
+        var animationsEnabled = AnimationsAllowed();
 
         var visual = ElementCompositionPreview.GetElementVisual(root);
         visual.StopAnimation("Scale.Y");
@@ -231,19 +226,51 @@ internal static class PopoverHelper
         visual.StartAnimation("Scale.Y", animation);
     }
 
+    /// <summary>False when the user turned animations off in Windows (Settings > Accessibility > Visual effects).</summary>
+    private static bool AnimationsAllowed()
+    {
+        try
+        {
+            return new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A short fade for content that was just swapped (a provider tab switch), so the change does not
+    /// read as a flash. Skipped when animations are off.
+    /// </summary>
+    public static void FadeIn(FrameworkElement content)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(content);
+        visual.StopAnimation("Opacity");
+
+        if (!AnimationsAllowed())
+        {
+            visual.Opacity = 1.0f;
+            return;
+        }
+
+        var compositor = visual.Compositor;
+        var easing = compositor.CreateCubicBezierEasingFunction(
+            new Vector2(0.1f, 0.9f),
+            new Vector2(0.2f, 1.0f));
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Duration = TimeSpan.FromMilliseconds(140);
+        fade.InsertKeyFrame(0.0f, 0.25f);
+        fade.InsertKeyFrame(1.0f, 1.0f, easing);
+        visual.StartAnimation("Opacity", fade);
+    }
+
     private static void AnimateEntrance(FrameworkElement root, FlyoutEdge edge)
     {
         var visual = ElementCompositionPreview.GetElementVisual(root);
         var compositor = visual.Compositor;
 
-        bool animationsEnabled = true;
-        try
-        {
-            animationsEnabled = new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
-        }
-        catch { }
-
-        if (!animationsEnabled)
+        if (!AnimationsAllowed())
         {
             visual.StopAnimation("Offset.X");
             visual.StopAnimation("Offset.Y");

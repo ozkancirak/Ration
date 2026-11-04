@@ -780,6 +780,7 @@ public sealed partial class FlyoutWindow : Window
         _selectedId = id;
         UpdateTabs();
         RenderDetail();
+        PopoverHelper.FadeIn(DetailPanel);
         DetailScrollViewer.ChangeView(null, 0, null);
         EnqueueResize();
         RefreshCost(force: false);
