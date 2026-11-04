@@ -951,6 +951,7 @@ public sealed partial class FlyoutWindow : Window
         "antigravity" => L.T("language_server.exe or %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log", "language_server.exe veya %USERPROFILE%\\.gemini\\antigravity-cli\\cli.log"),
         "opencode" => L.T("%USERPROFILE%\\.local\\share\\opencode\\auth.json or opencode.db", "%USERPROFILE%\\.local\\share\\opencode\\auth.json veya opencode.db"),
         "cursor" => "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb",
+        "copilot" => "%USERPROFILE%\\.copilot\\session-state",
         _ => L.T("local provider sources", "yerel sağlayıcı kaynakları"),
     };
 
@@ -1081,6 +1082,18 @@ public sealed partial class FlyoutWindow : Window
             DetailUnavailable.Visibility = Visibility.Collapsed;
             SetWindows(null);
         }
+        else if (snapshot.ProviderId.Equals("copilot", StringComparison.OrdinalIgnoreCase) &&
+                 snapshot.Windows.Count == 0 &&
+                 snapshot.Status == ProviderStatus.Ok)
+        {
+            // Copilot is read from local session logs and has no quota here; the Usage section below carries it.
+            DetailUnavailableTitle.Visibility = Visibility.Collapsed;
+            DetailUnavailableDetail.Text = snapshot.StatusDetail ?? string.Empty;
+            DetailUnavailable.Visibility = string.IsNullOrWhiteSpace(DetailUnavailableDetail.Text)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            SetWindows(null);
+        }
         else if (snapshot.Status == ProviderStatus.NotInstalled)
         {
             DetailUnavailableTitle.Text = L.T("Not installed or not running", "Kurulu değil veya açık değil");
@@ -1122,6 +1135,7 @@ public sealed partial class FlyoutWindow : Window
         "claude" => ("https://claude.ai/settings/usage", "https://status.anthropic.com"),
         "codex" => ("https://chatgpt.com/codex/settings/usage", "https://status.openai.com"),
         "cursor" => ("https://cursor.com/dashboard", "https://status.cursor.com"),
+        "copilot" => ("https://github.com/settings/copilot", "https://www.githubstatus.com"),
         _ => (null, null),
     };
 
@@ -1136,7 +1150,8 @@ public sealed partial class FlyoutWindow : Window
 
     private static bool IsLocalCostProvider(string providerId) =>
         providerId.Equals("claude", StringComparison.OrdinalIgnoreCase) ||
-        providerId.Equals("codex", StringComparison.OrdinalIgnoreCase);
+        providerId.Equals("codex", StringComparison.OrdinalIgnoreCase) ||
+        providerId.Equals("copilot", StringComparison.OrdinalIgnoreCase);
 
     private string TabDisplayName(string providerId) =>
         _providers.FirstOrDefault(p => p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? providerId;
@@ -1299,7 +1314,12 @@ public sealed partial class FlyoutWindow : Window
             // Single scan: "today" is derived from the day buckets of the 30-day scan (the same files
             // used to be read twice).
             var since = DateTimeOffset.UtcNow.AddDays(-30);
-            var month = id == "claude" ? ClaudeCostScanner.Scan(since) : CodexCostScanner.Scan(since);
+            var month = id switch
+            {
+                "claude" => ClaudeCostScanner.Scan(since),
+                "copilot" => CopilotCostScanner.Scan(since),
+                _ => CodexCostScanner.Scan(since),
+            };
             var todayStart = new DateTimeOffset(DateTime.Today);
             var today = new CostScanResult(
                 month.Tally.SinceDay(DateOnly.FromDateTime(DateTime.Today)), todayStart, month.PeriodEnd, month.FilesScanned);

@@ -282,9 +282,16 @@ int RunCost(string which, bool asJson, bool schemaOnly, string? daysOption)
         results.Add(("codex", scan, CostEstimator.Estimate(scan, pricing)));
     }
 
+    // Experimental; "all" only includes it when the Copilot CLI has left session logs on this machine.
+    if (normalized == "copilot" || (normalized == "all" && Directory.Exists(KnownPaths.CopilotSessionStateDir)))
+    {
+        var scan = CopilotCostScanner.Scan(since);
+        results.Add(("copilot", scan, CostEstimator.Estimate(scan, pricing)));
+    }
+
     if (results.Count == 0)
     {
-        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, antigravity, opencode, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, antigravity, opencode, all"));
+        Console.Error.WriteLine(L.T($"Unknown provider: {which}. Options: claude, codex, copilot, antigravity, opencode, all", $"Bilinmeyen sağlayıcı: {which}. Seçenekler: claude, codex, copilot, antigravity, opencode, all"));
         return 2;
     }
 
@@ -999,8 +1006,8 @@ void PrintHelp()
     Console.WriteLine(L.T("Ration — AI quota monitor", "Ration — AI kota göstergesi"));
     Console.WriteLine();
     Console.WriteLine(L.T("Usage:", "Kullanım:"));
-    Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|cursor|all] [--json] [--raw]");
-    Console.WriteLine("  ration cost  [-p claude|codex|all] [--days N] [--json]");
+    Console.WriteLine("  ration usage [-p claude|codex|antigravity|opencode|cursor|copilot|all] [--json] [--raw]");
+    Console.WriteLine("  ration cost  [-p claude|codex|copilot|all] [--days N] [--json]");
     Console.WriteLine("  ration --discover [gemini|copilot|antigravity|claude-scope|all] [--json]  " + L.T("# discovery/schema; never prints values", "# keşif/şema; değer yazmaz"));
     Console.WriteLine("  ration icon-preview [--out contact-sheet.png] [--stale]  " + L.T("# renders the DPI/theme contact sheet", "# DPI/tema temas levhası üretir"));
     Console.WriteLine("  ration diagnose [--raw]");

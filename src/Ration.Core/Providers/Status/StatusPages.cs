@@ -23,6 +23,7 @@ public static class ProviderStatusPages
         "claude" => new("https://status.claude.com/api/v2/summary.json", ["Claude Code", "Claude API (api.anthropic.com)"]),
         "codex" => new("https://status.openai.com/api/v2/summary.json", ["Codex in ChatGPT Desktop", "Responses"]),
         "cursor" => new("https://status.cursor.com/api/v2/summary.json", ["IDE", "CLI", "cursor.com"]),
+        "copilot" => new("https://www.githubstatus.com/api/v2/summary.json", ["Copilot", "Copilot AI Model Providers"]),
         _ => null,
     };
 }

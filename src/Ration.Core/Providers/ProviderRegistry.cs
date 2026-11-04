@@ -2,6 +2,7 @@ using Ration.Core.Abstractions;
 using Ration.Core.Providers.Antigravity;
 using Ration.Core.Providers.Claude;
 using Ration.Core.Providers.Codex;
+using Ration.Core.Providers.Copilot;
 using Ration.Core.Providers.Cursor;
 using Ration.Core.Providers.OpenCode;
 
@@ -17,12 +18,24 @@ public static class ProviderRegistry
         HttpClient http,
         Func<IReadOnlyList<int>>? findAntigravityProcessPorts = null,
         Func<IReadOnlyList<AntigravityProcessEndpoint>>? findAntigravityProcessEndpoints = null,
-        Func<string, string?>? decryptCursorToken = null) =>
-    [
-        new ClaudeProvider(http),
-        new CodexProvider(http),
-        new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
-        new OpenCodeProvider(http),
-        new CursorProvider(decryptToken: decryptCursorToken),
-    ];
+        Func<string, string?>? decryptCursorToken = null,
+        string? copilotSessionStateDirectory = null)
+    {
+        var providers = new List<IUsageProvider>
+        {
+            new ClaudeProvider(http),
+            new CodexProvider(http),
+            new AntigravityProvider(http, findAntigravityProcessPorts, findAntigravityProcessEndpoints),
+            new OpenCodeProvider(http),
+            new CursorProvider(decryptToken: decryptCursorToken),
+        };
+
+        // Experimental, and only worth a tab when the Copilot CLI has left session logs on this machine.
+        if (Directory.Exists(copilotSessionStateDirectory ?? KnownPaths.CopilotSessionStateDir))
+        {
+            providers.Add(new CopilotProvider(copilotSessionStateDirectory));
+        }
+
+        return providers;
+    }
 }

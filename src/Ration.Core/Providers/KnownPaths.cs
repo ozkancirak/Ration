@@ -147,6 +147,23 @@ public static class KnownPaths
 
     public static string PricingOverridesFile => Path.Combine(CacheDir, "pricing-overrides.json");
 
+    // --- GitHub Copilot CLI (read-only) ---
+
+    /// <summary>The Copilot CLI's data root; COPILOT_HOME relocates it.</summary>
+    public static string CopilotHome
+    {
+        get
+        {
+            var overridden = Environment.GetEnvironmentVariable("COPILOT_HOME");
+            return string.IsNullOrWhiteSpace(overridden)
+                ? Path.Combine(Home, ".copilot")
+                : overridden;
+        }
+    }
+
+    /// <summary>One folder per session, each with an events.jsonl; the usage totals are in its session.shutdown events.</summary>
+    public static string CopilotSessionStateDir => Path.Combine(CopilotHome, "session-state");
+
     // --- Ration's own area (the only writable place) ---
 
     public static string CacheDir => Path.Combine(
