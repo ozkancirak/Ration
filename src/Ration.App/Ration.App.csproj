@@ -51,7 +51,7 @@
     <!-- SettingsControls 8.2 transitively asks for the old single-piece metapackage (1.6);
          exclude its assets so that it does not conflict with WinUI 2.x. -->
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" ExcludeAssets="all" PrivateAssets="all" />
-    <PackageReference Include="Velopack" Version="1.2.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>
