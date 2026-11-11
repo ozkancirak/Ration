@@ -43,14 +43,14 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2957" />
     <!-- Only WinUI instead of the metapackage: the AI/ML/Search/Widgets components
          were unused and bloated the self-contained publish to ~280 MB. -->
-    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.9" />
-    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.6.5" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.6.5" />
     <!-- SettingsControls 8.2 transitively asks for the old single-piece metapackage (1.6);
          exclude its assets so that it does not conflict with WinUI 2.x. -->
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" ExcludeAssets="all" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" ExcludeAssets="all" PrivateAssets="all" />
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
